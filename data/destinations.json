@@ -1,0 +1,8351 @@
+[
+  {
+    "id": "asheville",
+    "name": "Asheville",
+    "state": "NC",
+    "country": "United States",
+    "region": "southeast_us",
+    "iata": "AVL",
+    "lat": 35.5951,
+    "lon": -82.5515,
+    "timezone": "America/New_York",
+    "passportRequired": false,
+    "aliases": [
+      "avl",
+      "blue ridge",
+      "blue ridge mountains"
+    ],
+    "tags": [
+      "mountains",
+      "hiking",
+      "outdoors",
+      "food",
+      "music",
+      "relaxing",
+      "budget_friendly"
+    ],
+    "dietary": {
+      "vegetarian": 0.9,
+      "vegan": 0.8,
+      "halal": 0.3,
+      "kosher": 0.15,
+      "gluten_free": 0.8
+    },
+    "bestMonths": [
+      5,
+      6,
+      9,
+      10
+    ],
+    "badMonths": [
+      1
+    ],
+    "badMonthReasons": {
+      "1": "freezing"
+    },
+    "costs": {
+      "lodgingPerNightCents": {
+        "budget": 4500,
+        "mid": 8000
+      },
+      "foodPerDayCents": {
+        "budget": 4000,
+        "mid": 7000
+      },
+      "activitiesPerDayCents": {
+        "budget": 2000,
+        "mid": 5000
+      },
+      "localTransportPerDayCents": 1500
+    },
+    "flightFromRegion": {
+      "southeast_us": {
+        "roundTripCents": [
+          21000,
+          38000
+        ],
+        "hours": 2.5
+      },
+      "northeast_us": {
+        "roundTripCents": [
+          17000,
+          30000
+        ],
+        "hours": 3.5
+      },
+      "midwest_us": {
+        "roundTripCents": [
+          16000,
+          29000
+        ],
+        "hours": 3
+      },
+      "south_central_us": {
+        "roundTripCents": [
+          19000,
+          34000
+        ],
+        "hours": 4
+      },
+      "mountain_us": {
+        "roundTripCents": [
+          23000,
+          41000
+        ],
+        "hours": 5
+      },
+      "west_us": {
+        "roundTripCents": [
+          30000,
+          54000
+        ],
+        "hours": 6.5
+      }
+    },
+    "driveFromRegion": {
+      "southeast_us": 4,
+      "midwest_us": 9.5
+    },
+    "activities": [
+      {
+        "id": "asheville-blue-ridge-parkway",
+        "name": "Blue Ridge Parkway overlooks drive",
+        "tags": [
+          "outdoors",
+          "mountains"
+        ],
+        "setting": "outdoor",
+        "costCents": 1000,
+        "durationHours": 4,
+        "mobility": "easy"
+      },
+      {
+        "id": "asheville-craggy-pinnacle",
+        "name": "Hike Craggy Pinnacle",
+        "tags": [
+          "hiking",
+          "outdoors",
+          "mountains"
+        ],
+        "setting": "outdoor",
+        "costCents": 0,
+        "durationHours": 2.5,
+        "mobility": "moderate"
+      },
+      {
+        "id": "asheville-river-arts-district",
+        "name": "River Arts District studios",
+        "tags": [
+          "culture",
+          "shopping",
+          "walkable"
+        ],
+        "setting": "either",
+        "costCents": 0,
+        "durationHours": 2,
+        "mobility": "easy"
+      },
+      {
+        "id": "asheville-south-slope-breweries",
+        "name": "South Slope brewery crawl",
+        "tags": [
+          "food",
+          "nightlife"
+        ],
+        "setting": "indoor",
+        "costCents": 3500,
+        "durationHours": 3,
+        "mobility": "easy"
+      },
+      {
+        "id": "asheville-biltmore",
+        "name": "Biltmore Estate house & gardens",
+        "tags": [
+          "history",
+          "culture"
+        ],
+        "setting": "either",
+        "costCents": 9500,
+        "durationHours": 4,
+        "mobility": "moderate"
+      },
+      {
+        "id": "asheville-french-broad-tubing",
+        "name": "Tubing the French Broad River",
+        "tags": [
+          "outdoors",
+          "adventure",
+          "relaxing"
+        ],
+        "setting": "outdoor",
+        "costCents": 2500,
+        "durationHours": 3,
+        "mobility": "easy"
+      },
+      {
+        "id": "asheville-food-tour",
+        "name": "Downtown Asheville food tour",
+        "tags": [
+          "food",
+          "walkable"
+        ],
+        "setting": "either",
+        "costCents": 9000,
+        "durationHours": 3,
+        "mobility": "easy"
+      },
+      {
+        "id": "asheville-drum-circle",
+        "name": "Friday drum circle & live music downtown",
+        "tags": [
+          "music",
+          "nightlife"
+        ],
+        "setting": "outdoor",
+        "costCents": 0,
+        "durationHours": 2,
+        "mobility": "easy"
+      }
+    ]
+  },
+  {
+    "id": "charleston",
+    "name": "Charleston",
+    "state": "SC",
+    "country": "United States",
+    "region": "southeast_us",
+    "iata": "CHS",
+    "lat": 32.7765,
+    "lon": -79.9311,
+    "timezone": "America/New_York",
+    "passportRequired": false,
+    "aliases": [
+      "chs",
+      "chucktown",
+      "folly beach"
+    ],
+    "tags": [
+      "beach",
+      "food",
+      "history",
+      "culture",
+      "walkable",
+      "relaxing",
+      "nightlife"
+    ],
+    "dietary": {
+      "vegetarian": 0.75,
+      "vegan": 0.6,
+      "halal": 0.3,
+      "kosher": 0.2,
+      "gluten_free": 0.75
+    },
+    "bestMonths": [
+      4,
+      5,
+      10,
+      11
+    ],
+    "badMonths": [
+      9
+    ],
+    "badMonthReasons": {
+      "9": "hurricane season"
+    },
+    "costs": {
+      "lodgingPerNightCents": {
+        "budget": 5500,
+        "mid": 10000
+      },
+      "foodPerDayCents": {
+        "budget": 4500,
+        "mid": 8000
+      },
+      "activitiesPerDayCents": {
+        "budget": 2000,
+        "mid": 5000
+      },
+      "localTransportPerDayCents": 1500
+    },
+    "flightFromRegion": {
+      "southeast_us": {
+        "roundTripCents": [
+          18000,
+          32000
+        ],
+        "hours": 2.5
+      },
+      "northeast_us": {
+        "roundTripCents": [
+          14000,
+          26000
+        ],
+        "hours": 3.5
+      },
+      "midwest_us": {
+        "roundTripCents": [
+          15000,
+          28000
+        ],
+        "hours": 3.5
+      },
+      "south_central_us": {
+        "roundTripCents": [
+          17000,
+          31000
+        ],
+        "hours": 4
+      },
+      "mountain_us": {
+        "roundTripCents": [
+          21000,
+          38000
+        ],
+        "hours": 5
+      },
+      "west_us": {
+        "roundTripCents": [
+          27000,
+          48000
+        ],
+        "hours": 7
+      }
+    },
+    "driveFromRegion": {
+      "southeast_us": 4
+    },
+    "activities": [
+      {
+        "id": "charleston-folly-beach",
+        "name": "Folly Beach day",
+        "tags": [
+          "beach",
+          "relaxing"
+        ],
+        "setting": "outdoor",
+        "costCents": 0,
+        "durationHours": 5,
+        "mobility": "easy"
+      },
+      {
+        "id": "charleston-king-street",
+        "name": "King Street shops & Rainbow Row walk",
+        "tags": [
+          "shopping",
+          "walkable",
+          "history"
+        ],
+        "setting": "outdoor",
+        "costCents": 0,
+        "durationHours": 3,
+        "mobility": "easy"
+      },
+      {
+        "id": "charleston-fort-sumter",
+        "name": "Fort Sumter ferry & tour",
+        "tags": [
+          "history"
+        ],
+        "setting": "outdoor",
+        "costCents": 4000,
+        "durationHours": 3,
+        "mobility": "easy"
+      },
+      {
+        "id": "charleston-city-market-food-tour",
+        "name": "City Market & Lowcountry food tour",
+        "tags": [
+          "food",
+          "culture",
+          "walkable"
+        ],
+        "setting": "indoor",
+        "costCents": 7500,
+        "durationHours": 3,
+        "mobility": "easy"
+      },
+      {
+        "id": "charleston-shem-creek-kayak",
+        "name": "Shem Creek kayak with dolphins",
+        "tags": [
+          "outdoors",
+          "adventure"
+        ],
+        "setting": "outdoor",
+        "costCents": 5500,
+        "durationHours": 2,
+        "mobility": "moderate"
+      },
+      {
+        "id": "charleston-mcleod-plantation",
+        "name": "McLeod Plantation Historic Site",
+        "tags": [
+          "history",
+          "culture"
+        ],
+        "setting": "either",
+        "costCents": 2500,
+        "durationHours": 2,
+        "mobility": "easy"
+      },
+      {
+        "id": "charleston-gibbes-museum",
+        "name": "Gibbes Museum of Art",
+        "tags": [
+          "culture"
+        ],
+        "setting": "indoor",
+        "costCents": 1500,
+        "durationHours": 1.5,
+        "mobility": "easy"
+      },
+      {
+        "id": "charleston-rooftop-bars",
+        "name": "Rooftop bars on the peninsula",
+        "tags": [
+          "nightlife"
+        ],
+        "setting": "either",
+        "costCents": 4000,
+        "durationHours": 3,
+        "mobility": "easy"
+      }
+    ]
+  },
+  {
+    "id": "savannah",
+    "name": "Savannah",
+    "state": "GA",
+    "country": "United States",
+    "region": "southeast_us",
+    "iata": "SAV",
+    "lat": 32.0809,
+    "lon": -81.0912,
+    "timezone": "America/New_York",
+    "passportRequired": false,
+    "aliases": [
+      "sav",
+      "tybee",
+      "tybee island"
+    ],
+    "tags": [
+      "history",
+      "food",
+      "walkable",
+      "culture",
+      "nightlife",
+      "relaxing",
+      "budget_friendly"
+    ],
+    "dietary": {
+      "vegetarian": 0.7,
+      "vegan": 0.55,
+      "halal": 0.25,
+      "kosher": 0.2,
+      "gluten_free": 0.7
+    },
+    "bestMonths": [
+      3,
+      4,
+      10,
+      11
+    ],
+    "badMonths": [
+      9
+    ],
+    "badMonthReasons": {
+      "9": "hurricane season"
+    },
+    "costs": {
+      "lodgingPerNightCents": {
+        "budget": 4500,
+        "mid": 8500
+      },
+      "foodPerDayCents": {
+        "budget": 4000,
+        "mid": 7000
+      },
+      "activitiesPerDayCents": {
+        "budget": 1500,
+        "mid": 4500
+      },
+      "localTransportPerDayCents": 1200
+    },
+    "flightFromRegion": {
+      "southeast_us": {
+        "roundTripCents": [
+          18000,
+          32000
+        ],
+        "hours": 2.5
+      },
+      "northeast_us": {
+        "roundTripCents": [
+          15000,
+          27000
+        ],
+        "hours": 3.5
+      },
+      "midwest_us": {
+        "roundTripCents": [
+          15000,
+          28000
+        ],
+        "hours": 3.5
+      },
+      "south_central_us": {
+        "roundTripCents": [
+          17000,
+          30000
+        ],
+        "hours": 4
+      },
+      "mountain_us": {
+        "roundTripCents": [
+          21000,
+          37000
+        ],
+        "hours": 5
+      },
+      "west_us": {
+        "roundTripCents": [
+          26000,
+          47000
+        ],
+        "hours": 6.5
+      }
+    },
+    "driveFromRegion": {
+      "southeast_us": 5.5
+    },
+    "activities": [
+      {
+        "id": "savannah-historic-squares",
+        "name": "Historic district squares walk",
+        "tags": [
+          "history",
+          "walkable"
+        ],
+        "setting": "outdoor",
+        "costCents": 0,
+        "durationHours": 2.5,
+        "mobility": "easy"
+      },
+      {
+        "id": "savannah-ghost-tour",
+        "name": "Ghost tour after dark",
+        "tags": [
+          "history",
+          "nightlife"
+        ],
+        "setting": "outdoor",
+        "costCents": 3000,
+        "durationHours": 1.5,
+        "mobility": "easy"
+      },
+      {
+        "id": "savannah-tybee-beach",
+        "name": "Tybee Island beach day",
+        "tags": [
+          "beach",
+          "relaxing"
+        ],
+        "setting": "outdoor",
+        "costCents": 0,
+        "durationHours": 5,
+        "mobility": "easy"
+      },
+      {
+        "id": "savannah-river-street",
+        "name": "River Street & City Market",
+        "tags": [
+          "food",
+          "shopping",
+          "nightlife"
+        ],
+        "setting": "either",
+        "costCents": 3000,
+        "durationHours": 3,
+        "mobility": "easy"
+      },
+      {
+        "id": "savannah-bonaventure",
+        "name": "Bonaventure Cemetery",
+        "tags": [
+          "history",
+          "culture"
+        ],
+        "setting": "outdoor",
+        "costCents": 0,
+        "durationHours": 2,
+        "mobility": "easy"
+      },
+      {
+        "id": "savannah-scad-museum",
+        "name": "SCAD Museum of Art",
+        "tags": [
+          "culture"
+        ],
+        "setting": "indoor",
+        "costCents": 1000,
+        "durationHours": 1.5,
+        "mobility": "easy"
+      },
+      {
+        "id": "savannah-food-tour",
+        "name": "Savannah food tour",
+        "tags": [
+          "food",
+          "walkable"
+        ],
+        "setting": "either",
+        "costCents": 7500,
+        "durationHours": 3,
+        "mobility": "easy"
+      },
+      {
+        "id": "savannah-wormsloe",
+        "name": "Wormsloe oak avenue",
+        "tags": [
+          "history",
+          "outdoors"
+        ],
+        "setting": "outdoor",
+        "costCents": 1200,
+        "durationHours": 1.5,
+        "mobility": "easy"
+      }
+    ]
+  },
+  {
+    "id": "outer-banks",
+    "name": "Outer Banks",
+    "state": "NC",
+    "country": "United States",
+    "region": "southeast_us",
+    "iata": "ORF",
+    "lat": 35.9582,
+    "lon": -75.6201,
+    "timezone": "America/New_York",
+    "passportRequired": false,
+    "aliases": [
+      "obx",
+      "nags head",
+      "kill devil hills",
+      "duck",
+      "kitty hawk",
+      "corolla"
+    ],
+    "tags": [
+      "beach",
+      "outdoors",
+      "relaxing",
+      "adventure",
+      "history",
+      "budget_friendly"
+    ],
+    "dietary": {
+      "vegetarian": 0.55,
+      "vegan": 0.35,
+      "halal": 0.15,
+      "kosher": 0.1,
+      "gluten_free": 0.55
+    },
+    "bestMonths": [
+      5,
+      6,
+      7
+    ],
+    "badMonths": [
+      1,
+      2,
+      9,
+      12
+    ],
+    "badMonthReasons": {
+      "1": "freezing",
+      "2": "freezing",
+      "9": "hurricane season",
+      "12": "freezing"
+    },
+    "costs": {
+      "lodgingPerNightCents": {
+        "budget": 4500,
+        "mid": 8000
+      },
+      "foodPerDayCents": {
+        "budget": 4000,
+        "mid": 6500
+      },
+      "activitiesPerDayCents": {
+        "budget": 1500,
+        "mid": 4000
+      },
+      "localTransportPerDayCents": 2000
+    },
+    "flightFromRegion": {
+      "southeast_us": {
+        "roundTripCents": [
+          17000,
+          31000
+        ],
+        "hours": 2.5
+      },
+      "northeast_us": {
+        "roundTripCents": [
+          17000,
+          31000
+        ],
+        "hours": 3
+      },
+      "midwest_us": {
+        "roundTripCents": [
+          15000,
+          27000
+        ],
+        "hours": 3.5
+      },
+      "south_central_us": {
+        "roundTripCents": [
+          18000,
+          33000
+        ],
+        "hours": 4.5
+      },
+      "mountain_us": {
+        "roundTripCents": [
+          21000,
+          38000
+        ],
+        "hours": 5.5
+      },
+      "west_us": {
+        "roundTripCents": [
+          27000,
+          49000
+        ],
+        "hours": 7
+      }
+    },
+    "driveFromRegion": {
+      "southeast_us": 3.5,
+      "northeast_us": 7
+    },
+    "activities": [
+      {
+        "id": "outer-banks-jockeys-ridge",
+        "name": "Sandboarding & sunset at Jockey's Ridge",
+        "tags": [
+          "outdoors",
+          "adventure"
+        ],
+        "setting": "outdoor",
+        "costCents": 0,
+        "durationHours": 2,
+        "mobility": "moderate"
+      },
+      {
+        "id": "outer-banks-nags-head-beach",
+        "name": "Nags Head beach day",
+        "tags": [
+          "beach",
+          "relaxing"
+        ],
+        "setting": "outdoor",
+        "costCents": 0,
+        "durationHours": 5,
+        "mobility": "easy"
+      },
+      {
+        "id": "outer-banks-wright-brothers",
+        "name": "Wright Brothers National Memorial",
+        "tags": [
+          "history"
+        ],
+        "setting": "either",
+        "costCents": 1000,
+        "durationHours": 2,
+        "mobility": "easy"
+      },
+      {
+        "id": "outer-banks-corolla-wild-horses",
+        "name": "Corolla wild horse tour",
+        "tags": [
+          "outdoors",
+          "adventure"
+        ],
+        "setting": "outdoor",
+        "costCents": 6000,
+        "durationHours": 2,
+        "mobility": "easy"
+      },
+      {
+        "id": "outer-banks-soundside-kayak",
+        "name": "Soundside kayak or SUP",
+        "tags": [
+          "outdoors",
+          "adventure"
+        ],
+        "setting": "outdoor",
+        "costCents": 4500,
+        "durationHours": 2,
+        "mobility": "moderate"
+      },
+      {
+        "id": "outer-banks-nc-aquarium",
+        "name": "NC Aquarium on Roanoke Island",
+        "tags": [
+          "culture"
+        ],
+        "setting": "indoor",
+        "costCents": 1500,
+        "durationHours": 2,
+        "mobility": "easy"
+      },
+      {
+        "id": "outer-banks-lighthouse-climb",
+        "name": "Climb Bodie Island Lighthouse",
+        "tags": [
+          "history",
+          "outdoors"
+        ],
+        "setting": "outdoor",
+        "costCents": 1000,
+        "durationHours": 1.5,
+        "mobility": "strenuous"
+      },
+      {
+        "id": "outer-banks-sound-seafood",
+        "name": "Seafood dinner on the sound",
+        "tags": [
+          "food"
+        ],
+        "setting": "indoor",
+        "costCents": 4000,
+        "durationHours": 2,
+        "mobility": "easy"
+      }
+    ]
+  },
+  {
+    "id": "myrtle-beach",
+    "name": "Myrtle Beach",
+    "state": "SC",
+    "country": "United States",
+    "region": "southeast_us",
+    "iata": "MYR",
+    "lat": 33.6891,
+    "lon": -78.8867,
+    "timezone": "America/New_York",
+    "passportRequired": false,
+    "aliases": [
+      "myrtle",
+      "myr",
+      "north myrtle beach"
+    ],
+    "tags": [
+      "beach",
+      "nightlife",
+      "budget_friendly",
+      "relaxing",
+      "shopping"
+    ],
+    "dietary": {
+      "vegetarian": 0.55,
+      "vegan": 0.35,
+      "halal": 0.25,
+      "kosher": 0.1,
+      "gluten_free": 0.55
+    },
+    "bestMonths": [
+      5,
+      6
+    ],
+    "badMonths": [
+      1,
+      2,
+      9
+    ],
+    "badMonthReasons": {
+      "1": "freezing",
+      "2": "freezing",
+      "9": "hurricane season"
+    },
+    "costs": {
+      "lodgingPerNightCents": {
+        "budget": 3500,
+        "mid": 6500
+      },
+      "foodPerDayCents": {
+        "budget": 3500,
+        "mid": 6000
+      },
+      "activitiesPerDayCents": {
+        "budget": 2000,
+        "mid": 4500
+      },
+      "localTransportPerDayCents": 1500
+    },
+    "flightFromRegion": {
+      "southeast_us": {
+        "roundTripCents": [
+          16000,
+          29000
+        ],
+        "hours": 2.5
+      },
+      "northeast_us": {
+        "roundTripCents": [
+          13000,
+          23000
+        ],
+        "hours": 3.5
+      },
+      "midwest_us": {
+        "roundTripCents": [
+          14000,
+          25000
+        ],
+        "hours": 3.5
+      },
+      "south_central_us": {
+        "roundTripCents": [
+          16000,
+          29000
+        ],
+        "hours": 4.5
+      },
+      "mountain_us": {
+        "roundTripCents": [
+          19000,
+          35000
+        ],
+        "hours": 5.5
+      },
+      "west_us": {
+        "roundTripCents": [
+          25000,
+          44000
+        ],
+        "hours": 7
+      }
+    },
+    "driveFromRegion": {
+      "southeast_us": 3
+    },
+    "activities": [
+      {
+        "id": "myrtle-beach-boardwalk-skywheel",
+        "name": "Boardwalk & SkyWheel",
+        "tags": [
+          "beach",
+          "nightlife"
+        ],
+        "setting": "outdoor",
+        "costCents": 2000,
+        "durationHours": 2,
+        "mobility": "easy"
+      },
+      {
+        "id": "myrtle-beach-beach-day",
+        "name": "Beach day",
+        "tags": [
+          "beach",
+          "relaxing"
+        ],
+        "setting": "outdoor",
+        "costCents": 0,
+        "durationHours": 5,
+        "mobility": "easy"
+      },
+      {
+        "id": "myrtle-beach-broadway-at-the-beach",
+        "name": "Broadway at the Beach",
+        "tags": [
+          "shopping",
+          "nightlife",
+          "food"
+        ],
+        "setting": "either",
+        "costCents": 3000,
+        "durationHours": 3,
+        "mobility": "easy"
+      },
+      {
+        "id": "myrtle-beach-ripleys-aquarium",
+        "name": "Ripley's Aquarium",
+        "tags": [
+          "culture"
+        ],
+        "setting": "indoor",
+        "costCents": 3500,
+        "durationHours": 2,
+        "mobility": "easy"
+      },
+      {
+        "id": "myrtle-beach-pirate-mini-golf",
+        "name": "Pirate mini golf",
+        "tags": [
+          "adventure"
+        ],
+        "setting": "outdoor",
+        "costCents": 1500,
+        "durationHours": 1.5,
+        "mobility": "easy"
+      },
+      {
+        "id": "myrtle-beach-brookgreen-gardens",
+        "name": "Brookgreen Gardens",
+        "tags": [
+          "outdoors",
+          "culture"
+        ],
+        "setting": "outdoor",
+        "costCents": 2000,
+        "durationHours": 3,
+        "mobility": "easy"
+      },
+      {
+        "id": "myrtle-beach-jet-ski",
+        "name": "Jet ski rental",
+        "tags": [
+          "adventure",
+          "beach"
+        ],
+        "setting": "outdoor",
+        "costCents": 8000,
+        "durationHours": 1,
+        "mobility": "moderate"
+      },
+      {
+        "id": "myrtle-beach-marshwalk",
+        "name": "Murrells Inlet MarshWalk seafood",
+        "tags": [
+          "food",
+          "nightlife"
+        ],
+        "setting": "either",
+        "costCents": 3500,
+        "durationHours": 2,
+        "mobility": "easy"
+      }
+    ]
+  },
+  {
+    "id": "gatlinburg",
+    "name": "Gatlinburg",
+    "state": "TN",
+    "country": "United States",
+    "region": "southeast_us",
+    "iata": "TYS",
+    "lat": 35.7143,
+    "lon": -83.5102,
+    "timezone": "America/New_York",
+    "passportRequired": false,
+    "aliases": [
+      "the smokies",
+      "smokies",
+      "smoky mountains",
+      "great smoky mountains",
+      "great smokies",
+      "pigeon forge"
+    ],
+    "tags": [
+      "mountains",
+      "hiking",
+      "outdoors",
+      "adventure",
+      "relaxing",
+      "budget_friendly"
+    ],
+    "dietary": {
+      "vegetarian": 0.4,
+      "vegan": 0.25,
+      "halal": 0.15,
+      "kosher": 0.05,
+      "gluten_free": 0.45
+    },
+    "bestMonths": [
+      4,
+      5,
+      6,
+      10
+    ],
+    "badMonths": [],
+    "badMonthReasons": {},
+    "costs": {
+      "lodgingPerNightCents": {
+        "budget": 3500,
+        "mid": 6500
+      },
+      "foodPerDayCents": {
+        "budget": 3500,
+        "mid": 6000
+      },
+      "activitiesPerDayCents": {
+        "budget": 2000,
+        "mid": 4500
+      },
+      "localTransportPerDayCents": 2000
+    },
+    "flightFromRegion": {
+      "southeast_us": {
+        "roundTripCents": [
+          19000,
+          34000
+        ],
+        "hours": 2.5
+      },
+      "northeast_us": {
+        "roundTripCents": [
+          15000,
+          27000
+        ],
+        "hours": 3.5
+      },
+      "midwest_us": {
+        "roundTripCents": [
+          19000,
+          34000
+        ],
+        "hours": 3
+      },
+      "south_central_us": {
+        "roundTripCents": [
+          16000,
+          29000
+        ],
+        "hours": 4
+      },
+      "mountain_us": {
+        "roundTripCents": [
+          20000,
+          36000
+        ],
+        "hours": 4.5
+      },
+      "west_us": {
+        "roundTripCents": [
+          26000,
+          47000
+        ],
+        "hours": 6.5
+      }
+    },
+    "driveFromRegion": {
+      "southeast_us": 5,
+      "midwest_us": 9
+    },
+    "activities": [
+      {
+        "id": "gatlinburg-alum-cave-trail",
+        "name": "Alum Cave Trail hike",
+        "tags": [
+          "hiking",
+          "outdoors",
+          "mountains"
+        ],
+        "setting": "outdoor",
+        "costCents": 0,
+        "durationHours": 5,
+        "mobility": "strenuous"
+      },
+      {
+        "id": "gatlinburg-laurel-falls",
+        "name": "Laurel Falls hike",
+        "tags": [
+          "hiking",
+          "outdoors"
+        ],
+        "setting": "outdoor",
+        "costCents": 500,
+        "durationHours": 2,
+        "mobility": "moderate"
+      },
+      {
+        "id": "gatlinburg-cades-cove",
+        "name": "Cades Cove wildlife loop",
+        "tags": [
+          "outdoors",
+          "mountains"
+        ],
+        "setting": "outdoor",
+        "costCents": 500,
+        "durationHours": 3,
+        "mobility": "easy"
+      },
+      {
+        "id": "gatlinburg-skybridge",
+        "name": "Gatlinburg SkyBridge",
+        "tags": [
+          "adventure",
+          "mountains"
+        ],
+        "setting": "outdoor",
+        "costCents": 4000,
+        "durationHours": 1.5,
+        "mobility": "easy"
+      },
+      {
+        "id": "gatlinburg-moonshine-tasting",
+        "name": "Ole Smoky moonshine tasting",
+        "tags": [
+          "food",
+          "nightlife"
+        ],
+        "setting": "indoor",
+        "costCents": 1000,
+        "durationHours": 1,
+        "mobility": "easy"
+      },
+      {
+        "id": "gatlinburg-ripleys-aquarium",
+        "name": "Ripley's Aquarium of the Smokies",
+        "tags": [
+          "culture"
+        ],
+        "setting": "indoor",
+        "costCents": 4000,
+        "durationHours": 2,
+        "mobility": "easy"
+      },
+      {
+        "id": "gatlinburg-cabin-night",
+        "name": "Cabin night: hot tub & board games",
+        "tags": [
+          "relaxing"
+        ],
+        "setting": "indoor",
+        "costCents": 0,
+        "durationHours": 3,
+        "mobility": "easy"
+      },
+      {
+        "id": "gatlinburg-pigeon-river-rafting",
+        "name": "Pigeon River whitewater rafting",
+        "tags": [
+          "adventure",
+          "outdoors"
+        ],
+        "setting": "outdoor",
+        "costCents": 5000,
+        "durationHours": 3,
+        "mobility": "strenuous"
+      }
+    ]
+  },
+  {
+    "id": "wilmington",
+    "name": "Wilmington",
+    "state": "NC",
+    "country": "United States",
+    "region": "southeast_us",
+    "iata": "ILM",
+    "lat": 34.2104,
+    "lon": -77.8868,
+    "timezone": "America/New_York",
+    "passportRequired": false,
+    "aliases": [
+      "ilm",
+      "wrightsville",
+      "wrightsville beach",
+      "carolina beach"
+    ],
+    "tags": [
+      "beach",
+      "food",
+      "relaxing",
+      "nightlife",
+      "walkable",
+      "budget_friendly"
+    ],
+    "dietary": {
+      "vegetarian": 0.65,
+      "vegan": 0.45,
+      "halal": 0.25,
+      "kosher": 0.1,
+      "gluten_free": 0.6
+    },
+    "bestMonths": [
+      5,
+      6,
+      10
+    ],
+    "badMonths": [
+      1,
+      2,
+      9
+    ],
+    "badMonthReasons": {
+      "1": "freezing",
+      "2": "freezing",
+      "9": "hurricane season"
+    },
+    "costs": {
+      "lodgingPerNightCents": {
+        "budget": 4000,
+        "mid": 7500
+      },
+      "foodPerDayCents": {
+        "budget": 3500,
+        "mid": 6000
+      },
+      "activitiesPerDayCents": {
+        "budget": 1500,
+        "mid": 4000
+      },
+      "localTransportPerDayCents": 1200
+    },
+    "flightFromRegion": {
+      "southeast_us": {
+        "roundTripCents": [
+          20000,
+          35000
+        ],
+        "hours": 2.5
+      },
+      "northeast_us": {
+        "roundTripCents": [
+          20000,
+          35000
+        ],
+        "hours": 3
+      },
+      "midwest_us": {
+        "roundTripCents": [
+          17000,
+          30000
+        ],
+        "hours": 3.5
+      },
+      "south_central_us": {
+        "roundTripCents": [
+          20000,
+          36000
+        ],
+        "hours": 4.5
+      },
+      "mountain_us": {
+        "roundTripCents": [
+          24000,
+          43000
+        ],
+        "hours": 5.5
+      },
+      "west_us": {
+        "roundTripCents": [
+          30000,
+          54000
+        ],
+        "hours": 7
+      }
+    },
+    "driveFromRegion": {
+      "southeast_us": 2,
+      "northeast_us": 9
+    },
+    "activities": [
+      {
+        "id": "wilmington-wrightsville-beach",
+        "name": "Wrightsville Beach day",
+        "tags": [
+          "beach",
+          "relaxing"
+        ],
+        "setting": "outdoor",
+        "costCents": 0,
+        "durationHours": 5,
+        "mobility": "easy"
+      },
+      {
+        "id": "wilmington-riverwalk",
+        "name": "Riverwalk & downtown bars",
+        "tags": [
+          "walkable",
+          "nightlife",
+          "food"
+        ],
+        "setting": "outdoor",
+        "costCents": 3000,
+        "durationHours": 3,
+        "mobility": "easy"
+      },
+      {
+        "id": "wilmington-battleship-nc",
+        "name": "Battleship North Carolina",
+        "tags": [
+          "history"
+        ],
+        "setting": "either",
+        "costCents": 2000,
+        "durationHours": 2,
+        "mobility": "moderate"
+      },
+      {
+        "id": "wilmington-surf-lesson",
+        "name": "Surf lesson at Wrightsville",
+        "tags": [
+          "beach",
+          "adventure",
+          "outdoors"
+        ],
+        "setting": "outdoor",
+        "costCents": 6500,
+        "durationHours": 2,
+        "mobility": "strenuous"
+      },
+      {
+        "id": "wilmington-airlie-gardens",
+        "name": "Airlie Gardens",
+        "tags": [
+          "outdoors",
+          "relaxing"
+        ],
+        "setting": "outdoor",
+        "costCents": 1200,
+        "durationHours": 1.5,
+        "mobility": "easy"
+      },
+      {
+        "id": "wilmington-cameron-art-museum",
+        "name": "Cameron Art Museum",
+        "tags": [
+          "culture"
+        ],
+        "setting": "indoor",
+        "costCents": 1500,
+        "durationHours": 1.5,
+        "mobility": "easy"
+      },
+      {
+        "id": "wilmington-masonboro-island",
+        "name": "Masonboro Island kayak trip",
+        "tags": [
+          "outdoors",
+          "adventure",
+          "beach"
+        ],
+        "setting": "outdoor",
+        "costCents": 4500,
+        "durationHours": 3,
+        "mobility": "moderate"
+      },
+      {
+        "id": "wilmington-brewery-taco-crawl",
+        "name": "Brewery & taco crawl",
+        "tags": [
+          "food",
+          "nightlife"
+        ],
+        "setting": "indoor",
+        "costCents": 3000,
+        "durationHours": 2.5,
+        "mobility": "easy"
+      }
+    ]
+  },
+  {
+    "id": "washington-dc",
+    "name": "Washington",
+    "state": "DC",
+    "country": "United States",
+    "region": "northeast_us",
+    "iata": "DCA",
+    "lat": 38.9072,
+    "lon": -77.0369,
+    "timezone": "America/New_York",
+    "passportRequired": false,
+    "aliases": [
+      "dc",
+      "d c",
+      "washington dc",
+      "washington d c",
+      "dmv"
+    ],
+    "tags": [
+      "history",
+      "culture",
+      "city",
+      "walkable",
+      "food",
+      "nightlife",
+      "budget_friendly"
+    ],
+    "dietary": {
+      "vegetarian": 0.85,
+      "vegan": 0.75,
+      "halal": 0.7,
+      "kosher": 0.5,
+      "gluten_free": 0.85
+    },
+    "bestMonths": [
+      3,
+      4,
+      5,
+      9,
+      10
+    ],
+    "badMonths": [],
+    "badMonthReasons": {},
+    "costs": {
+      "lodgingPerNightCents": {
+        "budget": 5000,
+        "mid": 10000
+      },
+      "foodPerDayCents": {
+        "budget": 4500,
+        "mid": 7500
+      },
+      "activitiesPerDayCents": {
+        "budget": 1000,
+        "mid": 3500
+      },
+      "localTransportPerDayCents": 1200
+    },
+    "flightFromRegion": {
+      "southeast_us": {
+        "roundTripCents": [
+          15000,
+          28000
+        ],
+        "hours": 1
+      },
+      "northeast_us": {
+        "roundTripCents": [
+          15000,
+          28000
+        ],
+        "hours": 1
+      },
+      "midwest_us": {
+        "roundTripCents": [
+          12000,
+          22000
+        ],
+        "hours": 2
+      },
+      "south_central_us": {
+        "roundTripCents": [
+          16000,
+          29000
+        ],
+        "hours": 3
+      },
+      "mountain_us": {
+        "roundTripCents": [
+          18000,
+          33000
+        ],
+        "hours": 4
+      },
+      "west_us": {
+        "roundTripCents": [
+          24000,
+          42000
+        ],
+        "hours": 5.5
+      }
+    },
+    "driveFromRegion": {
+      "southeast_us": 4.5,
+      "northeast_us": 4
+    },
+    "activities": [
+      {
+        "id": "washington-dc-smithsonian",
+        "name": "Smithsonian museums on the Mall (free)",
+        "tags": [
+          "culture",
+          "history"
+        ],
+        "setting": "indoor",
+        "costCents": 0,
+        "durationHours": 4,
+        "mobility": "easy"
+      },
+      {
+        "id": "washington-dc-monuments-night",
+        "name": "Monuments by night bike ride",
+        "tags": [
+          "history",
+          "walkable"
+        ],
+        "setting": "outdoor",
+        "costCents": 1000,
+        "durationHours": 2.5,
+        "mobility": "moderate"
+      },
+      {
+        "id": "washington-dc-capitol-library",
+        "name": "Capitol & Library of Congress tour",
+        "tags": [
+          "history"
+        ],
+        "setting": "indoor",
+        "costCents": 0,
+        "durationHours": 2,
+        "mobility": "easy"
+      },
+      {
+        "id": "washington-dc-union-market",
+        "name": "Union Market food hall",
+        "tags": [
+          "food"
+        ],
+        "setting": "indoor",
+        "costCents": 2500,
+        "durationHours": 2,
+        "mobility": "easy"
+      },
+      {
+        "id": "washington-dc-u-street",
+        "name": "U Street bars & live music",
+        "tags": [
+          "nightlife",
+          "music"
+        ],
+        "setting": "indoor",
+        "costCents": 4000,
+        "durationHours": 3,
+        "mobility": "easy"
+      },
+      {
+        "id": "washington-dc-georgetown",
+        "name": "Georgetown waterfront & shops",
+        "tags": [
+          "shopping",
+          "walkable"
+        ],
+        "setting": "outdoor",
+        "costCents": 0,
+        "durationHours": 2.5,
+        "mobility": "easy"
+      },
+      {
+        "id": "washington-dc-nmaahc",
+        "name": "National Museum of African American History & Culture",
+        "tags": [
+          "culture",
+          "history"
+        ],
+        "setting": "indoor",
+        "costCents": 0,
+        "durationHours": 3,
+        "mobility": "easy"
+      },
+      {
+        "id": "washington-dc-potomac-kayak",
+        "name": "Kayak the Potomac",
+        "tags": [
+          "outdoors",
+          "adventure"
+        ],
+        "setting": "outdoor",
+        "costCents": 2500,
+        "durationHours": 2,
+        "mobility": "moderate"
+      }
+    ]
+  },
+  {
+    "id": "nashville",
+    "name": "Nashville",
+    "state": "TN",
+    "country": "United States",
+    "region": "southeast_us",
+    "iata": "BNA",
+    "lat": 36.1627,
+    "lon": -86.7816,
+    "timezone": "America/Chicago",
+    "passportRequired": false,
+    "aliases": [
+      "nash",
+      "music city",
+      "bna"
+    ],
+    "tags": [
+      "music",
+      "nightlife",
+      "food",
+      "city",
+      "culture"
+    ],
+    "dietary": {
+      "vegetarian": 0.7,
+      "vegan": 0.6,
+      "halal": 0.5,
+      "kosher": 0.15,
+      "gluten_free": 0.7
+    },
+    "bestMonths": [
+      4,
+      5,
+      9,
+      10
+    ],
+    "badMonths": [],
+    "badMonthReasons": {},
+    "costs": {
+      "lodgingPerNightCents": {
+        "budget": 5500,
+        "mid": 10500
+      },
+      "foodPerDayCents": {
+        "budget": 4500,
+        "mid": 7500
+      },
+      "activitiesPerDayCents": {
+        "budget": 3000,
+        "mid": 6000
+      },
+      "localTransportPerDayCents": 1500
+    },
+    "flightFromRegion": {
+      "southeast_us": {
+        "roundTripCents": [
+          15000,
+          28000
+        ],
+        "hours": 1.5
+      },
+      "northeast_us": {
+        "roundTripCents": [
+          13000,
+          24000
+        ],
+        "hours": 2
+      },
+      "midwest_us": {
+        "roundTripCents": [
+          15000,
+          28000
+        ],
+        "hours": 1.5
+      },
+      "south_central_us": {
+        "roundTripCents": [
+          12000,
+          22000
+        ],
+        "hours": 2
+      },
+      "mountain_us": {
+        "roundTripCents": [
+          15000,
+          27000
+        ],
+        "hours": 3
+      },
+      "west_us": {
+        "roundTripCents": [
+          20000,
+          36000
+        ],
+        "hours": 4.5
+      }
+    },
+    "driveFromRegion": {
+      "southeast_us": 8,
+      "midwest_us": 7
+    },
+    "activities": [
+      {
+        "id": "nashville-broadway-honky-tonks",
+        "name": "Honky-tonks on Broadway",
+        "tags": [
+          "music",
+          "nightlife"
+        ],
+        "setting": "indoor",
+        "costCents": 3000,
+        "durationHours": 4,
+        "mobility": "easy"
+      },
+      {
+        "id": "nashville-grand-ole-opry",
+        "name": "Grand Ole Opry show",
+        "tags": [
+          "music",
+          "culture"
+        ],
+        "setting": "indoor",
+        "costCents": 7000,
+        "durationHours": 2.5,
+        "mobility": "easy"
+      },
+      {
+        "id": "nashville-country-hall-of-fame",
+        "name": "Country Music Hall of Fame",
+        "tags": [
+          "music",
+          "history",
+          "culture"
+        ],
+        "setting": "indoor",
+        "costCents": 3000,
+        "durationHours": 2,
+        "mobility": "easy"
+      },
+      {
+        "id": "nashville-hot-chicken",
+        "name": "Hot chicken crawl",
+        "tags": [
+          "food"
+        ],
+        "setting": "indoor",
+        "costCents": 2500,
+        "durationHours": 2,
+        "mobility": "easy"
+      },
+      {
+        "id": "nashville-bluebird-cafe",
+        "name": "Bluebird Cafe songwriter night",
+        "tags": [
+          "music"
+        ],
+        "setting": "indoor",
+        "costCents": 2000,
+        "durationHours": 2,
+        "mobility": "easy"
+      },
+      {
+        "id": "nashville-radnor-lake",
+        "name": "Radnor Lake hike",
+        "tags": [
+          "hiking",
+          "outdoors"
+        ],
+        "setting": "outdoor",
+        "costCents": 0,
+        "durationHours": 2,
+        "mobility": "moderate"
+      },
+      {
+        "id": "nashville-east-nashville",
+        "name": "East Nashville & 12 South brunch and shops",
+        "tags": [
+          "food",
+          "shopping",
+          "walkable"
+        ],
+        "setting": "outdoor",
+        "costCents": 3000,
+        "durationHours": 3,
+        "mobility": "easy"
+      },
+      {
+        "id": "nashville-ryman-tour",
+        "name": "Ryman Auditorium tour",
+        "tags": [
+          "music",
+          "history"
+        ],
+        "setting": "indoor",
+        "costCents": 3500,
+        "durationHours": 1.5,
+        "mobility": "easy"
+      }
+    ]
+  },
+  {
+    "id": "new-york",
+    "name": "New York City",
+    "state": "NY",
+    "country": "United States",
+    "region": "northeast_us",
+    "iata": "JFK",
+    "lat": 40.7128,
+    "lon": -74.006,
+    "timezone": "America/New_York",
+    "passportRequired": false,
+    "aliases": [
+      "new york",
+      "nyc",
+      "ny",
+      "manhattan",
+      "brooklyn",
+      "big apple"
+    ],
+    "tags": [
+      "city",
+      "food",
+      "nightlife",
+      "culture",
+      "shopping",
+      "walkable",
+      "music",
+      "history"
+    ],
+    "dietary": {
+      "vegetarian": 0.95,
+      "vegan": 0.9,
+      "halal": 0.95,
+      "kosher": 0.95,
+      "gluten_free": 0.9
+    },
+    "bestMonths": [
+      4,
+      5,
+      9,
+      10,
+      12
+    ],
+    "badMonths": [],
+    "badMonthReasons": {},
+    "costs": {
+      "lodgingPerNightCents": {
+        "budget": 7000,
+        "mid": 13000
+      },
+      "foodPerDayCents": {
+        "budget": 5500,
+        "mid": 9500
+      },
+      "activitiesPerDayCents": {
+        "budget": 3000,
+        "mid": 7000
+      },
+      "localTransportPerDayCents": 1200
+    },
+    "flightFromRegion": {
+      "southeast_us": {
+        "roundTripCents": [
+          14000,
+          26000
+        ],
+        "hours": 1.5
+      },
+      "northeast_us": {
+        "roundTripCents": [
+          14000,
+          26000
+        ],
+        "hours": 1
+      },
+      "midwest_us": {
+        "roundTripCents": [
+          12000,
+          22000
+        ],
+        "hours": 2
+      },
+      "south_central_us": {
+        "roundTripCents": [
+          16000,
+          29000
+        ],
+        "hours": 3.5
+      },
+      "mountain_us": {
+        "roundTripCents": [
+          18000,
+          32000
+        ],
+        "hours": 4
+      },
+      "west_us": {
+        "roundTripCents": [
+          23000,
+          42000
+        ],
+        "hours": 6
+      }
+    },
+    "driveFromRegion": {
+      "southeast_us": 8,
+      "northeast_us": 0
+    },
+    "activities": [
+      {
+        "id": "new-york-central-park",
+        "name": "Central Park bike & walk",
+        "tags": [
+          "outdoors",
+          "walkable"
+        ],
+        "setting": "outdoor",
+        "costCents": 0,
+        "durationHours": 3,
+        "mobility": "moderate"
+      },
+      {
+        "id": "new-york-the-met",
+        "name": "The Met",
+        "tags": [
+          "culture",
+          "history"
+        ],
+        "setting": "indoor",
+        "costCents": 3000,
+        "durationHours": 3,
+        "mobility": "easy"
+      },
+      {
+        "id": "new-york-broadway-show",
+        "name": "Broadway show (rush tickets)",
+        "tags": [
+          "music",
+          "culture"
+        ],
+        "setting": "indoor",
+        "costCents": 6000,
+        "durationHours": 3,
+        "mobility": "easy"
+      },
+      {
+        "id": "new-york-pizza-bagel-crawl",
+        "name": "Pizza & bagel crawl",
+        "tags": [
+          "food",
+          "budget_friendly"
+        ],
+        "setting": "either",
+        "costCents": 2500,
+        "durationHours": 3,
+        "mobility": "easy"
+      },
+      {
+        "id": "new-york-brooklyn-bridge",
+        "name": "Walk the Brooklyn Bridge to DUMBO",
+        "tags": [
+          "walkable",
+          "history"
+        ],
+        "setting": "outdoor",
+        "costCents": 0,
+        "durationHours": 2,
+        "mobility": "moderate"
+      },
+      {
+        "id": "new-york-comedy-cellar",
+        "name": "Stand-up at the Comedy Cellar",
+        "tags": [
+          "nightlife"
+        ],
+        "setting": "indoor",
+        "costCents": 3000,
+        "durationHours": 2,
+        "mobility": "easy"
+      },
+      {
+        "id": "new-york-chelsea-high-line",
+        "name": "Chelsea Market & the High Line",
+        "tags": [
+          "food",
+          "shopping",
+          "walkable"
+        ],
+        "setting": "either",
+        "costCents": 2000,
+        "durationHours": 2.5,
+        "mobility": "easy"
+      },
+      {
+        "id": "new-york-staten-island-ferry",
+        "name": "Staten Island Ferry past the Statue of Liberty",
+        "tags": [
+          "history"
+        ],
+        "setting": "outdoor",
+        "costCents": 0,
+        "durationHours": 1.5,
+        "mobility": "easy"
+      }
+    ]
+  },
+  {
+    "id": "miami",
+    "name": "Miami",
+    "state": "FL",
+    "country": "United States",
+    "region": "southeast_us",
+    "iata": "MIA",
+    "lat": 25.7617,
+    "lon": -80.1918,
+    "timezone": "America/New_York",
+    "passportRequired": false,
+    "aliases": [
+      "miami beach",
+      "south beach",
+      "mia",
+      "brickell"
+    ],
+    "tags": [
+      "beach",
+      "nightlife",
+      "food",
+      "culture",
+      "city",
+      "luxury",
+      "music"
+    ],
+    "dietary": {
+      "vegetarian": 0.75,
+      "vegan": 0.65,
+      "halal": 0.55,
+      "kosher": 0.8,
+      "gluten_free": 0.75
+    },
+    "bestMonths": [
+      1,
+      2,
+      3,
+      4,
+      12
+    ],
+    "badMonths": [
+      9,
+      10
+    ],
+    "badMonthReasons": {
+      "9": "hurricane season",
+      "10": "hurricane season"
+    },
+    "costs": {
+      "lodgingPerNightCents": {
+        "budget": 6000,
+        "mid": 11500
+      },
+      "foodPerDayCents": {
+        "budget": 5000,
+        "mid": 8500
+      },
+      "activitiesPerDayCents": {
+        "budget": 2500,
+        "mid": 6000
+      },
+      "localTransportPerDayCents": 2000
+    },
+    "flightFromRegion": {
+      "southeast_us": {
+        "roundTripCents": [
+          12000,
+          22000
+        ],
+        "hours": 2
+      },
+      "northeast_us": {
+        "roundTripCents": [
+          15000,
+          26000
+        ],
+        "hours": 3
+      },
+      "midwest_us": {
+        "roundTripCents": [
+          15000,
+          27000
+        ],
+        "hours": 3
+      },
+      "south_central_us": {
+        "roundTripCents": [
+          15000,
+          27000
+        ],
+        "hours": 3
+      },
+      "mountain_us": {
+        "roundTripCents": [
+          19000,
+          34000
+        ],
+        "hours": 4.5
+      },
+      "west_us": {
+        "roundTripCents": [
+          23000,
+          41000
+        ],
+        "hours": 5.5
+      }
+    },
+    "activities": [
+      {
+        "id": "miami-south-beach",
+        "name": "South Beach day",
+        "tags": [
+          "beach",
+          "relaxing"
+        ],
+        "setting": "outdoor",
+        "costCents": 0,
+        "durationHours": 5,
+        "mobility": "easy"
+      },
+      {
+        "id": "miami-wynwood",
+        "name": "Wynwood Walls & breweries",
+        "tags": [
+          "culture",
+          "food",
+          "walkable"
+        ],
+        "setting": "outdoor",
+        "costCents": 1500,
+        "durationHours": 3,
+        "mobility": "easy"
+      },
+      {
+        "id": "miami-little-havana-food-tour",
+        "name": "Little Havana food tour",
+        "tags": [
+          "food",
+          "culture",
+          "walkable"
+        ],
+        "setting": "either",
+        "costCents": 7000,
+        "durationHours": 3,
+        "mobility": "easy"
+      },
+      {
+        "id": "miami-pamm",
+        "name": "Pérez Art Museum Miami",
+        "tags": [
+          "culture"
+        ],
+        "setting": "indoor",
+        "costCents": 2000,
+        "durationHours": 2,
+        "mobility": "easy"
+      },
+      {
+        "id": "miami-club-night",
+        "name": "Club night in South Beach",
+        "tags": [
+          "nightlife",
+          "music"
+        ],
+        "setting": "indoor",
+        "costCents": 6000,
+        "durationHours": 4,
+        "mobility": "easy"
+      },
+      {
+        "id": "miami-key-biscayne-paddle",
+        "name": "Paddleboard at Key Biscayne",
+        "tags": [
+          "outdoors",
+          "adventure",
+          "beach"
+        ],
+        "setting": "outdoor",
+        "costCents": 4500,
+        "durationHours": 3,
+        "mobility": "moderate"
+      },
+      {
+        "id": "miami-everglades-airboat",
+        "name": "Everglades airboat tour",
+        "tags": [
+          "outdoors",
+          "adventure"
+        ],
+        "setting": "outdoor",
+        "costCents": 5500,
+        "durationHours": 3,
+        "mobility": "easy"
+      },
+      {
+        "id": "miami-vizcaya",
+        "name": "Vizcaya Museum & Gardens",
+        "tags": [
+          "history",
+          "culture"
+        ],
+        "setting": "either",
+        "costCents": 2500,
+        "durationHours": 2,
+        "mobility": "easy"
+      }
+    ]
+  },
+  {
+    "id": "new-orleans",
+    "name": "New Orleans",
+    "state": "LA",
+    "country": "United States",
+    "region": "south_central_us",
+    "iata": "MSY",
+    "lat": 29.9511,
+    "lon": -90.0715,
+    "timezone": "America/Chicago",
+    "passportRequired": false,
+    "aliases": [
+      "nola",
+      "the big easy",
+      "msy"
+    ],
+    "tags": [
+      "music",
+      "food",
+      "nightlife",
+      "culture",
+      "history",
+      "walkable"
+    ],
+    "dietary": {
+      "vegetarian": 0.6,
+      "vegan": 0.45,
+      "halal": 0.35,
+      "kosher": 0.2,
+      "gluten_free": 0.6
+    },
+    "bestMonths": [
+      2,
+      3,
+      4,
+      10,
+      11
+    ],
+    "badMonths": [
+      8,
+      9
+    ],
+    "badMonthReasons": {
+      "8": "hurricane season",
+      "9": "hurricane season"
+    },
+    "costs": {
+      "lodgingPerNightCents": {
+        "budget": 5000,
+        "mid": 9500
+      },
+      "foodPerDayCents": {
+        "budget": 4500,
+        "mid": 7500
+      },
+      "activitiesPerDayCents": {
+        "budget": 2500,
+        "mid": 5500
+      },
+      "localTransportPerDayCents": 1000
+    },
+    "flightFromRegion": {
+      "southeast_us": {
+        "roundTripCents": [
+          14000,
+          25000
+        ],
+        "hours": 2
+      },
+      "northeast_us": {
+        "roundTripCents": [
+          17000,
+          30000
+        ],
+        "hours": 3
+      },
+      "midwest_us": {
+        "roundTripCents": [
+          15000,
+          26000
+        ],
+        "hours": 2.5
+      },
+      "south_central_us": {
+        "roundTripCents": [
+          16000,
+          29000
+        ],
+        "hours": 1.5
+      },
+      "mountain_us": {
+        "roundTripCents": [
+          16000,
+          29000
+        ],
+        "hours": 3
+      },
+      "west_us": {
+        "roundTripCents": [
+          20000,
+          37000
+        ],
+        "hours": 4
+      }
+    },
+    "driveFromRegion": {
+      "south_central_us": 8
+    },
+    "activities": [
+      {
+        "id": "new-orleans-frenchmen-jazz",
+        "name": "Live jazz on Frenchmen Street",
+        "tags": [
+          "music",
+          "nightlife"
+        ],
+        "setting": "indoor",
+        "costCents": 2000,
+        "durationHours": 3,
+        "mobility": "easy"
+      },
+      {
+        "id": "new-orleans-french-quarter-walk",
+        "name": "French Quarter walking tour",
+        "tags": [
+          "history",
+          "walkable",
+          "culture"
+        ],
+        "setting": "outdoor",
+        "costCents": 2500,
+        "durationHours": 2,
+        "mobility": "easy"
+      },
+      {
+        "id": "new-orleans-beignets-poboys",
+        "name": "Beignets & po'boy crawl",
+        "tags": [
+          "food"
+        ],
+        "setting": "either",
+        "costCents": 3000,
+        "durationHours": 2,
+        "mobility": "easy"
+      },
+      {
+        "id": "new-orleans-creole-cooking-class",
+        "name": "Creole cooking class",
+        "tags": [
+          "food",
+          "culture"
+        ],
+        "setting": "indoor",
+        "costCents": 8000,
+        "durationHours": 3,
+        "mobility": "easy"
+      },
+      {
+        "id": "new-orleans-ww2-museum",
+        "name": "National WWII Museum",
+        "tags": [
+          "history",
+          "culture"
+        ],
+        "setting": "indoor",
+        "costCents": 3500,
+        "durationHours": 3,
+        "mobility": "easy"
+      },
+      {
+        "id": "new-orleans-swamp-tour",
+        "name": "Bayou swamp tour",
+        "tags": [
+          "outdoors",
+          "adventure"
+        ],
+        "setting": "outdoor",
+        "costCents": 5500,
+        "durationHours": 3,
+        "mobility": "easy"
+      },
+      {
+        "id": "new-orleans-garden-district",
+        "name": "Streetcar to the Garden District",
+        "tags": [
+          "history",
+          "walkable"
+        ],
+        "setting": "outdoor",
+        "costCents": 300,
+        "durationHours": 2,
+        "mobility": "easy"
+      },
+      {
+        "id": "new-orleans-preservation-hall",
+        "name": "Preservation Hall show",
+        "tags": [
+          "music",
+          "culture"
+        ],
+        "setting": "indoor",
+        "costCents": 3000,
+        "durationHours": 1,
+        "mobility": "easy"
+      }
+    ]
+  },
+  {
+    "id": "austin",
+    "name": "Austin",
+    "state": "TX",
+    "country": "United States",
+    "region": "south_central_us",
+    "iata": "AUS",
+    "lat": 30.2672,
+    "lon": -97.7431,
+    "timezone": "America/Chicago",
+    "passportRequired": false,
+    "aliases": [
+      "atx",
+      "aus"
+    ],
+    "tags": [
+      "music",
+      "food",
+      "nightlife",
+      "outdoors",
+      "city"
+    ],
+    "dietary": {
+      "vegetarian": 0.85,
+      "vegan": 0.8,
+      "halal": 0.55,
+      "kosher": 0.2,
+      "gluten_free": 0.85
+    },
+    "bestMonths": [
+      3,
+      4,
+      10,
+      11
+    ],
+    "badMonths": [
+      7,
+      8
+    ],
+    "badMonthReasons": {
+      "7": "brutal heat",
+      "8": "brutal heat"
+    },
+    "costs": {
+      "lodgingPerNightCents": {
+        "budget": 5000,
+        "mid": 9000
+      },
+      "foodPerDayCents": {
+        "budget": 4000,
+        "mid": 7000
+      },
+      "activitiesPerDayCents": {
+        "budget": 1500,
+        "mid": 4500
+      },
+      "localTransportPerDayCents": 1500
+    },
+    "flightFromRegion": {
+      "southeast_us": {
+        "roundTripCents": [
+          17000,
+          30000
+        ],
+        "hours": 3
+      },
+      "northeast_us": {
+        "roundTripCents": [
+          19000,
+          35000
+        ],
+        "hours": 4
+      },
+      "midwest_us": {
+        "roundTripCents": [
+          16000,
+          28000
+        ],
+        "hours": 2.5
+      },
+      "south_central_us": {
+        "roundTripCents": [
+          16000,
+          29000
+        ],
+        "hours": 1
+      },
+      "mountain_us": {
+        "roundTripCents": [
+          14000,
+          25000
+        ],
+        "hours": 2
+      },
+      "west_us": {
+        "roundTripCents": [
+          17000,
+          31000
+        ],
+        "hours": 3
+      }
+    },
+    "driveFromRegion": {
+      "south_central_us": 3.5
+    },
+    "activities": [
+      {
+        "id": "austin-barton-springs",
+        "name": "Swim at Barton Springs",
+        "tags": [
+          "outdoors",
+          "relaxing"
+        ],
+        "setting": "outdoor",
+        "costCents": 1000,
+        "durationHours": 2,
+        "mobility": "easy"
+      },
+      {
+        "id": "austin-rainey-sixth",
+        "name": "Live music on Rainey & 6th Street",
+        "tags": [
+          "music",
+          "nightlife"
+        ],
+        "setting": "indoor",
+        "costCents": 3000,
+        "durationHours": 4,
+        "mobility": "easy"
+      },
+      {
+        "id": "austin-texas-bbq",
+        "name": "Texas BBQ pilgrimage",
+        "tags": [
+          "food"
+        ],
+        "setting": "either",
+        "costCents": 3500,
+        "durationHours": 2.5,
+        "mobility": "easy"
+      },
+      {
+        "id": "austin-lady-bird-kayak",
+        "name": "Kayak Lady Bird Lake",
+        "tags": [
+          "outdoors",
+          "adventure"
+        ],
+        "setting": "outdoor",
+        "costCents": 2500,
+        "durationHours": 2,
+        "mobility": "moderate"
+      },
+      {
+        "id": "austin-congress-bats",
+        "name": "Congress Avenue bat flight at sunset",
+        "tags": [
+          "outdoors"
+        ],
+        "setting": "outdoor",
+        "costCents": 0,
+        "durationHours": 1,
+        "mobility": "easy"
+      },
+      {
+        "id": "austin-greenbelt-hike",
+        "name": "Barton Creek Greenbelt hike",
+        "tags": [
+          "hiking",
+          "outdoors"
+        ],
+        "setting": "outdoor",
+        "costCents": 0,
+        "durationHours": 3,
+        "mobility": "moderate"
+      },
+      {
+        "id": "austin-blanton-museum",
+        "name": "Blanton Museum of Art",
+        "tags": [
+          "culture"
+        ],
+        "setting": "indoor",
+        "costCents": 1500,
+        "durationHours": 2,
+        "mobility": "easy"
+      },
+      {
+        "id": "austin-south-congress",
+        "name": "South Congress shops & tacos",
+        "tags": [
+          "shopping",
+          "food",
+          "walkable"
+        ],
+        "setting": "outdoor",
+        "costCents": 2500,
+        "durationHours": 2.5,
+        "mobility": "easy"
+      }
+    ]
+  },
+  {
+    "id": "chicago",
+    "name": "Chicago",
+    "state": "IL",
+    "country": "United States",
+    "region": "midwest_us",
+    "iata": "ORD",
+    "lat": 41.8781,
+    "lon": -87.6298,
+    "timezone": "America/Chicago",
+    "passportRequired": false,
+    "aliases": [
+      "chi",
+      "chi town",
+      "chitown",
+      "windy city"
+    ],
+    "tags": [
+      "city",
+      "food",
+      "culture",
+      "music",
+      "nightlife",
+      "walkable",
+      "shopping"
+    ],
+    "dietary": {
+      "vegetarian": 0.85,
+      "vegan": 0.75,
+      "halal": 0.75,
+      "kosher": 0.55,
+      "gluten_free": 0.8
+    },
+    "bestMonths": [
+      6,
+      7,
+      8,
+      9
+    ],
+    "badMonths": [
+      1,
+      2
+    ],
+    "badMonthReasons": {
+      "1": "freezing",
+      "2": "freezing"
+    },
+    "costs": {
+      "lodgingPerNightCents": {
+        "budget": 5000,
+        "mid": 9500
+      },
+      "foodPerDayCents": {
+        "budget": 4500,
+        "mid": 7500
+      },
+      "activitiesPerDayCents": {
+        "budget": 2500,
+        "mid": 5500
+      },
+      "localTransportPerDayCents": 1000
+    },
+    "flightFromRegion": {
+      "southeast_us": {
+        "roundTripCents": [
+          12000,
+          21000
+        ],
+        "hours": 2
+      },
+      "northeast_us": {
+        "roundTripCents": [
+          12000,
+          22000
+        ],
+        "hours": 2
+      },
+      "midwest_us": {
+        "roundTripCents": [
+          14000,
+          26000
+        ],
+        "hours": 1
+      },
+      "south_central_us": {
+        "roundTripCents": [
+          13000,
+          23000
+        ],
+        "hours": 2.5
+      },
+      "mountain_us": {
+        "roundTripCents": [
+          14000,
+          24000
+        ],
+        "hours": 2.5
+      },
+      "west_us": {
+        "roundTripCents": [
+          19000,
+          34000
+        ],
+        "hours": 4.5
+      }
+    },
+    "driveFromRegion": {
+      "midwest_us": 0
+    },
+    "activities": [
+      {
+        "id": "chicago-architecture-cruise",
+        "name": "Architecture river cruise",
+        "tags": [
+          "culture",
+          "history"
+        ],
+        "setting": "outdoor",
+        "costCents": 5500,
+        "durationHours": 1.5,
+        "mobility": "easy"
+      },
+      {
+        "id": "chicago-art-institute",
+        "name": "Art Institute of Chicago",
+        "tags": [
+          "culture"
+        ],
+        "setting": "indoor",
+        "costCents": 3500,
+        "durationHours": 3,
+        "mobility": "easy"
+      },
+      {
+        "id": "chicago-deep-dish-crawl",
+        "name": "Deep dish & Italian beef crawl",
+        "tags": [
+          "food"
+        ],
+        "setting": "indoor",
+        "costCents": 3000,
+        "durationHours": 2,
+        "mobility": "easy"
+      },
+      {
+        "id": "chicago-lakefront-trail",
+        "name": "Lakefront Trail bike to North Avenue Beach",
+        "tags": [
+          "outdoors",
+          "beach"
+        ],
+        "setting": "outdoor",
+        "costCents": 2000,
+        "durationHours": 3,
+        "mobility": "moderate"
+      },
+      {
+        "id": "chicago-second-city",
+        "name": "Second City improv show",
+        "tags": [
+          "nightlife",
+          "culture"
+        ],
+        "setting": "indoor",
+        "costCents": 4500,
+        "durationHours": 2,
+        "mobility": "easy"
+      },
+      {
+        "id": "chicago-blues-bar",
+        "name": "Blues bar night",
+        "tags": [
+          "music",
+          "nightlife"
+        ],
+        "setting": "indoor",
+        "costCents": 2500,
+        "durationHours": 3,
+        "mobility": "easy"
+      },
+      {
+        "id": "chicago-millennium-park",
+        "name": "Millennium Park & the Bean",
+        "tags": [
+          "walkable",
+          "culture"
+        ],
+        "setting": "outdoor",
+        "costCents": 0,
+        "durationHours": 1.5,
+        "mobility": "easy"
+      },
+      {
+        "id": "chicago-wrigley-field",
+        "name": "Cubs game at Wrigley Field",
+        "tags": [
+          "culture"
+        ],
+        "setting": "outdoor",
+        "costCents": 4500,
+        "durationHours": 3,
+        "mobility": "easy"
+      }
+    ]
+  },
+  {
+    "id": "denver",
+    "name": "Denver",
+    "state": "CO",
+    "country": "United States",
+    "region": "mountain_us",
+    "iata": "DEN",
+    "lat": 39.7392,
+    "lon": -104.9903,
+    "timezone": "America/Denver",
+    "passportRequired": false,
+    "aliases": [
+      "the rockies",
+      "rockies",
+      "rocky mountains",
+      "colorado",
+      "boulder",
+      "mile high city"
+    ],
+    "tags": [
+      "mountains",
+      "hiking",
+      "outdoors",
+      "snow",
+      "adventure",
+      "food",
+      "nightlife",
+      "city"
+    ],
+    "dietary": {
+      "vegetarian": 0.8,
+      "vegan": 0.7,
+      "halal": 0.5,
+      "kosher": 0.25,
+      "gluten_free": 0.85
+    },
+    "bestMonths": [
+      1,
+      2,
+      6,
+      7,
+      8,
+      9
+    ],
+    "badMonths": [],
+    "badMonthReasons": {},
+    "costs": {
+      "lodgingPerNightCents": {
+        "budget": 4500,
+        "mid": 8500
+      },
+      "foodPerDayCents": {
+        "budget": 4000,
+        "mid": 7000
+      },
+      "activitiesPerDayCents": {
+        "budget": 3000,
+        "mid": 7000
+      },
+      "localTransportPerDayCents": 2500
+    },
+    "flightFromRegion": {
+      "southeast_us": {
+        "roundTripCents": [
+          17000,
+          30000
+        ],
+        "hours": 3.5
+      },
+      "northeast_us": {
+        "roundTripCents": [
+          18000,
+          32000
+        ],
+        "hours": 4
+      },
+      "midwest_us": {
+        "roundTripCents": [
+          14000,
+          24000
+        ],
+        "hours": 2.5
+      },
+      "south_central_us": {
+        "roundTripCents": [
+          12000,
+          21000
+        ],
+        "hours": 2
+      },
+      "mountain_us": {
+        "roundTripCents": [
+          14000,
+          26000
+        ],
+        "hours": 1
+      },
+      "west_us": {
+        "roundTripCents": [
+          13000,
+          23000
+        ],
+        "hours": 2.5
+      }
+    },
+    "driveFromRegion": {
+      "mountain_us": 0
+    },
+    "activities": [
+      {
+        "id": "denver-red-rocks",
+        "name": "Red Rocks Park hike & amphitheatre",
+        "tags": [
+          "music",
+          "outdoors",
+          "hiking"
+        ],
+        "setting": "outdoor",
+        "costCents": 0,
+        "durationHours": 2,
+        "mobility": "moderate"
+      },
+      {
+        "id": "denver-ski-day",
+        "name": "Ski or snowboard day trip",
+        "tags": [
+          "snow",
+          "mountains",
+          "adventure"
+        ],
+        "setting": "outdoor",
+        "costCents": 15000,
+        "durationHours": 8,
+        "mobility": "strenuous"
+      },
+      {
+        "id": "denver-rocky-mountain-np",
+        "name": "Rocky Mountain National Park day",
+        "tags": [
+          "hiking",
+          "mountains",
+          "outdoors"
+        ],
+        "setting": "outdoor",
+        "costCents": 3000,
+        "durationHours": 8,
+        "mobility": "strenuous"
+      },
+      {
+        "id": "denver-rino-breweries",
+        "name": "RiNo breweries & street art",
+        "tags": [
+          "food",
+          "nightlife",
+          "culture"
+        ],
+        "setting": "either",
+        "costCents": 3000,
+        "durationHours": 3,
+        "mobility": "easy"
+      },
+      {
+        "id": "denver-union-station",
+        "name": "Union Station & LoDo food halls",
+        "tags": [
+          "food",
+          "walkable"
+        ],
+        "setting": "indoor",
+        "costCents": 2500,
+        "durationHours": 2,
+        "mobility": "easy"
+      },
+      {
+        "id": "denver-meow-wolf",
+        "name": "Meow Wolf Convergence Station",
+        "tags": [
+          "culture",
+          "adventure"
+        ],
+        "setting": "indoor",
+        "costCents": 5000,
+        "durationHours": 2.5,
+        "mobility": "easy"
+      },
+      {
+        "id": "denver-denver-art-museum",
+        "name": "Denver Art Museum",
+        "tags": [
+          "culture"
+        ],
+        "setting": "indoor",
+        "costCents": 2500,
+        "durationHours": 2,
+        "mobility": "easy"
+      },
+      {
+        "id": "denver-idaho-springs-hot-springs",
+        "name": "Hot springs soak in Idaho Springs",
+        "tags": [
+          "relaxing",
+          "mountains"
+        ],
+        "setting": "either",
+        "costCents": 4000,
+        "durationHours": 3,
+        "mobility": "easy"
+      }
+    ]
+  },
+  {
+    "id": "las-vegas",
+    "name": "Las Vegas",
+    "state": "NV",
+    "country": "United States",
+    "region": "west_us",
+    "iata": "LAS",
+    "lat": 36.1699,
+    "lon": -115.1398,
+    "timezone": "America/Los_Angeles",
+    "passportRequired": false,
+    "aliases": [
+      "vegas",
+      "lv",
+      "sin city",
+      "the strip"
+    ],
+    "tags": [
+      "nightlife",
+      "food",
+      "luxury",
+      "music",
+      "outdoors",
+      "adventure",
+      "shopping"
+    ],
+    "dietary": {
+      "vegetarian": 0.8,
+      "vegan": 0.65,
+      "halal": 0.5,
+      "kosher": 0.4,
+      "gluten_free": 0.8
+    },
+    "bestMonths": [
+      3,
+      4,
+      10,
+      11
+    ],
+    "badMonths": [
+      7,
+      8
+    ],
+    "badMonthReasons": {
+      "7": "brutal heat",
+      "8": "brutal heat"
+    },
+    "costs": {
+      "lodgingPerNightCents": {
+        "budget": 3500,
+        "mid": 7500
+      },
+      "foodPerDayCents": {
+        "budget": 4500,
+        "mid": 8000
+      },
+      "activitiesPerDayCents": {
+        "budget": 4000,
+        "mid": 9000
+      },
+      "localTransportPerDayCents": 1500
+    },
+    "flightFromRegion": {
+      "southeast_us": {
+        "roundTripCents": [
+          19000,
+          35000
+        ],
+        "hours": 5
+      },
+      "northeast_us": {
+        "roundTripCents": [
+          21000,
+          37000
+        ],
+        "hours": 5.5
+      },
+      "midwest_us": {
+        "roundTripCents": [
+          16000,
+          29000
+        ],
+        "hours": 4
+      },
+      "south_central_us": {
+        "roundTripCents": [
+          14000,
+          25000
+        ],
+        "hours": 3
+      },
+      "mountain_us": {
+        "roundTripCents": [
+          11000,
+          19000
+        ],
+        "hours": 2
+      },
+      "west_us": {
+        "roundTripCents": [
+          14000,
+          24000
+        ],
+        "hours": 1
+      }
+    },
+    "driveFromRegion": {
+      "west_us": 4
+    },
+    "activities": [
+      {
+        "id": "las-vegas-strip-walk",
+        "name": "Walk the Strip & Bellagio fountains",
+        "tags": [
+          "walkable",
+          "nightlife"
+        ],
+        "setting": "outdoor",
+        "costCents": 0,
+        "durationHours": 3,
+        "mobility": "moderate"
+      },
+      {
+        "id": "las-vegas-red-rock-canyon",
+        "name": "Red Rock Canyon hike",
+        "tags": [
+          "hiking",
+          "outdoors"
+        ],
+        "setting": "outdoor",
+        "costCents": 2000,
+        "durationHours": 4,
+        "mobility": "moderate"
+      },
+      {
+        "id": "las-vegas-cirque-show",
+        "name": "Cirque du Soleil show",
+        "tags": [
+          "culture",
+          "music"
+        ],
+        "setting": "indoor",
+        "costCents": 11000,
+        "durationHours": 2,
+        "mobility": "easy"
+      },
+      {
+        "id": "las-vegas-buffet",
+        "name": "Big Vegas buffet",
+        "tags": [
+          "food"
+        ],
+        "setting": "indoor",
+        "costCents": 6000,
+        "durationHours": 2,
+        "mobility": "easy"
+      },
+      {
+        "id": "las-vegas-pool-party",
+        "name": "Pool party / dayclub",
+        "tags": [
+          "nightlife",
+          "relaxing"
+        ],
+        "setting": "outdoor",
+        "costCents": 5000,
+        "durationHours": 4,
+        "mobility": "easy"
+      },
+      {
+        "id": "las-vegas-fremont-street",
+        "name": "Fremont Street Experience",
+        "tags": [
+          "nightlife"
+        ],
+        "setting": "outdoor",
+        "costCents": 0,
+        "durationHours": 2,
+        "mobility": "easy"
+      },
+      {
+        "id": "las-vegas-sphere",
+        "name": "Sphere experience",
+        "tags": [
+          "music",
+          "culture"
+        ],
+        "setting": "indoor",
+        "costCents": 12000,
+        "durationHours": 2,
+        "mobility": "easy"
+      },
+      {
+        "id": "las-vegas-hoover-dam",
+        "name": "Hoover Dam tour",
+        "tags": [
+          "history"
+        ],
+        "setting": "either",
+        "costCents": 3000,
+        "durationHours": 3,
+        "mobility": "easy"
+      }
+    ]
+  },
+  {
+    "id": "san-diego",
+    "name": "San Diego",
+    "state": "CA",
+    "country": "United States",
+    "region": "west_us",
+    "iata": "SAN",
+    "lat": 32.7157,
+    "lon": -117.1611,
+    "timezone": "America/Los_Angeles",
+    "passportRequired": false,
+    "aliases": [
+      "sd",
+      "la jolla",
+      "pacific beach"
+    ],
+    "tags": [
+      "beach",
+      "outdoors",
+      "food",
+      "relaxing",
+      "city",
+      "nightlife"
+    ],
+    "dietary": {
+      "vegetarian": 0.85,
+      "vegan": 0.75,
+      "halal": 0.5,
+      "kosher": 0.3,
+      "gluten_free": 0.85
+    },
+    "bestMonths": [
+      5,
+      6,
+      7,
+      8,
+      9,
+      10
+    ],
+    "badMonths": [],
+    "badMonthReasons": {},
+    "costs": {
+      "lodgingPerNightCents": {
+        "budget": 5500,
+        "mid": 10000
+      },
+      "foodPerDayCents": {
+        "budget": 4500,
+        "mid": 7500
+      },
+      "activitiesPerDayCents": {
+        "budget": 2500,
+        "mid": 6000
+      },
+      "localTransportPerDayCents": 2000
+    },
+    "flightFromRegion": {
+      "southeast_us": {
+        "roundTripCents": [
+          24000,
+          43000
+        ],
+        "hours": 5.5
+      },
+      "northeast_us": {
+        "roundTripCents": [
+          26000,
+          47000
+        ],
+        "hours": 6
+      },
+      "midwest_us": {
+        "roundTripCents": [
+          21000,
+          38000
+        ],
+        "hours": 4.5
+      },
+      "south_central_us": {
+        "roundTripCents": [
+          17000,
+          31000
+        ],
+        "hours": 3
+      },
+      "mountain_us": {
+        "roundTripCents": [
+          14000,
+          26000
+        ],
+        "hours": 2.5
+      },
+      "west_us": {
+        "roundTripCents": [
+          16000,
+          29000
+        ],
+        "hours": 1
+      }
+    },
+    "driveFromRegion": {
+      "west_us": 2
+    },
+    "activities": [
+      {
+        "id": "san-diego-la-jolla-cove",
+        "name": "La Jolla Cove sea lions & snorkel",
+        "tags": [
+          "beach",
+          "outdoors"
+        ],
+        "setting": "outdoor",
+        "costCents": 0,
+        "durationHours": 3,
+        "mobility": "easy"
+      },
+      {
+        "id": "san-diego-pacific-beach",
+        "name": "Pacific Beach day & boardwalk",
+        "tags": [
+          "beach",
+          "relaxing",
+          "nightlife"
+        ],
+        "setting": "outdoor",
+        "costCents": 0,
+        "durationHours": 4,
+        "mobility": "easy"
+      },
+      {
+        "id": "san-diego-balboa-park",
+        "name": "Balboa Park museums",
+        "tags": [
+          "culture"
+        ],
+        "setting": "indoor",
+        "costCents": 3000,
+        "durationHours": 3,
+        "mobility": "easy"
+      },
+      {
+        "id": "san-diego-taco-crawl",
+        "name": "Taco crawl in Barrio Logan",
+        "tags": [
+          "food"
+        ],
+        "setting": "either",
+        "costCents": 2500,
+        "durationHours": 2,
+        "mobility": "easy"
+      },
+      {
+        "id": "san-diego-torrey-pines",
+        "name": "Torrey Pines hike",
+        "tags": [
+          "hiking",
+          "outdoors"
+        ],
+        "setting": "outdoor",
+        "costCents": 1500,
+        "durationHours": 2.5,
+        "mobility": "moderate"
+      },
+      {
+        "id": "san-diego-surf-lesson",
+        "name": "Surf lesson",
+        "tags": [
+          "beach",
+          "adventure"
+        ],
+        "setting": "outdoor",
+        "costCents": 8000,
+        "durationHours": 2,
+        "mobility": "strenuous"
+      },
+      {
+        "id": "san-diego-gaslamp-bars",
+        "name": "Gaslamp Quarter bars",
+        "tags": [
+          "nightlife"
+        ],
+        "setting": "indoor",
+        "costCents": 4000,
+        "durationHours": 3,
+        "mobility": "easy"
+      },
+      {
+        "id": "san-diego-san-diego-zoo",
+        "name": "San Diego Zoo",
+        "tags": [
+          "outdoors",
+          "culture"
+        ],
+        "setting": "outdoor",
+        "costCents": 7500,
+        "durationHours": 4,
+        "mobility": "moderate"
+      }
+    ]
+  },
+  {
+    "id": "los-angeles",
+    "name": "Los Angeles",
+    "state": "CA",
+    "country": "United States",
+    "region": "west_us",
+    "iata": "LAX",
+    "lat": 34.0522,
+    "lon": -118.2437,
+    "timezone": "America/Los_Angeles",
+    "passportRequired": false,
+    "aliases": [
+      "la",
+      "l a",
+      "lax",
+      "hollywood",
+      "santa monica",
+      "venice beach"
+    ],
+    "tags": [
+      "city",
+      "beach",
+      "food",
+      "nightlife",
+      "culture",
+      "shopping",
+      "music",
+      "luxury"
+    ],
+    "dietary": {
+      "vegetarian": 0.9,
+      "vegan": 0.9,
+      "halal": 0.7,
+      "kosher": 0.75,
+      "gluten_free": 0.9
+    },
+    "bestMonths": [
+      4,
+      5,
+      9,
+      10,
+      11
+    ],
+    "badMonths": [],
+    "badMonthReasons": {},
+    "costs": {
+      "lodgingPerNightCents": {
+        "budget": 6000,
+        "mid": 11000
+      },
+      "foodPerDayCents": {
+        "budget": 5000,
+        "mid": 8500
+      },
+      "activitiesPerDayCents": {
+        "budget": 3000,
+        "mid": 7000
+      },
+      "localTransportPerDayCents": 3000
+    },
+    "flightFromRegion": {
+      "southeast_us": {
+        "roundTripCents": [
+          22000,
+          39000
+        ],
+        "hours": 5.5
+      },
+      "northeast_us": {
+        "roundTripCents": [
+          23000,
+          42000
+        ],
+        "hours": 6
+      },
+      "midwest_us": {
+        "roundTripCents": [
+          19000,
+          34000
+        ],
+        "hours": 4.5
+      },
+      "south_central_us": {
+        "roundTripCents": [
+          16000,
+          28000
+        ],
+        "hours": 3
+      },
+      "mountain_us": {
+        "roundTripCents": [
+          13000,
+          23000
+        ],
+        "hours": 2.5
+      },
+      "west_us": {
+        "roundTripCents": [
+          14000,
+          26000
+        ],
+        "hours": 1
+      }
+    },
+    "driveFromRegion": {
+      "west_us": 0
+    },
+    "activities": [
+      {
+        "id": "los-angeles-santa-monica-venice",
+        "name": "Bike Santa Monica to Venice Beach",
+        "tags": [
+          "beach",
+          "outdoors"
+        ],
+        "setting": "outdoor",
+        "costCents": 2000,
+        "durationHours": 4,
+        "mobility": "moderate"
+      },
+      {
+        "id": "los-angeles-griffith-observatory",
+        "name": "Griffith Observatory sunset hike",
+        "tags": [
+          "hiking",
+          "outdoors"
+        ],
+        "setting": "outdoor",
+        "costCents": 0,
+        "durationHours": 2.5,
+        "mobility": "moderate"
+      },
+      {
+        "id": "los-angeles-getty-center",
+        "name": "The Getty Center",
+        "tags": [
+          "culture"
+        ],
+        "setting": "indoor",
+        "costCents": 2000,
+        "durationHours": 3,
+        "mobility": "easy"
+      },
+      {
+        "id": "los-angeles-grand-central-market",
+        "name": "Grand Central Market",
+        "tags": [
+          "food"
+        ],
+        "setting": "indoor",
+        "costCents": 2500,
+        "durationHours": 2,
+        "mobility": "easy"
+      },
+      {
+        "id": "los-angeles-comedy-store",
+        "name": "Stand-up at the Comedy Store",
+        "tags": [
+          "nightlife"
+        ],
+        "setting": "indoor",
+        "costCents": 3000,
+        "durationHours": 2,
+        "mobility": "easy"
+      },
+      {
+        "id": "los-angeles-universal-studios",
+        "name": "Universal Studios Hollywood",
+        "tags": [
+          "adventure"
+        ],
+        "setting": "outdoor",
+        "costCents": 13000,
+        "durationHours": 8,
+        "mobility": "moderate"
+      },
+      {
+        "id": "los-angeles-koreatown-kbbq",
+        "name": "Koreatown KBBQ & karaoke",
+        "tags": [
+          "food",
+          "nightlife"
+        ],
+        "setting": "indoor",
+        "costCents": 4500,
+        "durationHours": 3,
+        "mobility": "easy"
+      },
+      {
+        "id": "los-angeles-melrose-abbot-kinney",
+        "name": "Melrose & Abbot Kinney shopping",
+        "tags": [
+          "shopping",
+          "walkable"
+        ],
+        "setting": "outdoor",
+        "costCents": 0,
+        "durationHours": 3,
+        "mobility": "easy"
+      }
+    ]
+  },
+  {
+    "id": "san-francisco",
+    "name": "San Francisco",
+    "state": "CA",
+    "country": "United States",
+    "region": "west_us",
+    "iata": "SFO",
+    "lat": 37.7749,
+    "lon": -122.4194,
+    "timezone": "America/Los_Angeles",
+    "passportRequired": false,
+    "aliases": [
+      "sf",
+      "san fran",
+      "bay area",
+      "frisco"
+    ],
+    "tags": [
+      "city",
+      "food",
+      "culture",
+      "walkable",
+      "outdoors",
+      "hiking",
+      "history",
+      "shopping"
+    ],
+    "dietary": {
+      "vegetarian": 0.95,
+      "vegan": 0.9,
+      "halal": 0.65,
+      "kosher": 0.5,
+      "gluten_free": 0.9
+    },
+    "bestMonths": [
+      5,
+      9,
+      10
+    ],
+    "badMonths": [],
+    "badMonthReasons": {},
+    "costs": {
+      "lodgingPerNightCents": {
+        "budget": 6500,
+        "mid": 12000
+      },
+      "foodPerDayCents": {
+        "budget": 5500,
+        "mid": 9000
+      },
+      "activitiesPerDayCents": {
+        "budget": 3000,
+        "mid": 6500
+      },
+      "localTransportPerDayCents": 1500
+    },
+    "flightFromRegion": {
+      "southeast_us": {
+        "roundTripCents": [
+          24000,
+          44000
+        ],
+        "hours": 5.5
+      },
+      "northeast_us": {
+        "roundTripCents": [
+          25000,
+          46000
+        ],
+        "hours": 6
+      },
+      "midwest_us": {
+        "roundTripCents": [
+          21000,
+          37000
+        ],
+        "hours": 4.5
+      },
+      "south_central_us": {
+        "roundTripCents": [
+          18000,
+          33000
+        ],
+        "hours": 4
+      },
+      "mountain_us": {
+        "roundTripCents": [
+          14000,
+          26000
+        ],
+        "hours": 2.5
+      },
+      "west_us": {
+        "roundTripCents": [
+          15000,
+          28000
+        ],
+        "hours": 1.5
+      }
+    },
+    "driveFromRegion": {
+      "west_us": 6.5
+    },
+    "activities": [
+      {
+        "id": "san-francisco-golden-gate-bike",
+        "name": "Bike the Golden Gate to Sausalito",
+        "tags": [
+          "outdoors",
+          "adventure"
+        ],
+        "setting": "outdoor",
+        "costCents": 4500,
+        "durationHours": 4,
+        "mobility": "moderate"
+      },
+      {
+        "id": "san-francisco-alcatraz",
+        "name": "Alcatraz tour",
+        "tags": [
+          "history"
+        ],
+        "setting": "either",
+        "costCents": 5000,
+        "durationHours": 3,
+        "mobility": "easy"
+      },
+      {
+        "id": "san-francisco-ferry-building",
+        "name": "Ferry Building marketplace",
+        "tags": [
+          "food"
+        ],
+        "setting": "indoor",
+        "costCents": 2500,
+        "durationHours": 2,
+        "mobility": "easy"
+      },
+      {
+        "id": "san-francisco-mission-murals",
+        "name": "Mission murals & burritos",
+        "tags": [
+          "food",
+          "culture",
+          "walkable"
+        ],
+        "setting": "outdoor",
+        "costCents": 1500,
+        "durationHours": 2.5,
+        "mobility": "easy"
+      },
+      {
+        "id": "san-francisco-lands-end",
+        "name": "Lands End trail",
+        "tags": [
+          "hiking",
+          "outdoors"
+        ],
+        "setting": "outdoor",
+        "costCents": 0,
+        "durationHours": 2,
+        "mobility": "moderate"
+      },
+      {
+        "id": "san-francisco-sfmoma",
+        "name": "SFMOMA",
+        "tags": [
+          "culture"
+        ],
+        "setting": "indoor",
+        "costCents": 3000,
+        "durationHours": 2.5,
+        "mobility": "easy"
+      },
+      {
+        "id": "san-francisco-chinatown-north-beach",
+        "name": "Chinatown & North Beach",
+        "tags": [
+          "food",
+          "history",
+          "walkable"
+        ],
+        "setting": "outdoor",
+        "costCents": 2000,
+        "durationHours": 2.5,
+        "mobility": "easy"
+      },
+      {
+        "id": "san-francisco-muir-woods",
+        "name": "Muir Woods redwoods",
+        "tags": [
+          "hiking",
+          "outdoors"
+        ],
+        "setting": "outdoor",
+        "costCents": 1500,
+        "durationHours": 4,
+        "mobility": "moderate"
+      }
+    ]
+  },
+  {
+    "id": "seattle",
+    "name": "Seattle",
+    "state": "WA",
+    "country": "United States",
+    "region": "west_us",
+    "iata": "SEA",
+    "lat": 47.6062,
+    "lon": -122.3321,
+    "timezone": "America/Los_Angeles",
+    "passportRequired": false,
+    "aliases": [
+      "emerald city"
+    ],
+    "tags": [
+      "city",
+      "food",
+      "outdoors",
+      "hiking",
+      "mountains",
+      "culture",
+      "music"
+    ],
+    "dietary": {
+      "vegetarian": 0.9,
+      "vegan": 0.85,
+      "halal": 0.55,
+      "kosher": 0.35,
+      "gluten_free": 0.85
+    },
+    "bestMonths": [
+      6,
+      7,
+      8,
+      9
+    ],
+    "badMonths": [
+      11,
+      12
+    ],
+    "badMonthReasons": {
+      "11": "rainy and dark",
+      "12": "rainy and dark"
+    },
+    "costs": {
+      "lodgingPerNightCents": {
+        "budget": 5500,
+        "mid": 10000
+      },
+      "foodPerDayCents": {
+        "budget": 5000,
+        "mid": 8000
+      },
+      "activitiesPerDayCents": {
+        "budget": 2500,
+        "mid": 5500
+      },
+      "localTransportPerDayCents": 1500
+    },
+    "flightFromRegion": {
+      "southeast_us": {
+        "roundTripCents": [
+          24000,
+          43000
+        ],
+        "hours": 5.5
+      },
+      "northeast_us": {
+        "roundTripCents": [
+          24000,
+          44000
+        ],
+        "hours": 5.5
+      },
+      "midwest_us": {
+        "roundTripCents": [
+          20000,
+          36000
+        ],
+        "hours": 4.5
+      },
+      "south_central_us": {
+        "roundTripCents": [
+          19000,
+          35000
+        ],
+        "hours": 4
+      },
+      "mountain_us": {
+        "roundTripCents": [
+          15000,
+          27000
+        ],
+        "hours": 3
+      },
+      "west_us": {
+        "roundTripCents": [
+          15000,
+          26000
+        ],
+        "hours": 2.5
+      }
+    },
+    "activities": [
+      {
+        "id": "seattle-pike-place",
+        "name": "Pike Place Market",
+        "tags": [
+          "food",
+          "shopping"
+        ],
+        "setting": "indoor",
+        "costCents": 2000,
+        "durationHours": 2,
+        "mobility": "easy"
+      },
+      {
+        "id": "seattle-space-needle-chihuly",
+        "name": "Space Needle & Chihuly Garden",
+        "tags": [
+          "culture"
+        ],
+        "setting": "indoor",
+        "costCents": 6000,
+        "durationHours": 2.5,
+        "mobility": "easy"
+      },
+      {
+        "id": "seattle-rattlesnake-ledge",
+        "name": "Rattlesnake Ledge hike",
+        "tags": [
+          "hiking",
+          "outdoors",
+          "mountains"
+        ],
+        "setting": "outdoor",
+        "costCents": 0,
+        "durationHours": 4,
+        "mobility": "moderate"
+      },
+      {
+        "id": "seattle-bainbridge-ferry",
+        "name": "Ferry to Bainbridge Island",
+        "tags": [
+          "outdoors",
+          "relaxing"
+        ],
+        "setting": "outdoor",
+        "costCents": 1000,
+        "durationHours": 3,
+        "mobility": "easy"
+      },
+      {
+        "id": "seattle-capitol-hill",
+        "name": "Capitol Hill bars & venues",
+        "tags": [
+          "nightlife",
+          "music"
+        ],
+        "setting": "indoor",
+        "costCents": 3500,
+        "durationHours": 3,
+        "mobility": "easy"
+      },
+      {
+        "id": "seattle-mopop",
+        "name": "Museum of Pop Culture",
+        "tags": [
+          "music",
+          "culture"
+        ],
+        "setting": "indoor",
+        "costCents": 3500,
+        "durationHours": 2,
+        "mobility": "easy"
+      },
+      {
+        "id": "seattle-lake-union-kayak",
+        "name": "Kayak Lake Union",
+        "tags": [
+          "outdoors",
+          "adventure"
+        ],
+        "setting": "outdoor",
+        "costCents": 3000,
+        "durationHours": 2,
+        "mobility": "moderate"
+      },
+      {
+        "id": "seattle-mount-rainier",
+        "name": "Mount Rainier day trip",
+        "tags": [
+          "mountains",
+          "hiking"
+        ],
+        "setting": "outdoor",
+        "costCents": 3000,
+        "durationHours": 9,
+        "mobility": "strenuous"
+      }
+    ]
+  },
+  {
+    "id": "portland",
+    "name": "Portland",
+    "state": "OR",
+    "country": "United States",
+    "region": "west_us",
+    "iata": "PDX",
+    "lat": 45.5152,
+    "lon": -122.6784,
+    "timezone": "America/Los_Angeles",
+    "passportRequired": false,
+    "aliases": [
+      "pdx",
+      "portland oregon",
+      "rip city"
+    ],
+    "tags": [
+      "food",
+      "outdoors",
+      "hiking",
+      "culture",
+      "budget_friendly",
+      "walkable",
+      "shopping",
+      "music"
+    ],
+    "dietary": {
+      "vegetarian": 0.95,
+      "vegan": 0.9,
+      "halal": 0.45,
+      "kosher": 0.25,
+      "gluten_free": 0.85
+    },
+    "bestMonths": [
+      6,
+      7,
+      8,
+      9
+    ],
+    "badMonths": [
+      11,
+      12
+    ],
+    "badMonthReasons": {
+      "11": "rainy and dark",
+      "12": "rainy and dark"
+    },
+    "costs": {
+      "lodgingPerNightCents": {
+        "budget": 4500,
+        "mid": 8500
+      },
+      "foodPerDayCents": {
+        "budget": 4000,
+        "mid": 7000
+      },
+      "activitiesPerDayCents": {
+        "budget": 2000,
+        "mid": 4500
+      },
+      "localTransportPerDayCents": 1200
+    },
+    "flightFromRegion": {
+      "southeast_us": {
+        "roundTripCents": [
+          25000,
+          46000
+        ],
+        "hours": 5.5
+      },
+      "northeast_us": {
+        "roundTripCents": [
+          26000,
+          47000
+        ],
+        "hours": 6
+      },
+      "midwest_us": {
+        "roundTripCents": [
+          21000,
+          38000
+        ],
+        "hours": 4.5
+      },
+      "south_central_us": {
+        "roundTripCents": [
+          20000,
+          36000
+        ],
+        "hours": 4
+      },
+      "mountain_us": {
+        "roundTripCents": [
+          16000,
+          28000
+        ],
+        "hours": 2.5
+      },
+      "west_us": {
+        "roundTripCents": [
+          14000,
+          26000
+        ],
+        "hours": 2.5
+      }
+    },
+    "activities": [
+      {
+        "id": "portland-multnomah-falls",
+        "name": "Multnomah Falls & Columbia Gorge",
+        "tags": [
+          "hiking",
+          "outdoors"
+        ],
+        "setting": "outdoor",
+        "costCents": 500,
+        "durationHours": 4,
+        "mobility": "moderate"
+      },
+      {
+        "id": "portland-food-cart-pods",
+        "name": "Food cart pods",
+        "tags": [
+          "food",
+          "budget_friendly"
+        ],
+        "setting": "outdoor",
+        "costCents": 2000,
+        "durationHours": 2,
+        "mobility": "easy"
+      },
+      {
+        "id": "portland-powells-books",
+        "name": "Powell's City of Books",
+        "tags": [
+          "shopping",
+          "culture"
+        ],
+        "setting": "indoor",
+        "costCents": 2000,
+        "durationHours": 2,
+        "mobility": "easy"
+      },
+      {
+        "id": "portland-forest-park-pittock",
+        "name": "Forest Park to Pittock Mansion hike",
+        "tags": [
+          "hiking",
+          "outdoors"
+        ],
+        "setting": "outdoor",
+        "costCents": 0,
+        "durationHours": 2.5,
+        "mobility": "moderate"
+      },
+      {
+        "id": "portland-japanese-garden",
+        "name": "Portland Japanese Garden",
+        "tags": [
+          "culture",
+          "relaxing"
+        ],
+        "setting": "outdoor",
+        "costCents": 2500,
+        "durationHours": 1.5,
+        "mobility": "easy"
+      },
+      {
+        "id": "portland-brewery-doughnut-crawl",
+        "name": "Brewery & doughnut crawl",
+        "tags": [
+          "food",
+          "nightlife"
+        ],
+        "setting": "indoor",
+        "costCents": 3000,
+        "durationHours": 3,
+        "mobility": "easy"
+      },
+      {
+        "id": "portland-mount-hood",
+        "name": "Mt. Hood day trip",
+        "tags": [
+          "mountains",
+          "snow",
+          "outdoors"
+        ],
+        "setting": "outdoor",
+        "costCents": 4000,
+        "durationHours": 8,
+        "mobility": "moderate"
+      },
+      {
+        "id": "portland-alberta-live-music",
+        "name": "Live music on Alberta Street",
+        "tags": [
+          "music",
+          "nightlife"
+        ],
+        "setting": "indoor",
+        "costCents": 2000,
+        "durationHours": 2.5,
+        "mobility": "easy"
+      }
+    ]
+  },
+  {
+    "id": "key-west",
+    "name": "Key West",
+    "state": "FL",
+    "country": "United States",
+    "region": "southeast_us",
+    "iata": "EYW",
+    "lat": 24.5551,
+    "lon": -81.78,
+    "timezone": "America/New_York",
+    "passportRequired": false,
+    "aliases": [
+      "the keys",
+      "keys",
+      "florida keys",
+      "eyw"
+    ],
+    "tags": [
+      "beach",
+      "nightlife",
+      "relaxing",
+      "luxury",
+      "outdoors",
+      "walkable"
+    ],
+    "dietary": {
+      "vegetarian": 0.6,
+      "vegan": 0.45,
+      "halal": 0.2,
+      "kosher": 0.15,
+      "gluten_free": 0.6
+    },
+    "bestMonths": [
+      1,
+      2,
+      3,
+      4,
+      12
+    ],
+    "badMonths": [
+      9,
+      10
+    ],
+    "badMonthReasons": {
+      "9": "hurricane season",
+      "10": "hurricane season"
+    },
+    "costs": {
+      "lodgingPerNightCents": {
+        "budget": 8000,
+        "mid": 14000
+      },
+      "foodPerDayCents": {
+        "budget": 5500,
+        "mid": 9000
+      },
+      "activitiesPerDayCents": {
+        "budget": 3000,
+        "mid": 7000
+      },
+      "localTransportPerDayCents": 1200
+    },
+    "flightFromRegion": {
+      "southeast_us": {
+        "roundTripCents": [
+          27000,
+          49000
+        ],
+        "hours": 4
+      },
+      "northeast_us": {
+        "roundTripCents": [
+          32000,
+          58000
+        ],
+        "hours": 4.5
+      },
+      "midwest_us": {
+        "roundTripCents": [
+          33000,
+          59000
+        ],
+        "hours": 4.5
+      },
+      "south_central_us": {
+        "roundTripCents": [
+          31000,
+          55000
+        ],
+        "hours": 4.5
+      },
+      "mountain_us": {
+        "roundTripCents": [
+          39000,
+          71000
+        ],
+        "hours": 5.5
+      },
+      "west_us": {
+        "roundTripCents": [
+          47000,
+          85000
+        ],
+        "hours": 7
+      }
+    },
+    "activities": [
+      {
+        "id": "key-west-reef-snorkel",
+        "name": "Reef snorkel trip",
+        "tags": [
+          "beach",
+          "outdoors",
+          "adventure"
+        ],
+        "setting": "outdoor",
+        "costCents": 7000,
+        "durationHours": 3,
+        "mobility": "moderate"
+      },
+      {
+        "id": "key-west-duval-crawl",
+        "name": "Duval Street bar crawl",
+        "tags": [
+          "nightlife"
+        ],
+        "setting": "indoor",
+        "costCents": 4000,
+        "durationHours": 4,
+        "mobility": "easy"
+      },
+      {
+        "id": "key-west-mallory-square-sunset",
+        "name": "Mallory Square sunset celebration",
+        "tags": [
+          "relaxing",
+          "culture"
+        ],
+        "setting": "outdoor",
+        "costCents": 0,
+        "durationHours": 1.5,
+        "mobility": "easy"
+      },
+      {
+        "id": "key-west-hemingway-house",
+        "name": "Hemingway House & six-toed cats",
+        "tags": [
+          "history",
+          "culture"
+        ],
+        "setting": "indoor",
+        "costCents": 2000,
+        "durationHours": 1.5,
+        "mobility": "easy"
+      },
+      {
+        "id": "key-west-fort-zachary-taylor",
+        "name": "Fort Zachary Taylor beach",
+        "tags": [
+          "beach",
+          "history"
+        ],
+        "setting": "outdoor",
+        "costCents": 600,
+        "durationHours": 3,
+        "mobility": "easy"
+      },
+      {
+        "id": "key-west-dry-tortugas",
+        "name": "Dry Tortugas ferry day",
+        "tags": [
+          "outdoors",
+          "adventure",
+          "history"
+        ],
+        "setting": "outdoor",
+        "costCents": 22000,
+        "durationHours": 10,
+        "mobility": "moderate"
+      },
+      {
+        "id": "key-west-key-lime-tasting",
+        "name": "Key lime pie & conch fritter tasting",
+        "tags": [
+          "food"
+        ],
+        "setting": "indoor",
+        "costCents": 2500,
+        "durationHours": 1.5,
+        "mobility": "easy"
+      },
+      {
+        "id": "key-west-butterfly-conservatory",
+        "name": "Butterfly & Nature Conservatory",
+        "tags": [
+          "culture"
+        ],
+        "setting": "indoor",
+        "costCents": 1800,
+        "durationHours": 1,
+        "mobility": "easy"
+      }
+    ]
+  },
+  {
+    "id": "orlando",
+    "name": "Orlando",
+    "state": "FL",
+    "country": "United States",
+    "region": "southeast_us",
+    "iata": "MCO",
+    "lat": 28.5383,
+    "lon": -81.3792,
+    "timezone": "America/New_York",
+    "passportRequired": false,
+    "aliases": [
+      "disney",
+      "disney world",
+      "universal orlando",
+      "epic universe",
+      "mco"
+    ],
+    "tags": [
+      "adventure",
+      "food",
+      "nightlife",
+      "shopping",
+      "budget_friendly"
+    ],
+    "dietary": {
+      "vegetarian": 0.75,
+      "vegan": 0.6,
+      "halal": 0.5,
+      "kosher": 0.4,
+      "gluten_free": 0.8
+    },
+    "bestMonths": [
+      1,
+      2,
+      3,
+      4,
+      11,
+      12
+    ],
+    "badMonths": [],
+    "badMonthReasons": {},
+    "costs": {
+      "lodgingPerNightCents": {
+        "budget": 3500,
+        "mid": 7000
+      },
+      "foodPerDayCents": {
+        "budget": 4000,
+        "mid": 7000
+      },
+      "activitiesPerDayCents": {
+        "budget": 6000,
+        "mid": 12000
+      },
+      "localTransportPerDayCents": 2500
+    },
+    "flightFromRegion": {
+      "southeast_us": {
+        "roundTripCents": [
+          10000,
+          19000
+        ],
+        "hours": 1.5
+      },
+      "northeast_us": {
+        "roundTripCents": [
+          13000,
+          23000
+        ],
+        "hours": 2.5
+      },
+      "midwest_us": {
+        "roundTripCents": [
+          13000,
+          24000
+        ],
+        "hours": 2.5
+      },
+      "south_central_us": {
+        "roundTripCents": [
+          13000,
+          23000
+        ],
+        "hours": 2.5
+      },
+      "mountain_us": {
+        "roundTripCents": [
+          16000,
+          30000
+        ],
+        "hours": 4
+      },
+      "west_us": {
+        "roundTripCents": [
+          20000,
+          37000
+        ],
+        "hours": 5.5
+      }
+    },
+    "driveFromRegion": {
+      "southeast_us": 9
+    },
+    "activities": [
+      {
+        "id": "orlando-universal",
+        "name": "Universal Orlando / Epic Universe day",
+        "tags": [
+          "adventure"
+        ],
+        "setting": "outdoor",
+        "costCents": 15000,
+        "durationHours": 9,
+        "mobility": "moderate"
+      },
+      {
+        "id": "orlando-disney-park",
+        "name": "Disney World park day",
+        "tags": [
+          "adventure"
+        ],
+        "setting": "outdoor",
+        "costCents": 17000,
+        "durationHours": 10,
+        "mobility": "moderate"
+      },
+      {
+        "id": "orlando-springs-kayak",
+        "name": "Kayak Wekiwa Springs",
+        "tags": [
+          "outdoors",
+          "relaxing"
+        ],
+        "setting": "outdoor",
+        "costCents": 3500,
+        "durationHours": 3,
+        "mobility": "moderate"
+      },
+      {
+        "id": "orlando-icon-park",
+        "name": "ICON Park & the Wheel",
+        "tags": [
+          "nightlife"
+        ],
+        "setting": "outdoor",
+        "costCents": 3000,
+        "durationHours": 2,
+        "mobility": "easy"
+      },
+      {
+        "id": "orlando-disney-springs",
+        "name": "Disney Springs dinner & shops",
+        "tags": [
+          "food",
+          "shopping"
+        ],
+        "setting": "either",
+        "costCents": 4000,
+        "durationHours": 3,
+        "mobility": "easy"
+      },
+      {
+        "id": "orlando-kennedy-space-center",
+        "name": "Kennedy Space Center",
+        "tags": [
+          "history",
+          "culture"
+        ],
+        "setting": "indoor",
+        "costCents": 8000,
+        "durationHours": 6,
+        "mobility": "easy"
+      },
+      {
+        "id": "orlando-east-end-market",
+        "name": "East End Market & Winter Park",
+        "tags": [
+          "food",
+          "walkable"
+        ],
+        "setting": "indoor",
+        "costCents": 2000,
+        "durationHours": 2.5,
+        "mobility": "easy"
+      },
+      {
+        "id": "orlando-topgolf",
+        "name": "Topgolf night",
+        "tags": [
+          "nightlife"
+        ],
+        "setting": "either",
+        "costCents": 3500,
+        "durationHours": 2,
+        "mobility": "easy"
+      }
+    ]
+  },
+  {
+    "id": "boston",
+    "name": "Boston",
+    "state": "MA",
+    "country": "United States",
+    "region": "northeast_us",
+    "iata": "BOS",
+    "lat": 42.3601,
+    "lon": -71.0589,
+    "timezone": "America/New_York",
+    "passportRequired": false,
+    "aliases": [
+      "bos",
+      "beantown",
+      "cambridge"
+    ],
+    "tags": [
+      "history",
+      "city",
+      "walkable",
+      "food",
+      "culture",
+      "nightlife"
+    ],
+    "dietary": {
+      "vegetarian": 0.85,
+      "vegan": 0.7,
+      "halal": 0.6,
+      "kosher": 0.5,
+      "gluten_free": 0.8
+    },
+    "bestMonths": [
+      5,
+      6,
+      9,
+      10
+    ],
+    "badMonths": [
+      1,
+      2
+    ],
+    "badMonthReasons": {
+      "1": "freezing",
+      "2": "freezing"
+    },
+    "costs": {
+      "lodgingPerNightCents": {
+        "budget": 6500,
+        "mid": 12000
+      },
+      "foodPerDayCents": {
+        "budget": 5000,
+        "mid": 8000
+      },
+      "activitiesPerDayCents": {
+        "budget": 2500,
+        "mid": 5500
+      },
+      "localTransportPerDayCents": 1000
+    },
+    "flightFromRegion": {
+      "southeast_us": {
+        "roundTripCents": [
+          12000,
+          22000
+        ],
+        "hours": 2
+      },
+      "northeast_us": {
+        "roundTripCents": [
+          15000,
+          28000
+        ],
+        "hours": 1
+      },
+      "midwest_us": {
+        "roundTripCents": [
+          14000,
+          25000
+        ],
+        "hours": 2.5
+      },
+      "south_central_us": {
+        "roundTripCents": [
+          19000,
+          33000
+        ],
+        "hours": 4
+      },
+      "mountain_us": {
+        "roundTripCents": [
+          20000,
+          36000
+        ],
+        "hours": 4.5
+      },
+      "west_us": {
+        "roundTripCents": [
+          26000,
+          46000
+        ],
+        "hours": 6
+      }
+    },
+    "driveFromRegion": {
+      "northeast_us": 4
+    },
+    "activities": [
+      {
+        "id": "boston-freedom-trail",
+        "name": "Freedom Trail walk",
+        "tags": [
+          "history",
+          "walkable"
+        ],
+        "setting": "outdoor",
+        "costCents": 0,
+        "durationHours": 3,
+        "mobility": "moderate"
+      },
+      {
+        "id": "boston-north-end",
+        "name": "North End cannoli & Italian dinner",
+        "tags": [
+          "food"
+        ],
+        "setting": "indoor",
+        "costCents": 4000,
+        "durationHours": 2,
+        "mobility": "easy"
+      },
+      {
+        "id": "boston-fenway",
+        "name": "Fenway Park game or tour",
+        "tags": [
+          "culture"
+        ],
+        "setting": "either",
+        "costCents": 4000,
+        "durationHours": 3,
+        "mobility": "easy"
+      },
+      {
+        "id": "boston-mfa",
+        "name": "Museum of Fine Arts",
+        "tags": [
+          "culture"
+        ],
+        "setting": "indoor",
+        "costCents": 3000,
+        "durationHours": 3,
+        "mobility": "easy"
+      },
+      {
+        "id": "boston-harvard-mit-walk",
+        "name": "Harvard & MIT campus walk",
+        "tags": [
+          "history",
+          "walkable"
+        ],
+        "setting": "outdoor",
+        "costCents": 0,
+        "durationHours": 2.5,
+        "mobility": "easy"
+      },
+      {
+        "id": "boston-whale-watch",
+        "name": "Whale watch from the harbor",
+        "tags": [
+          "outdoors",
+          "adventure"
+        ],
+        "setting": "outdoor",
+        "costCents": 6500,
+        "durationHours": 3.5,
+        "mobility": "easy"
+      },
+      {
+        "id": "boston-quincy-market",
+        "name": "Quincy Market & seafood",
+        "tags": [
+          "food",
+          "shopping"
+        ],
+        "setting": "indoor",
+        "costCents": 3000,
+        "durationHours": 2,
+        "mobility": "easy"
+      },
+      {
+        "id": "boston-harbor-islands",
+        "name": "Boston Harbor Islands ferry",
+        "tags": [
+          "outdoors",
+          "beach"
+        ],
+        "setting": "outdoor",
+        "costCents": 2500,
+        "durationHours": 4,
+        "mobility": "moderate"
+      }
+    ]
+  },
+  {
+    "id": "honolulu",
+    "name": "Honolulu",
+    "state": "HI",
+    "country": "United States",
+    "region": "hawaii",
+    "iata": "HNL",
+    "lat": 21.3069,
+    "lon": -157.8583,
+    "timezone": "Pacific/Honolulu",
+    "passportRequired": false,
+    "aliases": [
+      "hawaii",
+      "oahu",
+      "waikiki",
+      "hnl"
+    ],
+    "tags": [
+      "beach",
+      "outdoors",
+      "hiking",
+      "relaxing",
+      "adventure",
+      "food",
+      "luxury"
+    ],
+    "dietary": {
+      "vegetarian": 0.7,
+      "vegan": 0.6,
+      "halal": 0.35,
+      "kosher": 0.25,
+      "gluten_free": 0.7
+    },
+    "bestMonths": [
+      4,
+      5,
+      6,
+      9,
+      10
+    ],
+    "badMonths": [],
+    "badMonthReasons": {},
+    "costs": {
+      "lodgingPerNightCents": {
+        "budget": 7000,
+        "mid": 13000
+      },
+      "foodPerDayCents": {
+        "budget": 5500,
+        "mid": 9000
+      },
+      "activitiesPerDayCents": {
+        "budget": 2500,
+        "mid": 6000
+      },
+      "localTransportPerDayCents": 2000
+    },
+    "flightFromRegion": {
+      "southeast_us": {
+        "roundTripCents": [
+          54000,
+          97000
+        ],
+        "hours": 12.5
+      },
+      "northeast_us": {
+        "roundTripCents": [
+          55000,
+          100000
+        ],
+        "hours": 12.5
+      },
+      "midwest_us": {
+        "roundTripCents": [
+          49000,
+          88000
+        ],
+        "hours": 11
+      },
+      "south_central_us": {
+        "roundTripCents": [
+          45000,
+          81000
+        ],
+        "hours": 10
+      },
+      "mountain_us": {
+        "roundTripCents": [
+          41000,
+          74000
+        ],
+        "hours": 9
+      },
+      "west_us": {
+        "roundTripCents": [
+          28000,
+          51000
+        ],
+        "hours": 6
+      }
+    },
+    "activities": [
+      {
+        "id": "honolulu-waikiki-surf",
+        "name": "Waikiki surf lesson",
+        "tags": [
+          "beach",
+          "adventure"
+        ],
+        "setting": "outdoor",
+        "costCents": 7500,
+        "durationHours": 3,
+        "mobility": "moderate"
+      },
+      {
+        "id": "honolulu-diamond-head",
+        "name": "Diamond Head hike",
+        "tags": [
+          "hiking",
+          "outdoors"
+        ],
+        "setting": "outdoor",
+        "costCents": 1000,
+        "durationHours": 2,
+        "mobility": "moderate"
+      },
+      {
+        "id": "honolulu-hanauma-bay",
+        "name": "Snorkel Hanauma Bay",
+        "tags": [
+          "beach",
+          "outdoors"
+        ],
+        "setting": "outdoor",
+        "costCents": 2500,
+        "durationHours": 3,
+        "mobility": "easy"
+      },
+      {
+        "id": "honolulu-pearl-harbor",
+        "name": "Pearl Harbor National Memorial",
+        "tags": [
+          "history"
+        ],
+        "setting": "either",
+        "costCents": 0,
+        "durationHours": 3,
+        "mobility": "easy"
+      },
+      {
+        "id": "honolulu-north-shore",
+        "name": "North Shore day: shrimp trucks & big waves",
+        "tags": [
+          "beach",
+          "food",
+          "relaxing"
+        ],
+        "setting": "outdoor",
+        "costCents": 3000,
+        "durationHours": 6,
+        "mobility": "easy"
+      },
+      {
+        "id": "honolulu-poke-crawl",
+        "name": "Poke & plate lunch crawl",
+        "tags": [
+          "food"
+        ],
+        "setting": "either",
+        "costCents": 2500,
+        "durationHours": 2,
+        "mobility": "easy"
+      },
+      {
+        "id": "honolulu-bishop-museum",
+        "name": "Bishop Museum",
+        "tags": [
+          "culture",
+          "history"
+        ],
+        "setting": "indoor",
+        "costCents": 3000,
+        "durationHours": 2.5,
+        "mobility": "easy"
+      },
+      {
+        "id": "honolulu-lanikai-pillbox",
+        "name": "Lanikai Pillbox hike",
+        "tags": [
+          "hiking",
+          "outdoors"
+        ],
+        "setting": "outdoor",
+        "costCents": 0,
+        "durationHours": 2,
+        "mobility": "moderate"
+      }
+    ]
+  },
+  {
+    "id": "atlanta",
+    "name": "Atlanta",
+    "state": "GA",
+    "country": "United States",
+    "region": "southeast_us",
+    "iata": "ATL",
+    "lat": 33.749,
+    "lon": -84.388,
+    "timezone": "America/New_York",
+    "passportRequired": false,
+    "aliases": [
+      "atl",
+      "hotlanta"
+    ],
+    "tags": [
+      "city",
+      "food",
+      "music",
+      "nightlife",
+      "culture",
+      "history",
+      "shopping"
+    ],
+    "dietary": {
+      "vegetarian": 0.8,
+      "vegan": 0.75,
+      "halal": 0.6,
+      "kosher": 0.35,
+      "gluten_free": 0.75
+    },
+    "bestMonths": [
+      4,
+      5,
+      9,
+      10
+    ],
+    "badMonths": [],
+    "badMonthReasons": {},
+    "costs": {
+      "lodgingPerNightCents": {
+        "budget": 4500,
+        "mid": 8500
+      },
+      "foodPerDayCents": {
+        "budget": 4000,
+        "mid": 7000
+      },
+      "activitiesPerDayCents": {
+        "budget": 2500,
+        "mid": 5000
+      },
+      "localTransportPerDayCents": 2000
+    },
+    "flightFromRegion": {
+      "southeast_us": {
+        "roundTripCents": [
+          14000,
+          26000
+        ],
+        "hours": 1.5
+      },
+      "northeast_us": {
+        "roundTripCents": [
+          12000,
+          22000
+        ],
+        "hours": 2
+      },
+      "midwest_us": {
+        "roundTripCents": [
+          11000,
+          21000
+        ],
+        "hours": 2
+      },
+      "south_central_us": {
+        "roundTripCents": [
+          12000,
+          22000
+        ],
+        "hours": 2
+      },
+      "mountain_us": {
+        "roundTripCents": [
+          15000,
+          28000
+        ],
+        "hours": 3
+      },
+      "west_us": {
+        "roundTripCents": [
+          20000,
+          36000
+        ],
+        "hours": 4.5
+      }
+    },
+    "driveFromRegion": {
+      "southeast_us": 6
+    },
+    "activities": [
+      {
+        "id": "atlanta-beltline-ponce",
+        "name": "BeltLine walk & Ponce City Market",
+        "tags": [
+          "walkable",
+          "food",
+          "shopping"
+        ],
+        "setting": "outdoor",
+        "costCents": 2000,
+        "durationHours": 3,
+        "mobility": "easy"
+      },
+      {
+        "id": "atlanta-georgia-aquarium",
+        "name": "Georgia Aquarium",
+        "tags": [
+          "culture"
+        ],
+        "setting": "indoor",
+        "costCents": 5000,
+        "durationHours": 2.5,
+        "mobility": "easy"
+      },
+      {
+        "id": "atlanta-mlk-park",
+        "name": "MLK Jr. National Historical Park",
+        "tags": [
+          "history",
+          "culture"
+        ],
+        "setting": "either",
+        "costCents": 0,
+        "durationHours": 2,
+        "mobility": "easy"
+      },
+      {
+        "id": "atlanta-civil-rights-center",
+        "name": "National Center for Civil & Human Rights",
+        "tags": [
+          "history",
+          "culture"
+        ],
+        "setting": "indoor",
+        "costCents": 2200,
+        "durationHours": 2,
+        "mobility": "easy"
+      },
+      {
+        "id": "atlanta-krog-street-market",
+        "name": "Krog Street Market",
+        "tags": [
+          "food"
+        ],
+        "setting": "indoor",
+        "costCents": 2500,
+        "durationHours": 2,
+        "mobility": "easy"
+      },
+      {
+        "id": "atlanta-stone-mountain",
+        "name": "Stone Mountain hike",
+        "tags": [
+          "hiking",
+          "outdoors"
+        ],
+        "setting": "outdoor",
+        "costCents": 2000,
+        "durationHours": 2.5,
+        "mobility": "moderate"
+      },
+      {
+        "id": "atlanta-piedmont-park",
+        "name": "Piedmont Park picnic",
+        "tags": [
+          "outdoors",
+          "relaxing"
+        ],
+        "setting": "outdoor",
+        "costCents": 0,
+        "durationHours": 2,
+        "mobility": "easy"
+      },
+      {
+        "id": "atlanta-edgewood-bars",
+        "name": "Edgewood Avenue bars",
+        "tags": [
+          "nightlife",
+          "music"
+        ],
+        "setting": "indoor",
+        "costCents": 3500,
+        "durationHours": 3,
+        "mobility": "easy"
+      }
+    ]
+  },
+  {
+    "id": "cancun",
+    "name": "Cancún",
+    "country": "Mexico",
+    "region": "mexico",
+    "iata": "CUN",
+    "lat": 21.1619,
+    "lon": -86.8515,
+    "timezone": "America/Cancun",
+    "passportRequired": true,
+    "aliases": [
+      "cancun",
+      "cun",
+      "isla mujeres",
+      "riviera maya"
+    ],
+    "tags": [
+      "beach",
+      "nightlife",
+      "relaxing",
+      "adventure",
+      "food"
+    ],
+    "dietary": {
+      "vegetarian": 0.65,
+      "vegan": 0.45,
+      "halal": 0.2,
+      "kosher": 0.15,
+      "gluten_free": 0.55
+    },
+    "bestMonths": [
+      1,
+      2,
+      3,
+      4,
+      12
+    ],
+    "badMonths": [
+      9,
+      10
+    ],
+    "badMonthReasons": {
+      "9": "hurricane season",
+      "10": "hurricane season"
+    },
+    "costs": {
+      "lodgingPerNightCents": {
+        "budget": 4500,
+        "mid": 9000
+      },
+      "foodPerDayCents": {
+        "budget": 3000,
+        "mid": 6000
+      },
+      "activitiesPerDayCents": {
+        "budget": 3000,
+        "mid": 7000
+      },
+      "localTransportPerDayCents": 1200
+    },
+    "flightFromRegion": {
+      "southeast_us": {
+        "roundTripCents": [
+          27000,
+          48000
+        ],
+        "hours": 3
+      },
+      "northeast_us": {
+        "roundTripCents": [
+          30000,
+          53000
+        ],
+        "hours": 4
+      },
+      "midwest_us": {
+        "roundTripCents": [
+          29000,
+          52000
+        ],
+        "hours": 3.5
+      },
+      "south_central_us": {
+        "roundTripCents": [
+          26000,
+          47000
+        ],
+        "hours": 2.5
+      },
+      "mountain_us": {
+        "roundTripCents": [
+          30000,
+          55000
+        ],
+        "hours": 4
+      },
+      "west_us": {
+        "roundTripCents": [
+          33000,
+          60000
+        ],
+        "hours": 5
+      }
+    },
+    "activities": [
+      {
+        "id": "cancun-hotel-zone-beach",
+        "name": "Hotel Zone beach day",
+        "tags": [
+          "beach",
+          "relaxing"
+        ],
+        "setting": "outdoor",
+        "costCents": 0,
+        "durationHours": 5,
+        "mobility": "easy"
+      },
+      {
+        "id": "cancun-isla-mujeres",
+        "name": "Ferry to Isla Mujeres + golf cart",
+        "tags": [
+          "beach",
+          "adventure"
+        ],
+        "setting": "outdoor",
+        "costCents": 6000,
+        "durationHours": 7,
+        "mobility": "easy"
+      },
+      {
+        "id": "cancun-cenote-swim",
+        "name": "Cenote swim tour",
+        "tags": [
+          "outdoors",
+          "adventure"
+        ],
+        "setting": "outdoor",
+        "costCents": 7000,
+        "durationHours": 5,
+        "mobility": "moderate"
+      },
+      {
+        "id": "cancun-chichen-itza",
+        "name": "Chichén Itzá day trip",
+        "tags": [
+          "history",
+          "culture"
+        ],
+        "setting": "outdoor",
+        "costCents": 9000,
+        "durationHours": 11,
+        "mobility": "moderate"
+      },
+      {
+        "id": "cancun-mercado-28",
+        "name": "Mercado 28 & downtown tacos",
+        "tags": [
+          "food",
+          "shopping",
+          "budget_friendly"
+        ],
+        "setting": "indoor",
+        "costCents": 2000,
+        "durationHours": 2.5,
+        "mobility": "easy"
+      },
+      {
+        "id": "cancun-coco-bongo",
+        "name": "Coco Bongo night",
+        "tags": [
+          "nightlife",
+          "music"
+        ],
+        "setting": "indoor",
+        "costCents": 9000,
+        "durationHours": 4,
+        "mobility": "easy"
+      },
+      {
+        "id": "cancun-museo-maya",
+        "name": "Museo Maya de Cancún",
+        "tags": [
+          "culture",
+          "history"
+        ],
+        "setting": "indoor",
+        "costCents": 600,
+        "durationHours": 1.5,
+        "mobility": "easy"
+      },
+      {
+        "id": "cancun-cooking-class",
+        "name": "Mexican cooking class",
+        "tags": [
+          "food",
+          "culture"
+        ],
+        "setting": "indoor",
+        "costCents": 7500,
+        "durationHours": 3,
+        "mobility": "easy"
+      }
+    ]
+  },
+  {
+    "id": "tulum",
+    "name": "Tulum",
+    "country": "Mexico",
+    "region": "mexico",
+    "iata": "TQO",
+    "lat": 20.2114,
+    "lon": -87.4654,
+    "timezone": "America/Cancun",
+    "passportRequired": true,
+    "aliases": [
+      "tqo"
+    ],
+    "tags": [
+      "beach",
+      "outdoors",
+      "relaxing",
+      "luxury",
+      "nightlife",
+      "adventure",
+      "culture"
+    ],
+    "dietary": {
+      "vegetarian": 0.85,
+      "vegan": 0.8,
+      "halal": 0.15,
+      "kosher": 0.1,
+      "gluten_free": 0.75
+    },
+    "bestMonths": [
+      1,
+      2,
+      3,
+      4,
+      11,
+      12
+    ],
+    "badMonths": [
+      9,
+      10
+    ],
+    "badMonthReasons": {
+      "9": "hurricane season",
+      "10": "hurricane season"
+    },
+    "costs": {
+      "lodgingPerNightCents": {
+        "budget": 5000,
+        "mid": 10000
+      },
+      "foodPerDayCents": {
+        "budget": 3500,
+        "mid": 7000
+      },
+      "activitiesPerDayCents": {
+        "budget": 3000,
+        "mid": 7000
+      },
+      "localTransportPerDayCents": 1500
+    },
+    "flightFromRegion": {
+      "southeast_us": {
+        "roundTripCents": [
+          33000,
+          59000
+        ],
+        "hours": 4.5
+      },
+      "northeast_us": {
+        "roundTripCents": [
+          36000,
+          65000
+        ],
+        "hours": 5.5
+      },
+      "midwest_us": {
+        "roundTripCents": [
+          35000,
+          63000
+        ],
+        "hours": 5.5
+      },
+      "south_central_us": {
+        "roundTripCents": [
+          31000,
+          56000
+        ],
+        "hours": 4.5
+      },
+      "mountain_us": {
+        "roundTripCents": [
+          37000,
+          67000
+        ],
+        "hours": 5.5
+      },
+      "west_us": {
+        "roundTripCents": [
+          41000,
+          73000
+        ],
+        "hours": 6.5
+      }
+    },
+    "activities": [
+      {
+        "id": "tulum-tulum-ruins",
+        "name": "Tulum ruins on the cliffs",
+        "tags": [
+          "history",
+          "culture",
+          "beach"
+        ],
+        "setting": "outdoor",
+        "costCents": 2500,
+        "durationHours": 2.5,
+        "mobility": "moderate"
+      },
+      {
+        "id": "tulum-gran-cenote",
+        "name": "Gran Cenote swim",
+        "tags": [
+          "outdoors",
+          "adventure"
+        ],
+        "setting": "outdoor",
+        "costCents": 2500,
+        "durationHours": 3,
+        "mobility": "moderate"
+      },
+      {
+        "id": "tulum-beach-club",
+        "name": "Beach club day",
+        "tags": [
+          "beach",
+          "relaxing",
+          "luxury"
+        ],
+        "setting": "outdoor",
+        "costCents": 6000,
+        "durationHours": 5,
+        "mobility": "easy"
+      },
+      {
+        "id": "tulum-bike-taquerias",
+        "name": "Bike to town & taquerias",
+        "tags": [
+          "food",
+          "budget_friendly"
+        ],
+        "setting": "outdoor",
+        "costCents": 2000,
+        "durationHours": 2.5,
+        "mobility": "moderate"
+      },
+      {
+        "id": "tulum-sian-kaan",
+        "name": "Sian Ka'an biosphere boat tour",
+        "tags": [
+          "outdoors",
+          "adventure"
+        ],
+        "setting": "outdoor",
+        "costCents": 11000,
+        "durationHours": 6,
+        "mobility": "easy"
+      },
+      {
+        "id": "tulum-coba-ruins",
+        "name": "Cobá ruins by bike",
+        "tags": [
+          "history",
+          "outdoors"
+        ],
+        "setting": "outdoor",
+        "costCents": 3000,
+        "durationHours": 5,
+        "mobility": "moderate"
+      },
+      {
+        "id": "tulum-mayan-cooking",
+        "name": "Mayan cooking class",
+        "tags": [
+          "food",
+          "culture"
+        ],
+        "setting": "indoor",
+        "costCents": 8000,
+        "durationHours": 3,
+        "mobility": "easy"
+      },
+      {
+        "id": "tulum-temazcal",
+        "name": "Temazcal sweat lodge ceremony",
+        "tags": [
+          "relaxing",
+          "culture"
+        ],
+        "setting": "indoor",
+        "costCents": 5000,
+        "durationHours": 2,
+        "mobility": "easy"
+      }
+    ]
+  },
+  {
+    "id": "san-juan",
+    "name": "San Juan",
+    "country": "Puerto Rico",
+    "region": "caribbean",
+    "iata": "SJU",
+    "lat": 18.4655,
+    "lon": -66.1057,
+    "timezone": "America/Puerto_Rico",
+    "passportRequired": false,
+    "aliases": [
+      "puerto rico",
+      "pr",
+      "old san juan",
+      "sju"
+    ],
+    "tags": [
+      "beach",
+      "history",
+      "food",
+      "nightlife",
+      "culture",
+      "walkable",
+      "outdoors"
+    ],
+    "dietary": {
+      "vegetarian": 0.6,
+      "vegan": 0.45,
+      "halal": 0.2,
+      "kosher": 0.2,
+      "gluten_free": 0.55
+    },
+    "bestMonths": [
+      1,
+      2,
+      3,
+      4,
+      5,
+      12
+    ],
+    "badMonths": [
+      9,
+      10
+    ],
+    "badMonthReasons": {
+      "9": "hurricane season",
+      "10": "hurricane season"
+    },
+    "costs": {
+      "lodgingPerNightCents": {
+        "budget": 5000,
+        "mid": 9500
+      },
+      "foodPerDayCents": {
+        "budget": 4000,
+        "mid": 7000
+      },
+      "activitiesPerDayCents": {
+        "budget": 2500,
+        "mid": 6000
+      },
+      "localTransportPerDayCents": 2000
+    },
+    "flightFromRegion": {
+      "southeast_us": {
+        "roundTripCents": [
+          20000,
+          36000
+        ],
+        "hours": 3.5
+      },
+      "northeast_us": {
+        "roundTripCents": [
+          21000,
+          38000
+        ],
+        "hours": 4
+      },
+      "midwest_us": {
+        "roundTripCents": [
+          24000,
+          44000
+        ],
+        "hours": 5
+      },
+      "south_central_us": {
+        "roundTripCents": [
+          25000,
+          45000
+        ],
+        "hours": 5
+      },
+      "mountain_us": {
+        "roundTripCents": [
+          30000,
+          53000
+        ],
+        "hours": 6.5
+      },
+      "west_us": {
+        "roundTripCents": [
+          34000,
+          62000
+        ],
+        "hours": 9.5
+      }
+    },
+    "activities": [
+      {
+        "id": "san-juan-old-san-juan-el-morro",
+        "name": "Old San Juan walk & El Morro",
+        "tags": [
+          "history",
+          "walkable"
+        ],
+        "setting": "outdoor",
+        "costCents": 1000,
+        "durationHours": 3,
+        "mobility": "moderate"
+      },
+      {
+        "id": "san-juan-condado-beach",
+        "name": "Condado beach day",
+        "tags": [
+          "beach",
+          "relaxing"
+        ],
+        "setting": "outdoor",
+        "costCents": 0,
+        "durationHours": 4,
+        "mobility": "easy"
+      },
+      {
+        "id": "san-juan-el-yunque",
+        "name": "El Yunque rainforest hike",
+        "tags": [
+          "hiking",
+          "outdoors"
+        ],
+        "setting": "outdoor",
+        "costCents": 1000,
+        "durationHours": 5,
+        "mobility": "moderate"
+      },
+      {
+        "id": "san-juan-bio-bay-kayak",
+        "name": "Bioluminescent bay kayak",
+        "tags": [
+          "outdoors",
+          "adventure"
+        ],
+        "setting": "outdoor",
+        "costCents": 6000,
+        "durationHours": 3,
+        "mobility": "moderate"
+      },
+      {
+        "id": "san-juan-la-placita",
+        "name": "La Placita de Santurce night",
+        "tags": [
+          "nightlife",
+          "music",
+          "food"
+        ],
+        "setting": "outdoor",
+        "costCents": 2500,
+        "durationHours": 3,
+        "mobility": "easy"
+      },
+      {
+        "id": "san-juan-food-tour",
+        "name": "Old San Juan food tour",
+        "tags": [
+          "food",
+          "culture"
+        ],
+        "setting": "either",
+        "costCents": 9500,
+        "durationHours": 3,
+        "mobility": "easy"
+      },
+      {
+        "id": "san-juan-casa-bacardi",
+        "name": "Casa Bacardí tour",
+        "tags": [
+          "history",
+          "food"
+        ],
+        "setting": "indoor",
+        "costCents": 6000,
+        "durationHours": 2,
+        "mobility": "easy"
+      },
+      {
+        "id": "san-juan-museo-de-arte",
+        "name": "Museo de Arte de Puerto Rico",
+        "tags": [
+          "culture"
+        ],
+        "setting": "indoor",
+        "costCents": 1200,
+        "durationHours": 2,
+        "mobility": "easy"
+      }
+    ]
+  },
+  {
+    "id": "mexico-city",
+    "name": "Mexico City",
+    "country": "Mexico",
+    "region": "mexico",
+    "iata": "MEX",
+    "lat": 19.4326,
+    "lon": -99.1332,
+    "timezone": "America/Mexico_City",
+    "passportRequired": true,
+    "aliases": [
+      "cdmx",
+      "mexico df",
+      "df",
+      "ciudad de mexico"
+    ],
+    "tags": [
+      "food",
+      "culture",
+      "history",
+      "city",
+      "nightlife",
+      "walkable",
+      "budget_friendly",
+      "shopping"
+    ],
+    "dietary": {
+      "vegetarian": 0.85,
+      "vegan": 0.75,
+      "halal": 0.3,
+      "kosher": 0.3,
+      "gluten_free": 0.6
+    },
+    "bestMonths": [
+      3,
+      4,
+      10,
+      11
+    ],
+    "badMonths": [],
+    "badMonthReasons": {},
+    "costs": {
+      "lodgingPerNightCents": {
+        "budget": 2500,
+        "mid": 5500
+      },
+      "foodPerDayCents": {
+        "budget": 2500,
+        "mid": 5000
+      },
+      "activitiesPerDayCents": {
+        "budget": 1500,
+        "mid": 4000
+      },
+      "localTransportPerDayCents": 800
+    },
+    "flightFromRegion": {
+      "southeast_us": {
+        "roundTripCents": [
+          31000,
+          57000
+        ],
+        "hours": 4
+      },
+      "northeast_us": {
+        "roundTripCents": [
+          34000,
+          62000
+        ],
+        "hours": 5
+      },
+      "midwest_us": {
+        "roundTripCents": [
+          32000,
+          57000
+        ],
+        "hours": 4
+      },
+      "south_central_us": {
+        "roundTripCents": [
+          26000,
+          48000
+        ],
+        "hours": 2.5
+      },
+      "mountain_us": {
+        "roundTripCents": [
+          30000,
+          54000
+        ],
+        "hours": 3.5
+      },
+      "west_us": {
+        "roundTripCents": [
+          31000,
+          55000
+        ],
+        "hours": 4
+      }
+    },
+    "activities": [
+      {
+        "id": "mexico-city-teotihuacan",
+        "name": "Teotihuacán pyramids",
+        "tags": [
+          "history",
+          "culture"
+        ],
+        "setting": "outdoor",
+        "costCents": 2500,
+        "durationHours": 6,
+        "mobility": "moderate"
+      },
+      {
+        "id": "mexico-city-street-taco-tour",
+        "name": "Street taco tour",
+        "tags": [
+          "food",
+          "budget_friendly"
+        ],
+        "setting": "outdoor",
+        "costCents": 4000,
+        "durationHours": 3,
+        "mobility": "easy"
+      },
+      {
+        "id": "mexico-city-anthropology-museum",
+        "name": "Museo Nacional de Antropología",
+        "tags": [
+          "culture",
+          "history"
+        ],
+        "setting": "indoor",
+        "costCents": 600,
+        "durationHours": 3,
+        "mobility": "easy"
+      },
+      {
+        "id": "mexico-city-casa-azul",
+        "name": "Casa Azul (Frida Kahlo Museum)",
+        "tags": [
+          "culture",
+          "history"
+        ],
+        "setting": "indoor",
+        "costCents": 1700,
+        "durationHours": 1.5,
+        "mobility": "easy"
+      },
+      {
+        "id": "mexico-city-xochimilco",
+        "name": "Xochimilco trajinera ride",
+        "tags": [
+          "relaxing",
+          "nightlife"
+        ],
+        "setting": "outdoor",
+        "costCents": 2500,
+        "durationHours": 3,
+        "mobility": "easy"
+      },
+      {
+        "id": "mexico-city-lucha-libre",
+        "name": "Lucha libre at Arena México",
+        "tags": [
+          "nightlife",
+          "culture"
+        ],
+        "setting": "indoor",
+        "costCents": 2000,
+        "durationHours": 2.5,
+        "mobility": "easy"
+      },
+      {
+        "id": "mexico-city-roma-condesa",
+        "name": "Roma & Condesa cafés and bars",
+        "tags": [
+          "food",
+          "nightlife",
+          "walkable"
+        ],
+        "setting": "outdoor",
+        "costCents": 3000,
+        "durationHours": 3,
+        "mobility": "easy"
+      },
+      {
+        "id": "mexico-city-chapultepec",
+        "name": "Chapultepec Castle & park",
+        "tags": [
+          "history",
+          "outdoors"
+        ],
+        "setting": "either",
+        "costCents": 600,
+        "durationHours": 3,
+        "mobility": "moderate"
+      }
+    ]
+  },
+  {
+    "id": "puerto-vallarta",
+    "name": "Puerto Vallarta",
+    "country": "Mexico",
+    "region": "mexico",
+    "iata": "PVR",
+    "lat": 20.6534,
+    "lon": -105.2253,
+    "timezone": "America/Mexico_City",
+    "passportRequired": true,
+    "aliases": [
+      "vallarta",
+      "pv",
+      "pvr"
+    ],
+    "tags": [
+      "beach",
+      "relaxing",
+      "nightlife",
+      "outdoors",
+      "food",
+      "adventure",
+      "budget_friendly"
+    ],
+    "dietary": {
+      "vegetarian": 0.65,
+      "vegan": 0.5,
+      "halal": 0.15,
+      "kosher": 0.1,
+      "gluten_free": 0.55
+    },
+    "bestMonths": [
+      1,
+      2,
+      3,
+      4,
+      11,
+      12
+    ],
+    "badMonths": [
+      9,
+      10
+    ],
+    "badMonthReasons": {
+      "9": "hurricane season",
+      "10": "hurricane season"
+    },
+    "costs": {
+      "lodgingPerNightCents": {
+        "budget": 3500,
+        "mid": 7000
+      },
+      "foodPerDayCents": {
+        "budget": 3000,
+        "mid": 5500
+      },
+      "activitiesPerDayCents": {
+        "budget": 2500,
+        "mid": 6000
+      },
+      "localTransportPerDayCents": 1000
+    },
+    "flightFromRegion": {
+      "southeast_us": {
+        "roundTripCents": [
+          37000,
+          66000
+        ],
+        "hours": 4.5
+      },
+      "northeast_us": {
+        "roundTripCents": [
+          40000,
+          71000
+        ],
+        "hours": 5.5
+      },
+      "midwest_us": {
+        "roundTripCents": [
+          36000,
+          64000
+        ],
+        "hours": 4.5
+      },
+      "south_central_us": {
+        "roundTripCents": [
+          29000,
+          53000
+        ],
+        "hours": 2.5
+      },
+      "mountain_us": {
+        "roundTripCents": [
+          32000,
+          57000
+        ],
+        "hours": 3.5
+      },
+      "west_us": {
+        "roundTripCents": [
+          31000,
+          56000
+        ],
+        "hours": 3
+      }
+    },
+    "activities": [
+      {
+        "id": "puerto-vallarta-malecon-sunset",
+        "name": "Malecón walk at sunset",
+        "tags": [
+          "walkable",
+          "relaxing"
+        ],
+        "setting": "outdoor",
+        "costCents": 0,
+        "durationHours": 2,
+        "mobility": "easy"
+      },
+      {
+        "id": "puerto-vallarta-los-muertos-beach",
+        "name": "Playa Los Muertos",
+        "tags": [
+          "beach",
+          "relaxing"
+        ],
+        "setting": "outdoor",
+        "costCents": 0,
+        "durationHours": 4,
+        "mobility": "easy"
+      },
+      {
+        "id": "puerto-vallarta-yelapa-boat",
+        "name": "Boat to Yelapa & waterfall",
+        "tags": [
+          "beach",
+          "adventure",
+          "outdoors"
+        ],
+        "setting": "outdoor",
+        "costCents": 5000,
+        "durationHours": 7,
+        "mobility": "moderate"
+      },
+      {
+        "id": "puerto-vallarta-zona-romantica",
+        "name": "Zona Romántica nightlife",
+        "tags": [
+          "nightlife"
+        ],
+        "setting": "indoor",
+        "costCents": 3500,
+        "durationHours": 3,
+        "mobility": "easy"
+      },
+      {
+        "id": "puerto-vallarta-taco-tour",
+        "name": "Taco tour",
+        "tags": [
+          "food"
+        ],
+        "setting": "either",
+        "costCents": 5500,
+        "durationHours": 3,
+        "mobility": "easy"
+      },
+      {
+        "id": "puerto-vallarta-market-cooking-class",
+        "name": "Market tour & cooking class",
+        "tags": [
+          "food",
+          "culture"
+        ],
+        "setting": "indoor",
+        "costCents": 8000,
+        "durationHours": 4,
+        "mobility": "easy"
+      },
+      {
+        "id": "puerto-vallarta-marietas-snorkel",
+        "name": "Islas Marietas snorkel",
+        "tags": [
+          "outdoors",
+          "adventure",
+          "beach"
+        ],
+        "setting": "outdoor",
+        "costCents": 10000,
+        "durationHours": 6,
+        "mobility": "moderate"
+      },
+      {
+        "id": "puerto-vallarta-botanical-garden",
+        "name": "Vallarta Botanical Garden",
+        "tags": [
+          "outdoors"
+        ],
+        "setting": "outdoor",
+        "costCents": 1500,
+        "durationHours": 3,
+        "mobility": "easy"
+      }
+    ]
+  },
+  {
+    "id": "nassau",
+    "name": "Nassau",
+    "country": "Bahamas",
+    "region": "caribbean",
+    "iata": "NAS",
+    "lat": 25.0443,
+    "lon": -77.3504,
+    "timezone": "America/Nassau",
+    "passportRequired": true,
+    "aliases": [
+      "bahamas",
+      "the bahamas",
+      "paradise island",
+      "nas"
+    ],
+    "tags": [
+      "beach",
+      "relaxing",
+      "luxury",
+      "nightlife"
+    ],
+    "dietary": {
+      "vegetarian": 0.45,
+      "vegan": 0.3,
+      "halal": 0.15,
+      "kosher": 0.2,
+      "gluten_free": 0.5
+    },
+    "bestMonths": [
+      3,
+      4,
+      5,
+      12
+    ],
+    "badMonths": [
+      9,
+      10
+    ],
+    "badMonthReasons": {
+      "9": "hurricane season",
+      "10": "hurricane season"
+    },
+    "costs": {
+      "lodgingPerNightCents": {
+        "budget": 8000,
+        "mid": 14000
+      },
+      "foodPerDayCents": {
+        "budget": 6000,
+        "mid": 10000
+      },
+      "activitiesPerDayCents": {
+        "budget": 4000,
+        "mid": 9000
+      },
+      "localTransportPerDayCents": 2000
+    },
+    "flightFromRegion": {
+      "southeast_us": {
+        "roundTripCents": [
+          29000,
+          52000
+        ],
+        "hours": 2
+      },
+      "northeast_us": {
+        "roundTripCents": [
+          32000,
+          57000
+        ],
+        "hours": 3
+      },
+      "midwest_us": {
+        "roundTripCents": [
+          34000,
+          60000
+        ],
+        "hours": 3.5
+      },
+      "south_central_us": {
+        "roundTripCents": [
+          33000,
+          60000
+        ],
+        "hours": 3.5
+      },
+      "mountain_us": {
+        "roundTripCents": [
+          39000,
+          70000
+        ],
+        "hours": 4.5
+      },
+      "west_us": {
+        "roundTripCents": [
+          44000,
+          79000
+        ],
+        "hours": 6
+      }
+    },
+    "activities": [
+      {
+        "id": "nassau-cable-beach",
+        "name": "Cable Beach day",
+        "tags": [
+          "beach",
+          "relaxing"
+        ],
+        "setting": "outdoor",
+        "costCents": 0,
+        "durationHours": 5,
+        "mobility": "easy"
+      },
+      {
+        "id": "nassau-atlantis-aquaventure",
+        "name": "Atlantis Aquaventure water park",
+        "tags": [
+          "adventure",
+          "luxury"
+        ],
+        "setting": "outdoor",
+        "costCents": 20000,
+        "durationHours": 6,
+        "mobility": "moderate"
+      },
+      {
+        "id": "nassau-rose-island-pigs",
+        "name": "Rose Island snorkel & swimming pigs",
+        "tags": [
+          "adventure",
+          "beach"
+        ],
+        "setting": "outdoor",
+        "costCents": 16000,
+        "durationHours": 6,
+        "mobility": "easy"
+      },
+      {
+        "id": "nassau-arawak-fish-fry",
+        "name": "Arawak Cay fish fry",
+        "tags": [
+          "food",
+          "nightlife"
+        ],
+        "setting": "outdoor",
+        "costCents": 3000,
+        "durationHours": 2,
+        "mobility": "easy"
+      },
+      {
+        "id": "nassau-straw-market",
+        "name": "Straw Market & downtown",
+        "tags": [
+          "shopping",
+          "culture"
+        ],
+        "setting": "indoor",
+        "costCents": 1500,
+        "durationHours": 1.5,
+        "mobility": "easy"
+      },
+      {
+        "id": "nassau-pirates-museum",
+        "name": "Pirates of Nassau museum",
+        "tags": [
+          "history",
+          "culture"
+        ],
+        "setting": "indoor",
+        "costCents": 1500,
+        "durationHours": 1,
+        "mobility": "easy"
+      },
+      {
+        "id": "nassau-distillery-tour",
+        "name": "John Watling's Distillery tour",
+        "tags": [
+          "history",
+          "food"
+        ],
+        "setting": "indoor",
+        "costCents": 0,
+        "durationHours": 1,
+        "mobility": "easy"
+      },
+      {
+        "id": "nassau-national-art-gallery",
+        "name": "National Art Gallery of the Bahamas",
+        "tags": [
+          "culture"
+        ],
+        "setting": "indoor",
+        "costCents": 1000,
+        "durationHours": 1.5,
+        "mobility": "easy"
+      }
+    ]
+  },
+  {
+    "id": "punta-cana",
+    "name": "Punta Cana",
+    "country": "Dominican Republic",
+    "region": "caribbean",
+    "iata": "PUJ",
+    "lat": 18.5601,
+    "lon": -68.3725,
+    "timezone": "America/Santo_Domingo",
+    "passportRequired": true,
+    "aliases": [
+      "dominican republic",
+      "the dr",
+      "dr",
+      "bavaro",
+      "puj"
+    ],
+    "tags": [
+      "beach",
+      "relaxing",
+      "luxury",
+      "nightlife",
+      "adventure"
+    ],
+    "dietary": {
+      "vegetarian": 0.55,
+      "vegan": 0.35,
+      "halal": 0.15,
+      "kosher": 0.1,
+      "gluten_free": 0.5
+    },
+    "bestMonths": [
+      1,
+      2,
+      3,
+      4,
+      12
+    ],
+    "badMonths": [
+      9,
+      10
+    ],
+    "badMonthReasons": {
+      "9": "hurricane season",
+      "10": "hurricane season"
+    },
+    "costs": {
+      "lodgingPerNightCents": {
+        "budget": 6000,
+        "mid": 11000
+      },
+      "foodPerDayCents": {
+        "budget": 3500,
+        "mid": 6000
+      },
+      "activitiesPerDayCents": {
+        "budget": 3500,
+        "mid": 8000
+      },
+      "localTransportPerDayCents": 1500
+    },
+    "flightFromRegion": {
+      "southeast_us": {
+        "roundTripCents": [
+          31000,
+          56000
+        ],
+        "hours": 3.5
+      },
+      "northeast_us": {
+        "roundTripCents": [
+          33000,
+          59000
+        ],
+        "hours": 4
+      },
+      "midwest_us": {
+        "roundTripCents": [
+          36000,
+          64000
+        ],
+        "hours": 5
+      },
+      "south_central_us": {
+        "roundTripCents": [
+          36000,
+          65000
+        ],
+        "hours": 5
+      },
+      "mountain_us": {
+        "roundTripCents": [
+          41000,
+          73000
+        ],
+        "hours": 6
+      },
+      "west_us": {
+        "roundTripCents": [
+          45000,
+          81000
+        ],
+        "hours": 9
+      }
+    },
+    "activities": [
+      {
+        "id": "punta-cana-bavaro-beach",
+        "name": "Bávaro beach day",
+        "tags": [
+          "beach",
+          "relaxing"
+        ],
+        "setting": "outdoor",
+        "costCents": 0,
+        "durationHours": 5,
+        "mobility": "easy"
+      },
+      {
+        "id": "punta-cana-saona-catamaran",
+        "name": "Saona Island catamaran",
+        "tags": [
+          "beach",
+          "adventure"
+        ],
+        "setting": "outdoor",
+        "costCents": 9000,
+        "durationHours": 9,
+        "mobility": "easy"
+      },
+      {
+        "id": "punta-cana-hoyo-azul-zipline",
+        "name": "Hoyo Azul cenote & ziplines",
+        "tags": [
+          "adventure",
+          "outdoors"
+        ],
+        "setting": "outdoor",
+        "costCents": 10000,
+        "durationHours": 5,
+        "mobility": "moderate"
+      },
+      {
+        "id": "punta-cana-dune-buggy",
+        "name": "Dune buggy & cave swim",
+        "tags": [
+          "adventure"
+        ],
+        "setting": "outdoor",
+        "costCents": 7000,
+        "durationHours": 4,
+        "mobility": "moderate"
+      },
+      {
+        "id": "punta-cana-coco-bongo",
+        "name": "Coco Bongo Punta Cana",
+        "tags": [
+          "nightlife",
+          "music"
+        ],
+        "setting": "indoor",
+        "costCents": 8000,
+        "durationHours": 4,
+        "mobility": "easy"
+      },
+      {
+        "id": "punta-cana-cacao-cooking",
+        "name": "Cacao tasting & Dominican cooking class",
+        "tags": [
+          "food",
+          "culture"
+        ],
+        "setting": "indoor",
+        "costCents": 4000,
+        "durationHours": 2,
+        "mobility": "easy"
+      },
+      {
+        "id": "punta-cana-altos-de-chavon",
+        "name": "Altos de Chavón village",
+        "tags": [
+          "history",
+          "culture"
+        ],
+        "setting": "either",
+        "costCents": 3000,
+        "durationHours": 4,
+        "mobility": "easy"
+      },
+      {
+        "id": "punta-cana-resort-spa",
+        "name": "Resort spa afternoon",
+        "tags": [
+          "relaxing",
+          "luxury"
+        ],
+        "setting": "indoor",
+        "costCents": 8000,
+        "durationHours": 2,
+        "mobility": "easy"
+      }
+    ]
+  },
+  {
+    "id": "montreal",
+    "name": "Montreal",
+    "country": "Canada",
+    "region": "canada",
+    "iata": "YUL",
+    "lat": 45.5019,
+    "lon": -73.5674,
+    "timezone": "America/Toronto",
+    "passportRequired": true,
+    "aliases": [
+      "montréal",
+      "mtl",
+      "yul"
+    ],
+    "tags": [
+      "food",
+      "culture",
+      "nightlife",
+      "walkable",
+      "history",
+      "city",
+      "snow",
+      "budget_friendly"
+    ],
+    "dietary": {
+      "vegetarian": 0.85,
+      "vegan": 0.7,
+      "halal": 0.7,
+      "kosher": 0.6,
+      "gluten_free": 0.75
+    },
+    "bestMonths": [
+      6,
+      7,
+      8,
+      9,
+      10
+    ],
+    "badMonths": [
+      1,
+      2
+    ],
+    "badMonthReasons": {
+      "1": "freezing",
+      "2": "freezing"
+    },
+    "costs": {
+      "lodgingPerNightCents": {
+        "budget": 4500,
+        "mid": 8500
+      },
+      "foodPerDayCents": {
+        "budget": 4000,
+        "mid": 7000
+      },
+      "activitiesPerDayCents": {
+        "budget": 2000,
+        "mid": 5000
+      },
+      "localTransportPerDayCents": 1000
+    },
+    "flightFromRegion": {
+      "southeast_us": {
+        "roundTripCents": [
+          26000,
+          46000
+        ],
+        "hours": 2
+      },
+      "northeast_us": {
+        "roundTripCents": [
+          29000,
+          52000
+        ],
+        "hours": 1.5
+      },
+      "midwest_us": {
+        "roundTripCents": [
+          26000,
+          47000
+        ],
+        "hours": 2
+      },
+      "south_central_us": {
+        "roundTripCents": [
+          32000,
+          58000
+        ],
+        "hours": 4
+      },
+      "mountain_us": {
+        "roundTripCents": [
+          33000,
+          60000
+        ],
+        "hours": 4
+      },
+      "west_us": {
+        "roundTripCents": [
+          40000,
+          72000
+        ],
+        "hours": 6
+      }
+    },
+    "driveFromRegion": {
+      "northeast_us": 6
+    },
+    "activities": [
+      {
+        "id": "montreal-old-montreal",
+        "name": "Old Montreal & Notre-Dame Basilica",
+        "tags": [
+          "history",
+          "walkable",
+          "culture"
+        ],
+        "setting": "either",
+        "costCents": 1500,
+        "durationHours": 3,
+        "mobility": "easy"
+      },
+      {
+        "id": "montreal-bagel-poutine-crawl",
+        "name": "Bagel, poutine & smoked meat crawl",
+        "tags": [
+          "food",
+          "budget_friendly"
+        ],
+        "setting": "indoor",
+        "costCents": 3000,
+        "durationHours": 3,
+        "mobility": "easy"
+      },
+      {
+        "id": "montreal-mont-royal",
+        "name": "Hike Mont Royal",
+        "tags": [
+          "hiking",
+          "outdoors"
+        ],
+        "setting": "outdoor",
+        "costCents": 0,
+        "durationHours": 2,
+        "mobility": "moderate"
+      },
+      {
+        "id": "montreal-jean-talon-market",
+        "name": "Jean-Talon Market",
+        "tags": [
+          "food",
+          "shopping"
+        ],
+        "setting": "either",
+        "costCents": 2000,
+        "durationHours": 2,
+        "mobility": "easy"
+      },
+      {
+        "id": "montreal-plateau-bars",
+        "name": "Plateau & Saint-Laurent bars",
+        "tags": [
+          "nightlife",
+          "music"
+        ],
+        "setting": "indoor",
+        "costCents": 4000,
+        "durationHours": 3,
+        "mobility": "easy"
+      },
+      {
+        "id": "montreal-fine-arts-museum",
+        "name": "Montreal Museum of Fine Arts",
+        "tags": [
+          "culture"
+        ],
+        "setting": "indoor",
+        "costCents": 2500,
+        "durationHours": 2.5,
+        "mobility": "easy"
+      },
+      {
+        "id": "montreal-underground-city",
+        "name": "Underground city & shopping",
+        "tags": [
+          "shopping"
+        ],
+        "setting": "indoor",
+        "costCents": 0,
+        "durationHours": 2,
+        "mobility": "easy"
+      },
+      {
+        "id": "montreal-bota-bota",
+        "name": "Bota Bota floating spa",
+        "tags": [
+          "relaxing",
+          "luxury"
+        ],
+        "setting": "indoor",
+        "costCents": 7500,
+        "durationHours": 3,
+        "mobility": "easy"
+      }
+    ]
+  },
+  {
+    "id": "toronto",
+    "name": "Toronto",
+    "country": "Canada",
+    "region": "canada",
+    "iata": "YYZ",
+    "lat": 43.6532,
+    "lon": -79.3832,
+    "timezone": "America/Toronto",
+    "passportRequired": true,
+    "aliases": [
+      "the six",
+      "the 6ix",
+      "6ix",
+      "yyz",
+      "niagara falls"
+    ],
+    "tags": [
+      "city",
+      "food",
+      "culture",
+      "nightlife",
+      "shopping",
+      "walkable",
+      "music"
+    ],
+    "dietary": {
+      "vegetarian": 0.85,
+      "vegan": 0.75,
+      "halal": 0.85,
+      "kosher": 0.6,
+      "gluten_free": 0.8
+    },
+    "bestMonths": [
+      6,
+      7,
+      8,
+      9
+    ],
+    "badMonths": [
+      1,
+      2
+    ],
+    "badMonthReasons": {
+      "1": "freezing",
+      "2": "freezing"
+    },
+    "costs": {
+      "lodgingPerNightCents": {
+        "budget": 5000,
+        "mid": 9500
+      },
+      "foodPerDayCents": {
+        "budget": 4500,
+        "mid": 7500
+      },
+      "activitiesPerDayCents": {
+        "budget": 2500,
+        "mid": 5500
+      },
+      "localTransportPerDayCents": 1000
+    },
+    "flightFromRegion": {
+      "southeast_us": {
+        "roundTripCents": [
+          23000,
+          41000
+        ],
+        "hours": 1.5
+      },
+      "northeast_us": {
+        "roundTripCents": [
+          27000,
+          49000
+        ],
+        "hours": 1.5
+      },
+      "midwest_us": {
+        "roundTripCents": [
+          27000,
+          49000
+        ],
+        "hours": 1.5
+      },
+      "south_central_us": {
+        "roundTripCents": [
+          28000,
+          50000
+        ],
+        "hours": 3
+      },
+      "mountain_us": {
+        "roundTripCents": [
+          29000,
+          52000
+        ],
+        "hours": 3.5
+      },
+      "west_us": {
+        "roundTripCents": [
+          35000,
+          64000
+        ],
+        "hours": 5
+      }
+    },
+    "driveFromRegion": {
+      "southeast_us": 10,
+      "northeast_us": 8,
+      "midwest_us": 8
+    },
+    "activities": [
+      {
+        "id": "toronto-cn-tower",
+        "name": "CN Tower",
+        "tags": [
+          "culture"
+        ],
+        "setting": "indoor",
+        "costCents": 4500,
+        "durationHours": 1.5,
+        "mobility": "easy"
+      },
+      {
+        "id": "toronto-kensington-chinatown",
+        "name": "Kensington Market & Chinatown",
+        "tags": [
+          "food",
+          "shopping",
+          "walkable"
+        ],
+        "setting": "outdoor",
+        "costCents": 2000,
+        "durationHours": 2.5,
+        "mobility": "easy"
+      },
+      {
+        "id": "toronto-st-lawrence-market",
+        "name": "St. Lawrence Market",
+        "tags": [
+          "food"
+        ],
+        "setting": "indoor",
+        "costCents": 2000,
+        "durationHours": 2,
+        "mobility": "easy"
+      },
+      {
+        "id": "toronto-niagara-falls",
+        "name": "Niagara Falls day trip",
+        "tags": [
+          "outdoors",
+          "adventure"
+        ],
+        "setting": "outdoor",
+        "costCents": 6000,
+        "durationHours": 8,
+        "mobility": "easy"
+      },
+      {
+        "id": "toronto-rom",
+        "name": "Royal Ontario Museum",
+        "tags": [
+          "culture",
+          "history"
+        ],
+        "setting": "indoor",
+        "costCents": 2500,
+        "durationHours": 3,
+        "mobility": "easy"
+      },
+      {
+        "id": "toronto-toronto-islands",
+        "name": "Ferry to the Toronto Islands",
+        "tags": [
+          "outdoors",
+          "beach",
+          "relaxing"
+        ],
+        "setting": "outdoor",
+        "costCents": 1000,
+        "durationHours": 4,
+        "mobility": "moderate"
+      },
+      {
+        "id": "toronto-distillery-district",
+        "name": "Distillery District",
+        "tags": [
+          "history",
+          "food",
+          "shopping"
+        ],
+        "setting": "outdoor",
+        "costCents": 2000,
+        "durationHours": 2,
+        "mobility": "easy"
+      },
+      {
+        "id": "toronto-queen-west",
+        "name": "Queen West bars & live music",
+        "tags": [
+          "nightlife",
+          "music"
+        ],
+        "setting": "indoor",
+        "costCents": 4000,
+        "durationHours": 3,
+        "mobility": "easy"
+      }
+    ]
+  },
+  {
+    "id": "lisbon",
+    "name": "Lisbon",
+    "country": "Portugal",
+    "region": "europe",
+    "iata": "LIS",
+    "lat": 38.7223,
+    "lon": -9.1393,
+    "timezone": "Europe/Lisbon",
+    "passportRequired": true,
+    "aliases": [
+      "lisboa",
+      "portugal",
+      "lis"
+    ],
+    "tags": [
+      "food",
+      "culture",
+      "history",
+      "walkable",
+      "nightlife",
+      "beach",
+      "budget_friendly"
+    ],
+    "dietary": {
+      "vegetarian": 0.75,
+      "vegan": 0.65,
+      "halal": 0.5,
+      "kosher": 0.2,
+      "gluten_free": 0.6
+    },
+    "bestMonths": [
+      4,
+      5,
+      6,
+      9,
+      10
+    ],
+    "badMonths": [],
+    "badMonthReasons": {},
+    "costs": {
+      "lodgingPerNightCents": {
+        "budget": 3500,
+        "mid": 7000
+      },
+      "foodPerDayCents": {
+        "budget": 3000,
+        "mid": 5500
+      },
+      "activitiesPerDayCents": {
+        "budget": 1500,
+        "mid": 4000
+      },
+      "localTransportPerDayCents": 800
+    },
+    "flightFromRegion": {
+      "southeast_us": {
+        "roundTripCents": [
+          62000,
+          112000
+        ],
+        "hours": 10
+      },
+      "northeast_us": {
+        "roundTripCents": [
+          58000,
+          105000
+        ],
+        "hours": 9.5
+      },
+      "midwest_us": {
+        "roundTripCents": [
+          65000,
+          116000
+        ],
+        "hours": 10.5
+      },
+      "south_central_us": {
+        "roundTripCents": [
+          72000,
+          130000
+        ],
+        "hours": 12
+      },
+      "mountain_us": {
+        "roundTripCents": [
+          73000,
+          132000
+        ],
+        "hours": 12.5
+      },
+      "west_us": {
+        "roundTripCents": [
+          82000,
+          147000
+        ],
+        "hours": 14
+      }
+    },
+    "activities": [
+      {
+        "id": "lisbon-alfama-tram-28",
+        "name": "Alfama walk & Tram 28",
+        "tags": [
+          "history",
+          "walkable"
+        ],
+        "setting": "outdoor",
+        "costCents": 400,
+        "durationHours": 3,
+        "mobility": "moderate"
+      },
+      {
+        "id": "lisbon-belem",
+        "name": "Belém tower, monastery & pastéis",
+        "tags": [
+          "history",
+          "food",
+          "culture"
+        ],
+        "setting": "either",
+        "costCents": 2000,
+        "durationHours": 3,
+        "mobility": "easy"
+      },
+      {
+        "id": "lisbon-sintra",
+        "name": "Sintra palaces day trip",
+        "tags": [
+          "history",
+          "culture",
+          "outdoors"
+        ],
+        "setting": "outdoor",
+        "costCents": 4000,
+        "durationHours": 7,
+        "mobility": "moderate"
+      },
+      {
+        "id": "lisbon-bairro-alto",
+        "name": "Bairro Alto street-party night",
+        "tags": [
+          "nightlife"
+        ],
+        "setting": "outdoor",
+        "costCents": 2500,
+        "durationHours": 4,
+        "mobility": "easy"
+      },
+      {
+        "id": "lisbon-fado-dinner",
+        "name": "Fado dinner show",
+        "tags": [
+          "music",
+          "culture",
+          "food"
+        ],
+        "setting": "indoor",
+        "costCents": 5000,
+        "durationHours": 2.5,
+        "mobility": "easy"
+      },
+      {
+        "id": "lisbon-cascais-beach",
+        "name": "Cascais beach day",
+        "tags": [
+          "beach",
+          "relaxing"
+        ],
+        "setting": "outdoor",
+        "costCents": 500,
+        "durationHours": 6,
+        "mobility": "easy"
+      },
+      {
+        "id": "lisbon-time-out-market",
+        "name": "Time Out Market",
+        "tags": [
+          "food"
+        ],
+        "setting": "indoor",
+        "costCents": 2500,
+        "durationHours": 2,
+        "mobility": "easy"
+      },
+      {
+        "id": "lisbon-tile-museum",
+        "name": "National Tile Museum",
+        "tags": [
+          "culture",
+          "history"
+        ],
+        "setting": "indoor",
+        "costCents": 800,
+        "durationHours": 1.5,
+        "mobility": "easy"
+      }
+    ]
+  },
+  {
+    "id": "barcelona",
+    "name": "Barcelona",
+    "country": "Spain",
+    "region": "europe",
+    "iata": "BCN",
+    "lat": 41.3851,
+    "lon": 2.1734,
+    "timezone": "Europe/Madrid",
+    "passportRequired": true,
+    "aliases": [
+      "barca",
+      "bcn",
+      "spain"
+    ],
+    "tags": [
+      "beach",
+      "food",
+      "culture",
+      "nightlife",
+      "walkable",
+      "history",
+      "city"
+    ],
+    "dietary": {
+      "vegetarian": 0.8,
+      "vegan": 0.7,
+      "halal": 0.55,
+      "kosher": 0.25,
+      "gluten_free": 0.65
+    },
+    "bestMonths": [
+      5,
+      6,
+      9,
+      10
+    ],
+    "badMonths": [],
+    "badMonthReasons": {},
+    "costs": {
+      "lodgingPerNightCents": {
+        "budget": 4500,
+        "mid": 8500
+      },
+      "foodPerDayCents": {
+        "budget": 3500,
+        "mid": 6500
+      },
+      "activitiesPerDayCents": {
+        "budget": 2000,
+        "mid": 5000
+      },
+      "localTransportPerDayCents": 800
+    },
+    "flightFromRegion": {
+      "southeast_us": {
+        "roundTripCents": [
+          67000,
+          120000
+        ],
+        "hours": 11
+      },
+      "northeast_us": {
+        "roundTripCents": [
+          63000,
+          113000
+        ],
+        "hours": 10.5
+      },
+      "midwest_us": {
+        "roundTripCents": [
+          69000,
+          124000
+        ],
+        "hours": 11.5
+      },
+      "south_central_us": {
+        "roundTripCents": [
+          77000,
+          138000
+        ],
+        "hours": 13
+      },
+      "mountain_us": {
+        "roundTripCents": [
+          77000,
+          138000
+        ],
+        "hours": 13
+      },
+      "west_us": {
+        "roundTripCents": [
+          85000,
+          153000
+        ],
+        "hours": 15
+      }
+    },
+    "activities": [
+      {
+        "id": "barcelona-sagrada-familia",
+        "name": "Sagrada Família",
+        "tags": [
+          "culture",
+          "history"
+        ],
+        "setting": "indoor",
+        "costCents": 3500,
+        "durationHours": 2,
+        "mobility": "easy"
+      },
+      {
+        "id": "barcelona-park-guell",
+        "name": "Park Güell",
+        "tags": [
+          "culture",
+          "outdoors"
+        ],
+        "setting": "outdoor",
+        "costCents": 2000,
+        "durationHours": 2,
+        "mobility": "moderate"
+      },
+      {
+        "id": "barcelona-barceloneta",
+        "name": "Barceloneta beach",
+        "tags": [
+          "beach",
+          "relaxing"
+        ],
+        "setting": "outdoor",
+        "costCents": 0,
+        "durationHours": 4,
+        "mobility": "easy"
+      },
+      {
+        "id": "barcelona-boqueria-tapas",
+        "name": "La Boqueria & tapas crawl",
+        "tags": [
+          "food"
+        ],
+        "setting": "indoor",
+        "costCents": 4000,
+        "durationHours": 3,
+        "mobility": "easy"
+      },
+      {
+        "id": "barcelona-gothic-quarter",
+        "name": "Gothic Quarter & El Born walk",
+        "tags": [
+          "history",
+          "walkable"
+        ],
+        "setting": "outdoor",
+        "costCents": 0,
+        "durationHours": 2.5,
+        "mobility": "easy"
+      },
+      {
+        "id": "barcelona-bunkers-del-carmel",
+        "name": "Bunkers del Carmel sunset",
+        "tags": [
+          "outdoors",
+          "hiking"
+        ],
+        "setting": "outdoor",
+        "costCents": 0,
+        "durationHours": 1.5,
+        "mobility": "moderate"
+      },
+      {
+        "id": "barcelona-port-olimpic-clubs",
+        "name": "Port Olímpic club night",
+        "tags": [
+          "nightlife",
+          "music"
+        ],
+        "setting": "indoor",
+        "costCents": 3000,
+        "durationHours": 5,
+        "mobility": "easy"
+      },
+      {
+        "id": "barcelona-montserrat",
+        "name": "Montserrat day trip",
+        "tags": [
+          "mountains",
+          "hiking",
+          "history"
+        ],
+        "setting": "outdoor",
+        "costCents": 4500,
+        "durationHours": 7,
+        "mobility": "moderate"
+      }
+    ]
+  },
+  {
+    "id": "london",
+    "name": "London",
+    "country": "United Kingdom",
+    "region": "europe",
+    "iata": "LHR",
+    "lat": 51.5074,
+    "lon": -0.1278,
+    "timezone": "Europe/London",
+    "passportRequired": true,
+    "aliases": [
+      "england",
+      "uk",
+      "the uk",
+      "united kingdom",
+      "lhr"
+    ],
+    "tags": [
+      "city",
+      "culture",
+      "history",
+      "food",
+      "nightlife",
+      "walkable",
+      "music",
+      "shopping"
+    ],
+    "dietary": {
+      "vegetarian": 0.9,
+      "vegan": 0.85,
+      "halal": 0.9,
+      "kosher": 0.6,
+      "gluten_free": 0.85
+    },
+    "bestMonths": [
+      5,
+      6,
+      7,
+      8,
+      9
+    ],
+    "badMonths": [],
+    "badMonthReasons": {},
+    "costs": {
+      "lodgingPerNightCents": {
+        "budget": 6000,
+        "mid": 11000
+      },
+      "foodPerDayCents": {
+        "budget": 5000,
+        "mid": 8500
+      },
+      "activitiesPerDayCents": {
+        "budget": 2500,
+        "mid": 6000
+      },
+      "localTransportPerDayCents": 1500
+    },
+    "flightFromRegion": {
+      "southeast_us": {
+        "roundTripCents": [
+          61000,
+          109000
+        ],
+        "hours": 9
+      },
+      "northeast_us": {
+        "roundTripCents": [
+          57000,
+          102000
+        ],
+        "hours": 8
+      },
+      "midwest_us": {
+        "roundTripCents": [
+          62000,
+          111000
+        ],
+        "hours": 9
+      },
+      "south_central_us": {
+        "roundTripCents": [
+          69000,
+          125000
+        ],
+        "hours": 10.5
+      },
+      "mountain_us": {
+        "roundTripCents": [
+          69000,
+          124000
+        ],
+        "hours": 10.5
+      },
+      "west_us": {
+        "roundTripCents": [
+          76000,
+          137000
+        ],
+        "hours": 12
+      }
+    },
+    "activities": [
+      {
+        "id": "london-british-museum",
+        "name": "British Museum (free)",
+        "tags": [
+          "culture",
+          "history"
+        ],
+        "setting": "indoor",
+        "costCents": 0,
+        "durationHours": 3,
+        "mobility": "easy"
+      },
+      {
+        "id": "london-tower-of-london",
+        "name": "Tower of London",
+        "tags": [
+          "history"
+        ],
+        "setting": "either",
+        "costCents": 4500,
+        "durationHours": 3,
+        "mobility": "easy"
+      },
+      {
+        "id": "london-borough-market",
+        "name": "Borough Market",
+        "tags": [
+          "food"
+        ],
+        "setting": "either",
+        "costCents": 2500,
+        "durationHours": 2,
+        "mobility": "easy"
+      },
+      {
+        "id": "london-west-end-show",
+        "name": "West End show",
+        "tags": [
+          "music",
+          "culture"
+        ],
+        "setting": "indoor",
+        "costCents": 5000,
+        "durationHours": 3,
+        "mobility": "easy"
+      },
+      {
+        "id": "london-camden-market",
+        "name": "Camden Market",
+        "tags": [
+          "shopping",
+          "food",
+          "nightlife"
+        ],
+        "setting": "either",
+        "costCents": 2000,
+        "durationHours": 3,
+        "mobility": "easy"
+      },
+      {
+        "id": "london-shoreditch-pubs",
+        "name": "Shoreditch pub crawl",
+        "tags": [
+          "nightlife"
+        ],
+        "setting": "indoor",
+        "costCents": 4000,
+        "durationHours": 4,
+        "mobility": "easy"
+      },
+      {
+        "id": "london-hampstead-heath",
+        "name": "Hampstead Heath walk & views",
+        "tags": [
+          "outdoors",
+          "hiking"
+        ],
+        "setting": "outdoor",
+        "costCents": 0,
+        "durationHours": 2.5,
+        "mobility": "moderate"
+      },
+      {
+        "id": "london-tate-south-bank",
+        "name": "Tate Modern & South Bank",
+        "tags": [
+          "culture",
+          "walkable"
+        ],
+        "setting": "indoor",
+        "costCents": 0,
+        "durationHours": 2.5,
+        "mobility": "easy"
+      }
+    ]
+  },
+  {
+    "id": "reykjavik",
+    "name": "Reykjavik",
+    "country": "Iceland",
+    "region": "europe",
+    "iata": "KEF",
+    "lat": 64.1466,
+    "lon": -21.9426,
+    "timezone": "Atlantic/Reykjavik",
+    "passportRequired": true,
+    "aliases": [
+      "reykjavík",
+      "iceland",
+      "kef"
+    ],
+    "tags": [
+      "outdoors",
+      "adventure",
+      "hiking",
+      "snow",
+      "relaxing",
+      "culture",
+      "luxury"
+    ],
+    "dietary": {
+      "vegetarian": 0.7,
+      "vegan": 0.6,
+      "halal": 0.25,
+      "kosher": 0.1,
+      "gluten_free": 0.65
+    },
+    "bestMonths": [
+      2,
+      3,
+      6,
+      7,
+      8,
+      9
+    ],
+    "badMonths": [],
+    "badMonthReasons": {},
+    "costs": {
+      "lodgingPerNightCents": {
+        "budget": 6500,
+        "mid": 12000
+      },
+      "foodPerDayCents": {
+        "budget": 6000,
+        "mid": 10000
+      },
+      "activitiesPerDayCents": {
+        "budget": 6000,
+        "mid": 11000
+      },
+      "localTransportPerDayCents": 3500
+    },
+    "flightFromRegion": {
+      "southeast_us": {
+        "roundTripCents": [
+          53000,
+          95000
+        ],
+        "hours": 8.5
+      },
+      "northeast_us": {
+        "roundTripCents": [
+          49000,
+          88000
+        ],
+        "hours": 6
+      },
+      "midwest_us": {
+        "roundTripCents": [
+          52000,
+          94000
+        ],
+        "hours": 8.5
+      },
+      "south_central_us": {
+        "roundTripCents": [
+          60000,
+          107000
+        ],
+        "hours": 10
+      },
+      "mountain_us": {
+        "roundTripCents": [
+          58000,
+          105000
+        ],
+        "hours": 9.5
+      },
+      "west_us": {
+        "roundTripCents": [
+          65000,
+          117000
+        ],
+        "hours": 11.5
+      }
+    },
+    "activities": [
+      {
+        "id": "reykjavik-golden-circle",
+        "name": "Golden Circle: Þingvellir, Geysir & Gullfoss",
+        "tags": [
+          "outdoors",
+          "adventure"
+        ],
+        "setting": "outdoor",
+        "costCents": 9000,
+        "durationHours": 8,
+        "mobility": "easy"
+      },
+      {
+        "id": "reykjavik-sky-lagoon",
+        "name": "Sky Lagoon or Blue Lagoon",
+        "tags": [
+          "relaxing",
+          "luxury"
+        ],
+        "setting": "outdoor",
+        "costCents": 9500,
+        "durationHours": 3,
+        "mobility": "easy"
+      },
+      {
+        "id": "reykjavik-northern-lights",
+        "name": "Northern lights tour",
+        "tags": [
+          "outdoors",
+          "adventure"
+        ],
+        "setting": "outdoor",
+        "costCents": 8000,
+        "durationHours": 4,
+        "mobility": "easy"
+      },
+      {
+        "id": "reykjavik-glacier-hike",
+        "name": "Glacier hike on Sólheimajökull",
+        "tags": [
+          "hiking",
+          "adventure",
+          "snow"
+        ],
+        "setting": "outdoor",
+        "costCents": 13000,
+        "durationHours": 6,
+        "mobility": "strenuous"
+      },
+      {
+        "id": "reykjavik-south-coast",
+        "name": "South coast waterfalls & black sand beach",
+        "tags": [
+          "outdoors",
+          "hiking"
+        ],
+        "setting": "outdoor",
+        "costCents": 10000,
+        "durationHours": 10,
+        "mobility": "moderate"
+      },
+      {
+        "id": "reykjavik-hallgrimskirkja",
+        "name": "Hallgrímskirkja & downtown",
+        "tags": [
+          "culture",
+          "walkable"
+        ],
+        "setting": "either",
+        "costCents": 1000,
+        "durationHours": 2,
+        "mobility": "easy"
+      },
+      {
+        "id": "reykjavik-food-walk",
+        "name": "Icelandic food walk",
+        "tags": [
+          "food"
+        ],
+        "setting": "indoor",
+        "costCents": 7000,
+        "durationHours": 3,
+        "mobility": "easy"
+      },
+      {
+        "id": "reykjavik-perlan",
+        "name": "Perlan museum & ice cave",
+        "tags": [
+          "culture"
+        ],
+        "setting": "indoor",
+        "costCents": 4500,
+        "durationHours": 2,
+        "mobility": "easy"
+      }
+    ]
+  },
+  {
+    "id": "guanacaste",
+    "name": "Guanacaste",
+    "country": "Costa Rica",
+    "region": "central_america",
+    "iata": "LIR",
+    "lat": 10.2993,
+    "lon": -85.8371,
+    "timezone": "America/Costa_Rica",
+    "passportRequired": true,
+    "aliases": [
+      "costa rica",
+      "liberia",
+      "tamarindo",
+      "lir",
+      "playa conchal"
+    ],
+    "tags": [
+      "beach",
+      "outdoors",
+      "adventure",
+      "hiking",
+      "relaxing",
+      "budget_friendly"
+    ],
+    "dietary": {
+      "vegetarian": 0.65,
+      "vegan": 0.5,
+      "halal": 0.1,
+      "kosher": 0.1,
+      "gluten_free": 0.6
+    },
+    "bestMonths": [
+      1,
+      2,
+      3,
+      4,
+      12
+    ],
+    "badMonths": [
+      9,
+      10
+    ],
+    "badMonthReasons": {
+      "9": "rainy season",
+      "10": "rainy season"
+    },
+    "costs": {
+      "lodgingPerNightCents": {
+        "budget": 4000,
+        "mid": 8000
+      },
+      "foodPerDayCents": {
+        "budget": 3500,
+        "mid": 6000
+      },
+      "activitiesPerDayCents": {
+        "budget": 3500,
+        "mid": 7500
+      },
+      "localTransportPerDayCents": 2000
+    },
+    "flightFromRegion": {
+      "southeast_us": {
+        "roundTripCents": [
+          38000,
+          69000
+        ],
+        "hours": 6
+      },
+      "northeast_us": {
+        "roundTripCents": [
+          42000,
+          75000
+        ],
+        "hours": 7
+      },
+      "midwest_us": {
+        "roundTripCents": [
+          41000,
+          74000
+        ],
+        "hours": 6.5
+      },
+      "south_central_us": {
+        "roundTripCents": [
+          37000,
+          67000
+        ],
+        "hours": 5.5
+      },
+      "mountain_us": {
+        "roundTripCents": [
+          43000,
+          77000
+        ],
+        "hours": 7
+      },
+      "west_us": {
+        "roundTripCents": [
+          45000,
+          81000
+        ],
+        "hours": 7.5
+      }
+    },
+    "activities": [
+      {
+        "id": "guanacaste-tamarindo-surf",
+        "name": "Surf lesson in Tamarindo",
+        "tags": [
+          "beach",
+          "adventure"
+        ],
+        "setting": "outdoor",
+        "costCents": 5500,
+        "durationHours": 2,
+        "mobility": "strenuous"
+      },
+      {
+        "id": "guanacaste-rincon-de-la-vieja",
+        "name": "Rincón de la Vieja volcano hike & hot springs",
+        "tags": [
+          "hiking",
+          "outdoors",
+          "adventure"
+        ],
+        "setting": "outdoor",
+        "costCents": 6000,
+        "durationHours": 7,
+        "mobility": "strenuous"
+      },
+      {
+        "id": "guanacaste-canopy-zipline",
+        "name": "Canopy zipline",
+        "tags": [
+          "adventure",
+          "outdoors"
+        ],
+        "setting": "outdoor",
+        "costCents": 7500,
+        "durationHours": 3,
+        "mobility": "easy"
+      },
+      {
+        "id": "guanacaste-sunset-catamaran",
+        "name": "Sunset catamaran & snorkel",
+        "tags": [
+          "beach",
+          "relaxing",
+          "outdoors"
+        ],
+        "setting": "outdoor",
+        "costCents": 9000,
+        "durationHours": 4,
+        "mobility": "easy"
+      },
+      {
+        "id": "guanacaste-playa-conchal",
+        "name": "Playa Conchal beach day",
+        "tags": [
+          "beach",
+          "relaxing"
+        ],
+        "setting": "outdoor",
+        "costCents": 0,
+        "durationHours": 5,
+        "mobility": "easy"
+      },
+      {
+        "id": "guanacaste-cooking-class",
+        "name": "Costa Rican cooking class",
+        "tags": [
+          "food",
+          "culture"
+        ],
+        "setting": "indoor",
+        "costCents": 6000,
+        "durationHours": 3,
+        "mobility": "easy"
+      },
+      {
+        "id": "guanacaste-rio-celeste",
+        "name": "Río Celeste waterfall hike",
+        "tags": [
+          "hiking",
+          "outdoors"
+        ],
+        "setting": "outdoor",
+        "costCents": 2000,
+        "durationHours": 7,
+        "mobility": "moderate"
+      },
+      {
+        "id": "guanacaste-chocolate-coffee-tour",
+        "name": "Chocolate & coffee farm tour",
+        "tags": [
+          "food",
+          "culture"
+        ],
+        "setting": "indoor",
+        "costCents": 4500,
+        "durationHours": 2.5,
+        "mobility": "easy"
+      }
+    ]
+  },
+  {
+    "id": "medellin",
+    "name": "Medellín",
+    "country": "Colombia",
+    "region": "south_america",
+    "iata": "MDE",
+    "lat": 6.2442,
+    "lon": -75.5812,
+    "timezone": "America/Bogota",
+    "passportRequired": true,
+    "aliases": [
+      "medellin",
+      "colombia",
+      "mde",
+      "el poblado"
+    ],
+    "tags": [
+      "city",
+      "food",
+      "nightlife",
+      "culture",
+      "budget_friendly",
+      "mountains",
+      "music",
+      "adventure"
+    ],
+    "dietary": {
+      "vegetarian": 0.6,
+      "vegan": 0.5,
+      "halal": 0.15,
+      "kosher": 0.1,
+      "gluten_free": 0.55
+    },
+    "bestMonths": [
+      1,
+      2,
+      3,
+      7,
+      8,
+      12
+    ],
+    "badMonths": [],
+    "badMonthReasons": {},
+    "costs": {
+      "lodgingPerNightCents": {
+        "budget": 2000,
+        "mid": 4500
+      },
+      "foodPerDayCents": {
+        "budget": 2000,
+        "mid": 4000
+      },
+      "activitiesPerDayCents": {
+        "budget": 1500,
+        "mid": 4000
+      },
+      "localTransportPerDayCents": 800
+    },
+    "flightFromRegion": {
+      "southeast_us": {
+        "roundTripCents": [
+          40000,
+          72000
+        ],
+        "hours": 6.5
+      },
+      "northeast_us": {
+        "roundTripCents": [
+          43000,
+          77000
+        ],
+        "hours": 7
+      },
+      "midwest_us": {
+        "roundTripCents": [
+          45000,
+          80000
+        ],
+        "hours": 7.5
+      },
+      "south_central_us": {
+        "roundTripCents": [
+          42000,
+          76000
+        ],
+        "hours": 7
+      },
+      "mountain_us": {
+        "roundTripCents": [
+          48000,
+          86000
+        ],
+        "hours": 8.5
+      },
+      "west_us": {
+        "roundTripCents": [
+          51000,
+          92000
+        ],
+        "hours": 9
+      }
+    },
+    "activities": [
+      {
+        "id": "medellin-comuna-13",
+        "name": "Comuna 13 graffiti tour",
+        "tags": [
+          "culture",
+          "history",
+          "walkable"
+        ],
+        "setting": "outdoor",
+        "costCents": 2000,
+        "durationHours": 3,
+        "mobility": "moderate"
+      },
+      {
+        "id": "medellin-guatape",
+        "name": "Guatapé & El Peñol rock day trip",
+        "tags": [
+          "outdoors",
+          "adventure",
+          "hiking"
+        ],
+        "setting": "outdoor",
+        "costCents": 4000,
+        "durationHours": 9,
+        "mobility": "strenuous"
+      },
+      {
+        "id": "medellin-metrocable-arvi",
+        "name": "Metrocable to Parque Arví",
+        "tags": [
+          "outdoors",
+          "mountains"
+        ],
+        "setting": "outdoor",
+        "costCents": 500,
+        "durationHours": 4,
+        "mobility": "easy"
+      },
+      {
+        "id": "medellin-coffee-farm",
+        "name": "Coffee farm tour",
+        "tags": [
+          "food",
+          "culture"
+        ],
+        "setting": "outdoor",
+        "costCents": 5000,
+        "durationHours": 5,
+        "mobility": "easy"
+      },
+      {
+        "id": "medellin-provenza-nightlife",
+        "name": "El Poblado & Provenza nightlife",
+        "tags": [
+          "nightlife",
+          "music"
+        ],
+        "setting": "indoor",
+        "costCents": 3000,
+        "durationHours": 4,
+        "mobility": "easy"
+      },
+      {
+        "id": "medellin-salsa-class",
+        "name": "Salsa class",
+        "tags": [
+          "music",
+          "culture"
+        ],
+        "setting": "indoor",
+        "costCents": 1500,
+        "durationHours": 1.5,
+        "mobility": "easy"
+      },
+      {
+        "id": "medellin-museo-antioquia",
+        "name": "Museo de Antioquia & Botero Plaza",
+        "tags": [
+          "culture",
+          "history"
+        ],
+        "setting": "indoor",
+        "costCents": 600,
+        "durationHours": 2,
+        "mobility": "easy"
+      },
+      {
+        "id": "medellin-paragliding",
+        "name": "Paragliding over the valley",
+        "tags": [
+          "adventure",
+          "mountains"
+        ],
+        "setting": "outdoor",
+        "costCents": 5000,
+        "durationHours": 2,
+        "mobility": "easy"
+      }
+    ]
+  }
+]

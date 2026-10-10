@@ -1,0 +1,31 @@
+# Budgets come from demo spending profiles; one friend keeps theirs private, so the group only
+# ever sees the pooled number; privately (DM) they get their full breakdown.
+today 2026-10-10 14:00
+members maya leo priya
+atlas joins
+~agent text: NO_REPLY
+maya: hey
+~agent text: NO_REPLY
+leo: hi
+~agent text: NO_REPLY
+priya: yo
+jobs
+leo: what's our budget
+expect atlas ~ "based on demo spending profiles (synthetic sandbox data, not your real bank)"
+expect atlas ~ "how i got these: typical paychecks minus recurring bills"
+expect sql SELECT count(*)::int AS n FROM nessie_links WHERE seed_status = 'ready' = [{"n":3}]
+expect sql SELECT count(DISTINCT persona)::int AS n FROM nessie_links = [{"n":3}]
+priya: keep my budget private
+expect atlas ~ "your budget stays private"
+maya: what's our budget?
+expect atlas ~ "i'll only share the pooled number"
+expect atlas !~ "priya $"
+expect sql SELECT visibility FROM budgets b JOIN people p ON p.id = b.person_id WHERE p.display_name = 'Priya' = [{"visibility":"private"}]
+dm priya
+priya: what's my budget?
+expect atlas ~ "your trip budget"
+expect atlas ~ "based on demo spending profiles"
+expect atlas ~ "you typically bring in"
+group
+priya: make my budget public
+expect atlas ~ "public again"

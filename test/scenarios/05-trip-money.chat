@@ -1,0 +1,62 @@
+# Once locked: a payment plan as Nessie bills (offline profiles here), expenses logged from plain
+# statements, a dispute the payer has to confirm, an item exclusion, running balances, then a
+# settle-up with the fewest transfers that each payer confirms.
+today 2026-10-10 14:00
+members maya leo priya
+atlas joins
+~agent text: NO_REPLY
+maya: hi
+~agent text: NO_REPLY
+leo: hi
+~agent text: NO_REPLY
+priya: hi
+~extract [{"message":0,"about":"maya","key":"date_window","polarity":"positive","explicit":true,"retracts":false,"confidence":0.9,"quote":"nov 12-16","earliest":"2026-11-12","latest":"2026-11-16"},{"message":0,"about":"maya","key":"home_city","polarity":"positive","explicit":true,"retracts":false,"confidence":0.9,"quote":"raleigh","city":"Raleigh"}]
+maya: nov 12-16 from raleigh works for all of us
+maya: set my budget to 900
+leo: set my budget to 900
+priya: set my budget to 900
+~agent call lock_destination {"destination":"charleston"}
+~agent text: NO_REPLY
+maya: atlas everyone agreed, we're doing charleston
+expect atlas ~ "charleston is locked in for nov 12–16"
+expect atlas ~ "payment plan for everyone's share"
+expect trip.status = "locked"
+expect sql SELECT count(*)::int AS n FROM installments = [{"n":3}]
+# the trip starts
+clock +33d
+maya: i paid 64 for dinner
+expect atlas ~ "logged #1: dinner $64.00, paid by maya"
+expect atlas ~ "split 3 ways: leo + priya owe maya $21.33 each"
+expect trip.status = "ongoing"
+leo: paid $45 for the uber
+expect atlas ~ "logged #2"
+# a redelivered statement is not logged twice
+expect sql SELECT count(*)::int AS n FROM expenses = [{"n":2}]
+# priya disputes maya's dinner: maya must confirm
+~gate SPEAK dispute
+~agent call correct_expense {"expense_number":1,"amount_usd":46}
+~agent text: NO_REPLY
+priya: wait dinner was 46 not 64
+expect atlas ~ "maya, priya wants to make it $46.00 for #1"
+expect sql SELECT amount_cents FROM expenses WHERE status = 'active' ORDER BY id = [{"amount_cents":6400},{"amount_cents":4500}]
+maya: yes
+expect atlas ~ "fixed (was #1, now #3): dinner $46.00"
+expect sql SELECT amount_cents, status FROM expenses ORDER BY id = [{"amount_cents":6400,"status":"voided"},{"amount_cents":4500,"status":"active"},{"amount_cents":4600,"status":"active"}]
+# leo didn't have the wine at a bigger dinner: itemized
+~agent call log_expense {"amount_usd":120,"description":"seafood dinner","items":[{"name":"food","amount_usd":90,"shared_by":["maya","leo","priya"]},{"name":"wine","amount_usd":20,"shared_by":["maya","priya"]}]}
+~agent text: NO_REPLY
+maya: atlas i got the seafood dinner, 120 total incl tip. food was 90 for all of us, the wine was 20 just me and priya
+expect atlas ~ "logged #4: seafood dinner $120.00"
+leo: atlas who owes who?
+expect atlas ~ "who owes who (3 expenses"
+clock +5d
+priya: atlas let's settle up
+expect atlas ~ "settle-up, the fewest transfers"
+expect atlas ~ "and i'll send yours as a nessie transfer"
+expect trip.status = "settling"
+expect sql SELECT count(*)::int AS n FROM settlements WHERE status = 'proposed' = [{"n":2}]
+leo: confirm
+expect atlas ~ "✓ leo → maya"
+priya: confirm
+expect atlas ~ "all settled up"
+expect trip.status = "done"

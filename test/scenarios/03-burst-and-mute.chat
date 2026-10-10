@@ -1,0 +1,28 @@
+# A burst of quick texts becomes one turn; "atlas stay quiet" mutes untagged replies; tags still work.
+today 2026-10-10 14:00
+members maya leo priya
+atlas joins
+~agent text: NO_REPLY
+maya: ok
+~agent text: NO_REPLY
+leo: ok
+~agent text: NO_REPLY
+priya: ok
+maya: hey &
+maya: wait &
+maya: atlas can we do somewhere warm in november &
+~agent text: warm in november is very doable. where would everyone fly out of?
+wait
+expect sql SELECT count(DISTINCT turn_id)::int AS turns FROM messages WHERE text IN ('hey', 'wait', 'atlas can we do somewhere warm in november') = [{"turns":1}]
+expect sql SELECT text FROM messages WHERE direction = 'outbound' ORDER BY id DESC LIMIT 1 = [{"text":"warm in november is very doable. where would everyone fly out of?"}]
+leo: atlas stay quiet for now
+expect atlas ~ "i'll stay quiet unless someone tags me"
+~gate SPEAK should not even be asked
+maya: anyone know if flights are cheaper midweek?
+expect atlas quiet
+expect sql SELECT quiet_mode FROM chats = [{"quiet_mode":true}]
+~agent text: usually yes, tue/wed are cheapest
+maya: atlas are flights cheaper midweek?
+expect atlas ~ "tue/wed"
+priya: atlas you can talk again
+expect atlas ~ "i'm back"

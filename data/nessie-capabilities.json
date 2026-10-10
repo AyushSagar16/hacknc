@@ -1,0 +1,12 @@
+{
+  "probedAt": "2026-10-10T21:07:14.239Z",
+  "transferWithPayee": false,
+  "amountsKeepCents": false,
+  "purchaseDelete": false,
+  "merchantCategory": "string",
+  "balanceUpdates": false,
+  "notes": [
+    "deposit 12.34 read back as 12",
+    "checking balance after transactions: 1000 (opened at 1000)"
+  ]
+}

@@ -1,0 +1,1316 @@
+[
+  {
+    "city": "Chapel Hill",
+    "state": "NC",
+    "iata": "RDU",
+    "region": "southeast_us",
+    "lat": 35.9132,
+    "lon": -79.0558,
+    "aliases": [
+      "unc",
+      "unc chapel hill",
+      "carrboro"
+    ]
+  },
+  {
+    "city": "Durham",
+    "state": "NC",
+    "iata": "RDU",
+    "region": "southeast_us",
+    "lat": 35.994,
+    "lon": -78.8986,
+    "aliases": [
+      "duke",
+      "duke university",
+      "rtp",
+      "research triangle park",
+      "nccu"
+    ]
+  },
+  {
+    "city": "Raleigh",
+    "state": "NC",
+    "iata": "RDU",
+    "region": "southeast_us",
+    "lat": 35.7796,
+    "lon": -78.6382,
+    "aliases": [
+      "nc state",
+      "ncsu",
+      "the triangle",
+      "triangle",
+      "cary"
+    ]
+  },
+  {
+    "city": "Charlotte",
+    "state": "NC",
+    "iata": "CLT",
+    "region": "southeast_us",
+    "lat": 35.2271,
+    "lon": -80.8431,
+    "aliases": [
+      "unc charlotte",
+      "uncc",
+      "davidson",
+      "queen city"
+    ]
+  },
+  {
+    "city": "Greensboro",
+    "state": "NC",
+    "iata": "GSO",
+    "region": "southeast_us",
+    "lat": 36.0726,
+    "lon": -79.792,
+    "aliases": [
+      "uncg",
+      "unc greensboro",
+      "nc a&t",
+      "high point",
+      "elon"
+    ]
+  },
+  {
+    "city": "Winston-Salem",
+    "state": "NC",
+    "iata": "GSO",
+    "region": "southeast_us",
+    "lat": 36.0999,
+    "lon": -80.2442,
+    "aliases": [
+      "wake forest",
+      "wake forest university"
+    ]
+  },
+  {
+    "city": "Wilmington",
+    "state": "NC",
+    "iata": "ILM",
+    "region": "southeast_us",
+    "lat": 34.2104,
+    "lon": -77.8868,
+    "aliases": [
+      "uncw",
+      "unc wilmington"
+    ]
+  },
+  {
+    "city": "Asheville",
+    "state": "NC",
+    "iata": "AVL",
+    "region": "southeast_us",
+    "lat": 35.5951,
+    "lon": -82.5515,
+    "aliases": [
+      "unca",
+      "unc asheville"
+    ]
+  },
+  {
+    "city": "Boone",
+    "state": "NC",
+    "iata": "CLT",
+    "region": "southeast_us",
+    "lat": 36.2168,
+    "lon": -81.6746,
+    "aliases": [
+      "app state",
+      "appalachian state"
+    ]
+  },
+  {
+    "city": "Greenville",
+    "state": "NC",
+    "iata": "RDU",
+    "region": "southeast_us",
+    "lat": 35.6127,
+    "lon": -77.3664,
+    "aliases": [
+      "ecu",
+      "east carolina"
+    ]
+  },
+  {
+    "city": "Columbia",
+    "state": "SC",
+    "iata": "CAE",
+    "region": "southeast_us",
+    "lat": 34.0007,
+    "lon": -81.0348,
+    "aliases": [
+      "uofsc",
+      "university of south carolina",
+      "gamecocks"
+    ]
+  },
+  {
+    "city": "Charleston",
+    "state": "SC",
+    "iata": "CHS",
+    "region": "southeast_us",
+    "lat": 32.7765,
+    "lon": -79.9311,
+    "aliases": [
+      "cofc",
+      "college of charleston",
+      "the citadel"
+    ]
+  },
+  {
+    "city": "Clemson",
+    "state": "SC",
+    "iata": "GSP",
+    "region": "southeast_us",
+    "lat": 34.6834,
+    "lon": -82.8374,
+    "aliases": [
+      "clemson university"
+    ]
+  },
+  {
+    "city": "Charlottesville",
+    "state": "VA",
+    "iata": "CHO",
+    "region": "southeast_us",
+    "lat": 38.0293,
+    "lon": -78.4767,
+    "aliases": [
+      "uva",
+      "university of virginia"
+    ]
+  },
+  {
+    "city": "Blacksburg",
+    "state": "VA",
+    "iata": "ROA",
+    "region": "southeast_us",
+    "lat": 37.2296,
+    "lon": -80.4139,
+    "aliases": [
+      "virginia tech",
+      "vt",
+      "roanoke"
+    ]
+  },
+  {
+    "city": "Richmond",
+    "state": "VA",
+    "iata": "RIC",
+    "region": "southeast_us",
+    "lat": 37.5407,
+    "lon": -77.436,
+    "aliases": [
+      "vcu",
+      "university of richmond"
+    ]
+  },
+  {
+    "city": "Norfolk",
+    "state": "VA",
+    "iata": "ORF",
+    "region": "southeast_us",
+    "lat": 36.8508,
+    "lon": -76.2859,
+    "aliases": [
+      "odu",
+      "virginia beach",
+      "hampton roads",
+      "williamsburg",
+      "william & mary"
+    ]
+  },
+  {
+    "city": "Arlington",
+    "state": "VA",
+    "iata": "DCA",
+    "region": "northeast_us",
+    "lat": 38.8816,
+    "lon": -77.091,
+    "aliases": [
+      "northern virginia",
+      "nova",
+      "alexandria"
+    ]
+  },
+  {
+    "city": "Atlanta",
+    "state": "GA",
+    "iata": "ATL",
+    "region": "southeast_us",
+    "lat": 33.749,
+    "lon": -84.388,
+    "aliases": [
+      "georgia tech",
+      "emory",
+      "georgia state",
+      "morehouse",
+      "spelman"
+    ]
+  },
+  {
+    "city": "Athens",
+    "state": "GA",
+    "iata": "ATL",
+    "region": "southeast_us",
+    "lat": 33.9519,
+    "lon": -83.3576,
+    "aliases": [
+      "uga",
+      "university of georgia"
+    ]
+  },
+  {
+    "city": "Savannah",
+    "state": "GA",
+    "iata": "SAV",
+    "region": "southeast_us",
+    "lat": 32.0809,
+    "lon": -81.0912,
+    "aliases": [
+      "scad"
+    ]
+  },
+  {
+    "city": "Miami",
+    "state": "FL",
+    "iata": "MIA",
+    "region": "southeast_us",
+    "lat": 25.7617,
+    "lon": -80.1918,
+    "aliases": [
+      "university of miami",
+      "fiu",
+      "coral gables",
+      "miami beach"
+    ]
+  },
+  {
+    "city": "Fort Lauderdale",
+    "state": "FL",
+    "iata": "FLL",
+    "region": "southeast_us",
+    "lat": 26.1224,
+    "lon": -80.1373,
+    "aliases": [
+      "ft lauderdale",
+      "boca raton",
+      "fau"
+    ]
+  },
+  {
+    "city": "Orlando",
+    "state": "FL",
+    "iata": "MCO",
+    "region": "southeast_us",
+    "lat": 28.5383,
+    "lon": -81.3792,
+    "aliases": [
+      "ucf"
+    ]
+  },
+  {
+    "city": "Tampa",
+    "state": "FL",
+    "iata": "TPA",
+    "region": "southeast_us",
+    "lat": 27.9506,
+    "lon": -82.4572,
+    "aliases": [
+      "usf",
+      "st petersburg",
+      "st pete"
+    ]
+  },
+  {
+    "city": "Gainesville",
+    "state": "FL",
+    "iata": "GNV",
+    "region": "southeast_us",
+    "lat": 29.6516,
+    "lon": -82.3248,
+    "aliases": [
+      "uf",
+      "university of florida"
+    ]
+  },
+  {
+    "city": "Tallahassee",
+    "state": "FL",
+    "iata": "TLH",
+    "region": "southeast_us",
+    "lat": 30.4383,
+    "lon": -84.2807,
+    "aliases": [
+      "fsu",
+      "florida state",
+      "famu"
+    ]
+  },
+  {
+    "city": "Jacksonville",
+    "state": "FL",
+    "iata": "JAX",
+    "region": "southeast_us",
+    "lat": 30.3322,
+    "lon": -81.6557,
+    "aliases": [
+      "unf"
+    ]
+  },
+  {
+    "city": "Nashville",
+    "state": "TN",
+    "iata": "BNA",
+    "region": "southeast_us",
+    "lat": 36.1627,
+    "lon": -86.7816,
+    "aliases": [
+      "vanderbilt",
+      "vandy",
+      "belmont"
+    ]
+  },
+  {
+    "city": "Knoxville",
+    "state": "TN",
+    "iata": "TYS",
+    "region": "southeast_us",
+    "lat": 35.9606,
+    "lon": -83.9207,
+    "aliases": [
+      "utk",
+      "university of tennessee"
+    ]
+  },
+  {
+    "city": "Memphis",
+    "state": "TN",
+    "iata": "MEM",
+    "region": "southeast_us",
+    "lat": 35.1495,
+    "lon": -90.049,
+    "aliases": [
+      "university of memphis",
+      "ole miss"
+    ]
+  },
+  {
+    "city": "Louisville",
+    "state": "KY",
+    "iata": "SDF",
+    "region": "southeast_us",
+    "lat": 38.2527,
+    "lon": -85.7585,
+    "aliases": [
+      "uofl"
+    ]
+  },
+  {
+    "city": "Lexington",
+    "state": "KY",
+    "iata": "LEX",
+    "region": "southeast_us",
+    "lat": 38.0406,
+    "lon": -84.5037,
+    "aliases": [
+      "university of kentucky"
+    ]
+  },
+  {
+    "city": "Birmingham",
+    "state": "AL",
+    "iata": "BHM",
+    "region": "southeast_us",
+    "lat": 33.5186,
+    "lon": -86.8104,
+    "aliases": [
+      "uab"
+    ]
+  },
+  {
+    "city": "Tuscaloosa",
+    "state": "AL",
+    "iata": "BHM",
+    "region": "southeast_us",
+    "lat": 33.2098,
+    "lon": -87.5692,
+    "aliases": [
+      "university of alabama",
+      "bama"
+    ]
+  },
+  {
+    "city": "Auburn",
+    "state": "AL",
+    "iata": "ATL",
+    "region": "southeast_us",
+    "lat": 32.6099,
+    "lon": -85.4808,
+    "aliases": [
+      "auburn university"
+    ]
+  },
+  {
+    "city": "New Orleans",
+    "state": "LA",
+    "iata": "MSY",
+    "region": "south_central_us",
+    "lat": 29.9511,
+    "lon": -90.0715,
+    "aliases": [
+      "tulane",
+      "loyola new orleans",
+      "nola"
+    ]
+  },
+  {
+    "city": "Baton Rouge",
+    "state": "LA",
+    "iata": "BTR",
+    "region": "south_central_us",
+    "lat": 30.4515,
+    "lon": -91.1871,
+    "aliases": [
+      "lsu"
+    ]
+  },
+  {
+    "city": "Washington",
+    "state": "DC",
+    "iata": "DCA",
+    "region": "northeast_us",
+    "lat": 38.9072,
+    "lon": -77.0369,
+    "aliases": [
+      "dc",
+      "washington dc",
+      "georgetown",
+      "gwu",
+      "george washington",
+      "howard",
+      "american university"
+    ]
+  },
+  {
+    "city": "College Park",
+    "state": "MD",
+    "iata": "BWI",
+    "region": "northeast_us",
+    "lat": 38.9897,
+    "lon": -76.9378,
+    "aliases": [
+      "umd",
+      "university of maryland"
+    ]
+  },
+  {
+    "city": "Baltimore",
+    "state": "MD",
+    "iata": "BWI",
+    "region": "northeast_us",
+    "lat": 39.2904,
+    "lon": -76.6122,
+    "aliases": [
+      "johns hopkins",
+      "jhu"
+    ]
+  },
+  {
+    "city": "Philadelphia",
+    "state": "PA",
+    "iata": "PHL",
+    "region": "northeast_us",
+    "lat": 39.9526,
+    "lon": -75.1652,
+    "aliases": [
+      "philly",
+      "upenn",
+      "penn",
+      "drexel",
+      "temple"
+    ]
+  },
+  {
+    "city": "Pittsburgh",
+    "state": "PA",
+    "iata": "PIT",
+    "region": "northeast_us",
+    "lat": 40.4406,
+    "lon": -79.9959,
+    "aliases": [
+      "cmu",
+      "carnegie mellon",
+      "pitt"
+    ]
+  },
+  {
+    "city": "State College",
+    "state": "PA",
+    "iata": "SCE",
+    "region": "northeast_us",
+    "lat": 40.7934,
+    "lon": -77.86,
+    "aliases": [
+      "penn state",
+      "psu"
+    ]
+  },
+  {
+    "city": "Newark",
+    "state": "NJ",
+    "iata": "EWR",
+    "region": "northeast_us",
+    "lat": 40.7357,
+    "lon": -74.1724,
+    "aliases": [
+      "jersey city",
+      "hoboken",
+      "njit"
+    ]
+  },
+  {
+    "city": "Princeton",
+    "state": "NJ",
+    "iata": "EWR",
+    "region": "northeast_us",
+    "lat": 40.3573,
+    "lon": -74.6672,
+    "aliases": [
+      "princeton university"
+    ]
+  },
+  {
+    "city": "New Brunswick",
+    "state": "NJ",
+    "iata": "EWR",
+    "region": "northeast_us",
+    "lat": 40.4862,
+    "lon": -74.4518,
+    "aliases": [
+      "rutgers"
+    ]
+  },
+  {
+    "city": "New York City",
+    "state": "NY",
+    "iata": "JFK",
+    "region": "northeast_us",
+    "lat": 40.7128,
+    "lon": -74.006,
+    "aliases": [
+      "new york",
+      "nyc",
+      "manhattan",
+      "brooklyn",
+      "queens",
+      "the bronx",
+      "nyu",
+      "columbia university"
+    ]
+  },
+  {
+    "city": "Ithaca",
+    "state": "NY",
+    "iata": "ITH",
+    "region": "northeast_us",
+    "lat": 42.444,
+    "lon": -76.5019,
+    "aliases": [
+      "cornell",
+      "ithaca college"
+    ]
+  },
+  {
+    "city": "Syracuse",
+    "state": "NY",
+    "iata": "SYR",
+    "region": "northeast_us",
+    "lat": 43.0481,
+    "lon": -76.1474,
+    "aliases": [
+      "syracuse university",
+      "cuse"
+    ]
+  },
+  {
+    "city": "Buffalo",
+    "state": "NY",
+    "iata": "BUF",
+    "region": "northeast_us",
+    "lat": 42.8864,
+    "lon": -78.8784,
+    "aliases": [
+      "university at buffalo"
+    ]
+  },
+  {
+    "city": "Rochester",
+    "state": "NY",
+    "iata": "ROC",
+    "region": "northeast_us",
+    "lat": 43.1566,
+    "lon": -77.6088,
+    "aliases": [
+      "rit",
+      "university of rochester"
+    ]
+  },
+  {
+    "city": "New Haven",
+    "state": "CT",
+    "iata": "BDL",
+    "region": "northeast_us",
+    "lat": 41.3083,
+    "lon": -72.9279,
+    "aliases": [
+      "yale"
+    ]
+  },
+  {
+    "city": "Hartford",
+    "state": "CT",
+    "iata": "BDL",
+    "region": "northeast_us",
+    "lat": 41.7658,
+    "lon": -72.6734,
+    "aliases": [
+      "uconn",
+      "storrs"
+    ]
+  },
+  {
+    "city": "Providence",
+    "state": "RI",
+    "iata": "PVD",
+    "region": "northeast_us",
+    "lat": 41.824,
+    "lon": -71.4128,
+    "aliases": [
+      "brown",
+      "risd"
+    ]
+  },
+  {
+    "city": "Boston",
+    "state": "MA",
+    "iata": "BOS",
+    "region": "northeast_us",
+    "lat": 42.3601,
+    "lon": -71.0589,
+    "aliases": [
+      "harvard",
+      "mit",
+      "cambridge",
+      "bu",
+      "boston university",
+      "boston college",
+      "northeastern",
+      "tufts"
+    ]
+  },
+  {
+    "city": "Amherst",
+    "state": "MA",
+    "iata": "BDL",
+    "region": "northeast_us",
+    "lat": 42.3732,
+    "lon": -72.5199,
+    "aliases": [
+      "umass",
+      "umass amherst",
+      "amherst college"
+    ]
+  },
+  {
+    "city": "Burlington",
+    "state": "VT",
+    "iata": "BTV",
+    "region": "northeast_us",
+    "lat": 44.4759,
+    "lon": -73.2121,
+    "aliases": [
+      "uvm",
+      "university of vermont"
+    ]
+  },
+  {
+    "city": "Chicago",
+    "state": "IL",
+    "iata": "ORD",
+    "region": "midwest_us",
+    "lat": 41.8781,
+    "lon": -87.6298,
+    "aliases": [
+      "uchicago",
+      "northwestern",
+      "evanston",
+      "uic",
+      "loyola chicago",
+      "chi"
+    ]
+  },
+  {
+    "city": "Champaign",
+    "state": "IL",
+    "iata": "CMI",
+    "region": "midwest_us",
+    "lat": 40.1164,
+    "lon": -88.2434,
+    "aliases": [
+      "uiuc",
+      "urbana",
+      "urbana champaign",
+      "university of illinois"
+    ]
+  },
+  {
+    "city": "Ann Arbor",
+    "state": "MI",
+    "iata": "DTW",
+    "region": "midwest_us",
+    "lat": 42.2808,
+    "lon": -83.743,
+    "aliases": [
+      "umich",
+      "university of michigan"
+    ]
+  },
+  {
+    "city": "Detroit",
+    "state": "MI",
+    "iata": "DTW",
+    "region": "midwest_us",
+    "lat": 42.3314,
+    "lon": -83.0458,
+    "aliases": [
+      "wayne state"
+    ]
+  },
+  {
+    "city": "Columbus",
+    "state": "OH",
+    "iata": "CMH",
+    "region": "midwest_us",
+    "lat": 39.9612,
+    "lon": -82.9988,
+    "aliases": [
+      "ohio state",
+      "osu"
+    ]
+  },
+  {
+    "city": "Cleveland",
+    "state": "OH",
+    "iata": "CLE",
+    "region": "midwest_us",
+    "lat": 41.4993,
+    "lon": -81.6944,
+    "aliases": [
+      "case western",
+      "cwru"
+    ]
+  },
+  {
+    "city": "Cincinnati",
+    "state": "OH",
+    "iata": "CVG",
+    "region": "midwest_us",
+    "lat": 39.1031,
+    "lon": -84.512,
+    "aliases": [
+      "university of cincinnati",
+      "xavier"
+    ]
+  },
+  {
+    "city": "Indianapolis",
+    "state": "IN",
+    "iata": "IND",
+    "region": "midwest_us",
+    "lat": 39.7684,
+    "lon": -86.1581,
+    "aliases": [
+      "indy",
+      "butler",
+      "iupui"
+    ]
+  },
+  {
+    "city": "Bloomington",
+    "state": "IN",
+    "iata": "IND",
+    "region": "midwest_us",
+    "lat": 39.1653,
+    "lon": -86.5264,
+    "aliases": [
+      "indiana university",
+      "iu"
+    ]
+  },
+  {
+    "city": "West Lafayette",
+    "state": "IN",
+    "iata": "IND",
+    "region": "midwest_us",
+    "lat": 40.4259,
+    "lon": -86.9081,
+    "aliases": [
+      "purdue"
+    ]
+  },
+  {
+    "city": "South Bend",
+    "state": "IN",
+    "iata": "SBN",
+    "region": "midwest_us",
+    "lat": 41.6764,
+    "lon": -86.252,
+    "aliases": [
+      "notre dame"
+    ]
+  },
+  {
+    "city": "Madison",
+    "state": "WI",
+    "iata": "MSN",
+    "region": "midwest_us",
+    "lat": 43.0731,
+    "lon": -89.4012,
+    "aliases": [
+      "uw madison",
+      "university of wisconsin"
+    ]
+  },
+  {
+    "city": "Milwaukee",
+    "state": "WI",
+    "iata": "MKE",
+    "region": "midwest_us",
+    "lat": 43.0389,
+    "lon": -87.9065,
+    "aliases": [
+      "marquette"
+    ]
+  },
+  {
+    "city": "Minneapolis",
+    "state": "MN",
+    "iata": "MSP",
+    "region": "midwest_us",
+    "lat": 44.9778,
+    "lon": -93.265,
+    "aliases": [
+      "umn",
+      "st paul",
+      "saint paul",
+      "twin cities",
+      "university of minnesota"
+    ]
+  },
+  {
+    "city": "St. Louis",
+    "state": "MO",
+    "iata": "STL",
+    "region": "midwest_us",
+    "lat": 38.627,
+    "lon": -90.1994,
+    "aliases": [
+      "washu",
+      "slu",
+      "saint louis"
+    ]
+  },
+  {
+    "city": "Kansas City",
+    "state": "MO",
+    "iata": "MCI",
+    "region": "midwest_us",
+    "lat": 39.0997,
+    "lon": -94.5786,
+    "aliases": [
+      "kc"
+    ]
+  },
+  {
+    "city": "Lawrence",
+    "state": "KS",
+    "iata": "MCI",
+    "region": "midwest_us",
+    "lat": 38.9717,
+    "lon": -95.2353,
+    "aliases": [
+      "ku",
+      "university of kansas"
+    ]
+  },
+  {
+    "city": "Dallas",
+    "state": "TX",
+    "iata": "DFW",
+    "region": "south_central_us",
+    "lat": 32.7767,
+    "lon": -96.797,
+    "aliases": [
+      "smu",
+      "fort worth",
+      "tcu"
+    ]
+  },
+  {
+    "city": "Houston",
+    "state": "TX",
+    "iata": "IAH",
+    "region": "south_central_us",
+    "lat": 29.7604,
+    "lon": -95.3698,
+    "aliases": [
+      "rice",
+      "university of houston",
+      "htx"
+    ]
+  },
+  {
+    "city": "Austin",
+    "state": "TX",
+    "iata": "AUS",
+    "region": "south_central_us",
+    "lat": 30.2672,
+    "lon": -97.7431,
+    "aliases": [
+      "ut austin",
+      "ut",
+      "university of texas",
+      "atx"
+    ]
+  },
+  {
+    "city": "San Antonio",
+    "state": "TX",
+    "iata": "SAT",
+    "region": "south_central_us",
+    "lat": 29.4241,
+    "lon": -98.4936,
+    "aliases": [
+      "utsa"
+    ]
+  },
+  {
+    "city": "College Station",
+    "state": "TX",
+    "iata": "IAH",
+    "region": "south_central_us",
+    "lat": 30.628,
+    "lon": -96.3344,
+    "aliases": [
+      "texas a&m",
+      "tamu",
+      "a&m"
+    ]
+  },
+  {
+    "city": "Norman",
+    "state": "OK",
+    "iata": "OKC",
+    "region": "south_central_us",
+    "lat": 35.2226,
+    "lon": -97.4395,
+    "aliases": [
+      "ou",
+      "university of oklahoma"
+    ]
+  },
+  {
+    "city": "Oklahoma City",
+    "state": "OK",
+    "iata": "OKC",
+    "region": "south_central_us",
+    "lat": 35.4676,
+    "lon": -97.5164,
+    "aliases": [
+      "okc"
+    ]
+  },
+  {
+    "city": "Fayetteville",
+    "state": "AR",
+    "iata": "XNA",
+    "region": "south_central_us",
+    "lat": 36.0626,
+    "lon": -94.1574,
+    "aliases": [
+      "uark",
+      "university of arkansas"
+    ]
+  },
+  {
+    "city": "Denver",
+    "state": "CO",
+    "iata": "DEN",
+    "region": "mountain_us",
+    "lat": 39.7392,
+    "lon": -104.9903,
+    "aliases": [
+      "du"
+    ]
+  },
+  {
+    "city": "Boulder",
+    "state": "CO",
+    "iata": "DEN",
+    "region": "mountain_us",
+    "lat": 40.015,
+    "lon": -105.2705,
+    "aliases": [
+      "cu boulder",
+      "cu"
+    ]
+  },
+  {
+    "city": "Fort Collins",
+    "state": "CO",
+    "iata": "DEN",
+    "region": "mountain_us",
+    "lat": 40.5853,
+    "lon": -105.0844,
+    "aliases": [
+      "colorado state"
+    ]
+  },
+  {
+    "city": "Salt Lake City",
+    "state": "UT",
+    "iata": "SLC",
+    "region": "mountain_us",
+    "lat": 40.7608,
+    "lon": -111.891,
+    "aliases": [
+      "slc",
+      "university of utah"
+    ]
+  },
+  {
+    "city": "Provo",
+    "state": "UT",
+    "iata": "SLC",
+    "region": "mountain_us",
+    "lat": 40.2338,
+    "lon": -111.6585,
+    "aliases": [
+      "byu"
+    ]
+  },
+  {
+    "city": "Phoenix",
+    "state": "AZ",
+    "iata": "PHX",
+    "region": "mountain_us",
+    "lat": 33.4484,
+    "lon": -112.074,
+    "aliases": [
+      "tempe",
+      "asu",
+      "arizona state",
+      "scottsdale"
+    ]
+  },
+  {
+    "city": "Tucson",
+    "state": "AZ",
+    "iata": "TUS",
+    "region": "mountain_us",
+    "lat": 32.2226,
+    "lon": -110.9747,
+    "aliases": [
+      "university of arizona"
+    ]
+  },
+  {
+    "city": "Albuquerque",
+    "state": "NM",
+    "iata": "ABQ",
+    "region": "mountain_us",
+    "lat": 35.0844,
+    "lon": -106.6504,
+    "aliases": [
+      "unm"
+    ]
+  },
+  {
+    "city": "Boise",
+    "state": "ID",
+    "iata": "BOI",
+    "region": "mountain_us",
+    "lat": 43.615,
+    "lon": -116.2023,
+    "aliases": [
+      "boise state"
+    ]
+  },
+  {
+    "city": "Las Vegas",
+    "state": "NV",
+    "iata": "LAS",
+    "region": "west_us",
+    "lat": 36.1699,
+    "lon": -115.1398,
+    "aliases": [
+      "vegas",
+      "unlv"
+    ]
+  },
+  {
+    "city": "Los Angeles",
+    "state": "CA",
+    "iata": "LAX",
+    "region": "west_us",
+    "lat": 34.0522,
+    "lon": -118.2437,
+    "aliases": [
+      "la",
+      "ucla",
+      "usc",
+      "hollywood",
+      "santa monica",
+      "pasadena",
+      "caltech"
+    ]
+  },
+  {
+    "city": "Irvine",
+    "state": "CA",
+    "iata": "SNA",
+    "region": "west_us",
+    "lat": 33.6846,
+    "lon": -117.8265,
+    "aliases": [
+      "uci",
+      "orange county",
+      "oc"
+    ]
+  },
+  {
+    "city": "San Diego",
+    "state": "CA",
+    "iata": "SAN",
+    "region": "west_us",
+    "lat": 32.7157,
+    "lon": -117.1611,
+    "aliases": [
+      "ucsd",
+      "sdsu",
+      "la jolla"
+    ]
+  },
+  {
+    "city": "Santa Barbara",
+    "state": "CA",
+    "iata": "SBA",
+    "region": "west_us",
+    "lat": 34.4208,
+    "lon": -119.6982,
+    "aliases": [
+      "ucsb",
+      "isla vista"
+    ]
+  },
+  {
+    "city": "San Francisco",
+    "state": "CA",
+    "iata": "SFO",
+    "region": "west_us",
+    "lat": 37.7749,
+    "lon": -122.4194,
+    "aliases": [
+      "sf",
+      "bay area"
+    ]
+  },
+  {
+    "city": "Berkeley",
+    "state": "CA",
+    "iata": "OAK",
+    "region": "west_us",
+    "lat": 37.8715,
+    "lon": -122.273,
+    "aliases": [
+      "uc berkeley",
+      "cal",
+      "oakland"
+    ]
+  },
+  {
+    "city": "Palo Alto",
+    "state": "CA",
+    "iata": "SJC",
+    "region": "west_us",
+    "lat": 37.4419,
+    "lon": -122.143,
+    "aliases": [
+      "stanford",
+      "san jose",
+      "silicon valley"
+    ]
+  },
+  {
+    "city": "Sacramento",
+    "state": "CA",
+    "iata": "SMF",
+    "region": "west_us",
+    "lat": 38.5816,
+    "lon": -121.4944,
+    "aliases": [
+      "sac state",
+      "uc davis",
+      "davis"
+    ]
+  },
+  {
+    "city": "Seattle",
+    "state": "WA",
+    "iata": "SEA",
+    "region": "west_us",
+    "lat": 47.6062,
+    "lon": -122.3321,
+    "aliases": [
+      "university of washington"
+    ]
+  },
+  {
+    "city": "Portland",
+    "state": "OR",
+    "iata": "PDX",
+    "region": "west_us",
+    "lat": 45.5152,
+    "lon": -122.6784,
+    "aliases": [
+      "portland state",
+      "reed"
+    ]
+  },
+  {
+    "city": "Eugene",
+    "state": "OR",
+    "iata": "EUG",
+    "region": "west_us",
+    "lat": 44.0521,
+    "lon": -123.0868,
+    "aliases": [
+      "university of oregon",
+      "uo"
+    ]
+  },
+  {
+    "city": "Honolulu",
+    "state": "HI",
+    "iata": "HNL",
+    "region": "west_us",
+    "lat": 21.3069,
+    "lon": -157.8583,
+    "aliases": [
+      "oahu",
+      "uh manoa",
+      "hawaii"
+    ]
+  }
+]

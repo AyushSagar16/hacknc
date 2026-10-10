@@ -1,0 +1,24 @@
+Atlas
+Copyright (c) 2026 the Atlas team (HackNC 2026)
+
+This project adapts code and ideas from scout (https://github.com/ethanyanghq/scout) by Ethan Yang,
+used and adapted with the author's explicit permission. The upstream repository has no license
+file; the author's permission is the basis for this use. Adapted code was taken from commit
+60f567b89916edb908129c868e3dd4be664b0e07 and lives in its own git commits titled
+"import from scout (used with author permission)". Every adapted file starts with a header naming
+its upstream source and what we changed:
+
+  src/transport/linq/api.ts        ← bridge/linq-api.ts
+  src/transport/linq/events.ts     ← bridge/linq.ts (event mapping)
+  src/transport/linq/platform.ts   ← bridge/linq.ts (platform + send dispatcher)
+  src/transport/tapbacks.ts        ← bridge/tapbacks.ts
+  src/transport/sim/platform.ts    ← bridge/devchat/platform.ts
+  src/sim/script.ts                ← bridge/devchat/script.ts (.chat format)
+  src/agent/addressed.ts           ← src/scout/speak_gate.py, src/scout/trip.py
+  src/agent/speakGate.ts           ← src/scout/speak_gate.py
+  src/money/split.ts               ← src/scout/expense_split.py
+  src/money/settle.ts              ← src/scout/settle_up.py
+  src/trips/votes.ts               ← src/scout/polls.py
+
+Weather data: Open-Meteo (https://open-meteo.com), licensed CC BY 4.0.
+Banking data: Capital One Nessie sandbox (synthetic; no real accounts).

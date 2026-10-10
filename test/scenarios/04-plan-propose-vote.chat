@@ -1,0 +1,42 @@
+# Preferences come in naturally; Atlas extracts them silently, names a disagreement once, then
+# proposes three options that respect every hard constraint (leo's cancun veto + vegetarian,
+# priya can only drive), runs a native poll, and the majority locks it in.
+today 2026-10-10 14:00
+members maya leo priya
+atlas joins by maya
+~agent text: NO_REPLY
+maya: lol hi
+~agent text: NO_REPLY
+leo: hey
+~agent text: NO_REPLY
+priya: yoo
+~extract [{"message":0,"about":"maya","key":"home_city","polarity":"positive","explicit":true,"retracts":false,"confidence":0.95,"quote":"flying out of raleigh","city":"Raleigh"},{"message":0,"about":"maya","key":"date_window","polarity":"positive","explicit":true,"retracts":false,"confidence":0.9,"quote":"free nov 12-16","earliest":"2026-11-12","latest":"2026-11-16"},{"message":0,"about":"maya","key":"activity","polarity":"positive","explicit":true,"retracts":false,"confidence":0.9,"quote":"i want a beach","tag":"beach"}]
+maya: ok i'm free nov 12-16, leaving from raleigh, and i want a beach
+~extract [{"message":0,"about":"leo","key":"destination","polarity":"negative","explicit":true,"retracts":false,"confidence":0.95,"quote":"cancun is too pricey for me","place":"Cancún"},{"message":0,"about":"leo","key":"dietary","polarity":"positive","explicit":true,"retracts":false,"confidence":0.95,"quote":"i'm vegetarian","need":"vegetarian"},{"message":0,"about":"leo","key":"home_city","polarity":"positive","explicit":true,"retracts":false,"confidence":0.9,"quote":"i'd leave from charlotte","city":"Charlotte"},{"message":0,"about":"leo","key":"date_window","polarity":"positive","explicit":true,"retracts":false,"confidence":0.9,"quote":"same dates","earliest":"2026-11-12","latest":"2026-11-16"}]
+leo: cancun is too pricey for me, and i'm vegetarian. same dates, i'd leave from charlotte
+expect atlas quiet
+clock +15m
+~extract {"facts":[{"message":0,"about":"priya","key":"travel_limit","polarity":"positive","explicit":true,"retracts":false,"confidence":0.95,"quote":"i can only do driving distance","limit":"no_flying"},{"message":0,"about":"priya","key":"activity","polarity":"positive","explicit":true,"retracts":false,"confidence":0.9,"quote":"i'm all about food","tag":"food"},{"message":0,"about":"priya","key":"activity","polarity":"negative","explicit":true,"retracts":false,"confidence":0.85,"quote":"beaches bore me","tag":"beach"},{"message":0,"about":"priya","key":"date_window","polarity":"positive","explicit":true,"retracts":false,"confidence":0.9,"quote":"12-16 works","earliest":"2026-11-12","latest":"2026-11-16"}],"tensions":[{"topic":"beach vs food city","sides":["maya","priya"]}]}
+~agent text: maya wants a beach and priya's more of a food person, and priya can only drive. a beach town with a real food scene covers both
+priya: 12-16 works but i can only do driving distance. beaches bore me, i'm all about food
+expect atlas says 1
+expect atlas ~ "covers both"
+expect sql SELECT count(*)::int AS n FROM facts = [{"n":11}]
+maya: set my budget to 700
+expect atlas ~ "maya's trip budget is $700"
+leo: set my budget to 650
+priya: set my budget to 600
+maya: atlas give us some options
+expect atlas ~ "three options for nov 12–16"
+expect atlas !~ "cancún"
+expect atlas ~ "gas"
+expect sql SELECT status, rendered_as FROM polls = [{"status":"open","rendered_as":"native"}]
+expect trip.status = "voting"
+maya vote 1
+expect atlas quiet
+leo vote 1
+expect atlas ~ "wins (2 of 3)"
+expect atlas ~ "locked in for nov 12–16"
+expect atlas ~ "to book"
+expect trip.status = "locked"
+expect sql SELECT start_date, end_date FROM trips = [{"start_date":"2026-11-12","end_date":"2026-11-16"}]
