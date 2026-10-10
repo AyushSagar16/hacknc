@@ -159,17 +159,22 @@ investigation is in [docs/spike-report.md](docs/spike-report.md).
 
 | Role | Model | Why |
 |---|---|---|
-| Agent replies + tools | `gemini-3.8-flash` | Stable, built for agents and tool use, fast enough for chat |
-| Preference extraction | `gemini-3.8-flash` | Structured JSON output; accuracy matters more than latency |
-| Speak gate | `gemini-3.5-flash-lite` | The fastest Flash-family model; it runs on most messages and fails closed |
+| Agent replies + tools | `gemini-3.5-flash-lite` | Fast (about half a second a call), calls tools reliably, and has a free tier |
+| Preference extraction | `gemini-3.1-flash-lite` | Structured JSON that matched Flash on our extraction tests; a separate free quota from the agent's |
+| Speak gate | `gemini-3.5-flash-lite` | The fastest model; it runs on most messages and fails closed |
 | Memory | `gemini-embedding-2`, 768 dims | Recall over months of chat |
 
-If a model is overloaded, out of quota or timing out, Atlas falls back to the next model in
-`GEMINI_FALLBACK_MODELS` and skips the failing one for a while. For a daily quota, that's 30 minutes;
-for a per-minute quota, it's the retry delay Google returns. Free-tier quota is counted per model, so
-spreading roles across models stretches it. One way is `GEMINI_MODEL_EXTRACT=gemini-3.5-flash-lite`,
-which keeps extraction off the agent's quota. Laughter and acks ("lol", "😂", "ok") skip the models
-entirely. For a live demo, turn on billing for the key's Google Cloud project and set a budget alert.
+Atlas runs on Gemini's free tier, with no billing needed. Free quota is counted per model per day,
+and Flash models get only about 20 requests a day each. So the lite models do the everyday work, and
+`GEMINI_FALLBACK_MODELS` (`gemini-3.1-flash-lite`, `gemini-3.5-flash-lite`, `gemini-3-flash-preview`,
+`gemini-3.8-flash`) takes over as each one runs out. A model that's out of quota or overloaded is
+skipped for a while: 30 minutes for a daily quota, or the retry delay Google returns for a
+per-minute one. Atlas also avoids spending calls it doesn't need:
+- Laughter and acks ("lol", "😂", "ok") skip the models entirely.
+- A tool that posts its own message ends the agent's turn.
+- Startup pings only the primary models.
+
+To see your project's exact limits, open Google AI Studio's rate-limit page.
 
 ## Testing
 

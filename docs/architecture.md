@@ -79,7 +79,7 @@ remaining messages:
                   input: last 12 messages, stage, facts, deterministic hints (stuck poll, date conflict,
                   majority shared, installments due, trip over), minutes since Atlas spoke, unprompted count
   extraction result: a fresh disagreement can trigger one unprompted line (≤4 unprompted/hour)
-  agent (gemini-3.8-flash, ≤4 tool rounds): stateless situation (trip, resolved profiles with quotes,
+  agent (gemini-3.5-flash-lite, ≤4 tool rounds): stateless situation (trip, resolved profiles with quotes,
          feature sections, allowed figures, recalled memories, last 30 messages, new messages)
   money guard: every $ figure must match a registered figure the audience may see, or the text is dropped
 outbox → ordered sends with client GUIDs → text fallbacks

@@ -39,12 +39,12 @@ const schema = z.object({
   DATABASE_POOL_MAX: intWithDefault(5),
 
   GEMINI_API_KEY: optionalString,
-  GEMINI_MODEL_AGENT: optionalString.transform((v) => v ?? "gemini-3.8-flash"),
+  GEMINI_MODEL_AGENT: optionalString.transform((v) => v ?? "gemini-3.5-flash-lite"),
   GEMINI_MODEL_GATE: optionalString.transform((v) => v ?? "gemini-3.5-flash-lite"),
-  GEMINI_MODEL_EXTRACT: optionalString.transform((v) => v ?? "gemini-3.8-flash"),
+  GEMINI_MODEL_EXTRACT: optionalString.transform((v) => v ?? "gemini-3.1-flash-lite"),
   GEMINI_EMBED_MODEL: optionalString.transform((v) => v ?? "gemini-embedding-2"),
   /** Tried in order when a model is overloaded or times out. */
-  GEMINI_FALLBACK_MODELS: csv.transform((v) => (v.length ? v : ["gemini-3.6-flash", "gemini-3.5-flash-lite"])),
+  GEMINI_FALLBACK_MODELS: csv.transform((v) => (v.length ? v : ["gemini-3.1-flash-lite", "gemini-3.5-flash-lite", "gemini-3-flash-preview", "gemini-3.8-flash"])),
   LLM_MODE: optionalString.transform((v) => v ?? "live").pipe(z.enum(["live", "replay", "record", "fake"])),
 
   NESSIE_API_KEY: optionalString,

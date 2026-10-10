@@ -55,11 +55,16 @@ export async function runAgent(input: AgentInput): Promise<AgentOutput> {
       }
       contents.push({ role: "model", parts: result.parts });
       const responses: LlmPart[] = [];
+      let allSolo = true;
       for (const call of result.functionCalls) {
         const outcome = await input.tools.run(call.name, call.args, input.ctx);
         toolCalls.push({ name: call.name, ok: outcome.ok, error: outcome.ok ? undefined : outcome.error });
         responses.push({ functionResponse: { name: call.name, id: call.id, response: outcome as unknown as Record<string, unknown> } });
+        allSolo &&= outcome.ok && input.tools.isSolo(call.name);
       }
+      // A post that stands alone needs no lead-in, and any words the model added would be dropped
+      // (brain.ts), so don't spend another call asking for them.
+      if (allSolo) break;
       contents.push({ role: "user", parts: responses });
     }
   } catch (err) {

@@ -70,7 +70,7 @@ export const EMBED_DIM = 768;
 // ---------- Gemini ----------
 
 const OVERLOADED = /\b(503|500|502|504|429)\b|UNAVAILABLE|high demand|overloaded|RESOURCE_EXHAUSTED|INTERNAL|DEADLINE/i;
-const NOT_FOUND = /\b404\b|NOT_FOUND|is not found|not supported for generateContent/i;
+const NOT_FOUND = /\b404\b|NOT_FOUND|is not found|not supported for generateContent|no longer available/i;
 const BAD_THINKING = /thinking/i;
 
 export class GeminiLlm implements Llm {
@@ -148,7 +148,8 @@ export class GeminiLlm implements Llm {
             last = retryErr;
           }
         }
-        if ((err instanceof LlmError && err.kind === "timeout") || OVERLOADED.test(msg) || NOT_FOUND.test(msg)) this.markUnhealthy(model, benchMs(err), msg);
+        const hung = err instanceof LlmError && err.kind === "timeout" && timeoutMs >= 10_000;
+        if (hung || OVERLOADED.test(msg) || NOT_FOUND.test(msg)) this.markUnhealthy(model, benchMs(err), msg);
         else if (!isLast) this.log.warn({ model, err: msg.slice(0, 160) }, "gemini call failed; trying the next model");
       }
     }

@@ -28,8 +28,9 @@ Atlas is a trip and financial planner that lives inside an iMessage group chat:
     text fallbacks for everything).
   - Local and cloud iMessage providers behind the same switch.
   - A simulator line for development and testing.
-- **Gemini:** `gemini-3.8-flash` for the agent and extraction, `gemini-3.5-flash-lite` for the
-  speak gate, and `gemini-embedding-2` for memory.
+- **Gemini:** `gemini-3.5-flash-lite` for the agent and the speak gate, `gemini-3.1-flash-lite` for
+  extraction, and `gemini-embedding-2` for memory, all on the free tier, falling back across free models
+  as each day's quota runs out.
 - **Tiger Data:**
   - Postgres with pgvector + pgvectorscale (diskann) for semantic memory.
   - TimescaleDB hypertables and continuous aggregates for spend and forecast drift.

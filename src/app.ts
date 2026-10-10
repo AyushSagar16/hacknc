@@ -102,9 +102,10 @@ export async function startAtlas(opts: AppOptions): Promise<AtlasApp> {
     }
   }
 
-  // Probe the configured models in the background so an overloaded one is skipped from the start.
+  // Probe the primary models in the background so a dead one is skipped from the start. Fallbacks
+  // aren't pinged: on the free tier each ping spends a request from a small daily bucket.
   const warm = (llm as { warmup?: (m: string[]) => Promise<Record<string, string>> }).warmup;
-  if (warm) void warm.call(llm, [cfg.GEMINI_MODEL_AGENT, cfg.GEMINI_MODEL_GATE, cfg.GEMINI_MODEL_EXTRACT, ...cfg.GEMINI_FALLBACK_MODELS]).then((r) => log.info({ models: r }, "gemini warm-up"));
+  if (warm) void warm.call(llm, [cfg.GEMINI_MODEL_AGENT, cfg.GEMINI_MODEL_GATE, cfg.GEMINI_MODEL_EXTRACT]).then((r) => log.info({ models: r }, "gemini warm-up"));
 
   await pipeline.recover();
   const done = transport.run((space, message) => pipeline.ingest(space, message)).catch((err) => {
