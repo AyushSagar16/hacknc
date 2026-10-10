@@ -1,0 +1,22 @@
+{
+  "results": [
+    {
+      "id": 2267057,
+      "name": "Lisbon",
+      "latitude": 38.72509,
+      "longitude": -9.1498,
+      "elevation": 68.0,
+      "feature_code": "PPLC",
+      "country_code": "PT",
+      "admin1_id": 2267056,
+      "admin2_id": 6458923,
+      "timezone": "Europe/Lisbon",
+      "population": 517802,
+      "country_id": 2264397,
+      "country": "Portugal",
+      "admin1": "Lisbon District",
+      "admin2": "Lisbon Municipality"
+    }
+  ],
+  "generationtime_ms": 0.5072355
+}
