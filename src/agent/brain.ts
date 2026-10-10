@@ -110,7 +110,8 @@ export function createBrain(deps: BrainDeps): TurnHandler {
 
     // ---------- private chats ----------
     if (!chat.is_group) {
-      for (const msg of input.batch.filter((m) => m.kind === "text")) {
+      // Late deliveries (e.g. a text Linq held until the sender was registered) aren't answered.
+      for (const msg of input.batch.filter((m) => m.kind === "text" && m.speakable)) {
         tc.senderId = msg.person_id;
         tc.sourceMessageId = msg.id;
         let handled = false;

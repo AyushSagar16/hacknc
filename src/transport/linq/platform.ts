@@ -31,6 +31,8 @@ export interface LinqPlatformDeps {
   onSkip?: (event: WebhookEvent, reason: string) => void;
   /** Called when the line sent a message this process didn't — another Atlas is running on it. */
   onRival?: (chatId: string, messageId: string) => void;
+  /** False when poll vote events can't reach us (CLI relay): polls then fall back to numbered text. */
+  nativePolls?: () => boolean;
 }
 
 const sentEventSchema = z
@@ -174,6 +176,7 @@ export function linqPlatform(deps: LinqPlatformDeps) {
           return record(`${content.target.id}:${tapback ?? content.emoji}`, content, chatId);
         }
         case "poll": {
+          if (deps.nativePolls && !deps.nativePolls()) throw UnsupportedError.content("poll", LINQ_PLATFORM, "poll votes aren't subscribed on this connection");
           // Linq polls carry no question, so the question goes first as its own bubble.
           await api.sendMessage(chatId, [{ type: "text", value: content.title }], { idempotencyKey: guid ? `${guid}:q` : undefined });
           const { messageId } = await api.createPoll(

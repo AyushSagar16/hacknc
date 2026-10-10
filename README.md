@@ -101,13 +101,19 @@ name a payee). Nessie data is publicly visible, so Atlas only ever sends fiction
 ### The real line (Linq)
 
 1. `npm i -g @linqapp/cli && linq signup` (each teammate their own line), then put the key in `.env`.
-2. `cp demo/roster.example.json demo/roster.json` with your phones (optionally pin demo personas).
-3. Each friend texts the Atlas number once (free lines can only message people who did).
-   `npm run demo -- setup` shows who has.
+2. On a free **Shared** line, register every person by number (`linq contacts add +19195550123`).
+   Messages from numbers that aren't registered are held or dropped.
+3. `cp demo/roster.example.json demo/roster.json` with your names and phones (optionally pin demo
+   personas). `npm run demo -- setup` shows who has texted the line.
 4. `npm run demo -- warm` seeds everyone's Nessie demo profile ahead of time and prints their budgets.
-5. `npm run live` starts Atlas and the supervised `linq webhooks listen` relay. It captures the
-   session signing secret (never printed) and removes stale relay webhooks first.
-6. A friend adds the Atlas number to a group that already has at least 3 people.
+5. `npm run live` starts Atlas, opens a `cloudflared` quick tunnel, and creates a Linq webhook
+   subscription for every event Atlas handles, native polls included. Every delivery is verified
+   with the subscription's signing secret, and the subscription is deleted on exit.
+   `npm run live -- --relay` uses the CLI's `linq webhooks listen` relay instead (no tunnel). The CLI
+   can't subscribe to poll events, so polls fall back to numbered text and tapback votes.
+6. Create a group with your friends and the Atlas number. Atlas introduces itself when Linq
+   reports the new chat. To add Atlas to an existing group, Apple may require it to already have
+   3 other members.
 
 `npm run ops` has operator commands for a live demo: `failures`, `turns`, `mute`, `weather` (inject
 a forecast), and `say` (send as Atlas).

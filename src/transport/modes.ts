@@ -25,7 +25,7 @@ export interface Transport {
   run(onMessage: (space: Space, message: Message) => Promise<void>): Promise<void>;
   stop(): Promise<void>;
   world?: SimWorld;
-  linq?: { api: LinqApi; setSecret(secret: string | undefined): void; selfHandles: Set<string> };
+  linq?: { api: LinqApi; setSecret(secret: string | undefined): void; setNativePolls(on: boolean): void; selfHandles: Set<string> };
 }
 
 export async function createTransport(cfg: Config, opts: { world?: SimWorld; onRival?: (chatId: string) => void } = {}): Promise<Transport> {
@@ -61,6 +61,7 @@ export async function createTransport(cfg: Config, opts: { world?: SimWorld; onR
       }
       const queue = new EventQueue<WebhookEvent>();
       let secret = cfg.LINQ_WEBHOOK_SECRET;
+      let nativePolls = true;
       const server: Server = await startWebhookServer({
         port: cfg.LINQ_WEBHOOK_PORT,
         secret: () => secret,
@@ -74,6 +75,7 @@ export async function createTransport(cfg: Config, opts: { world?: SimWorld; onR
         queue,
         selfHandles: () => selfHandles,
         onSkip: (event, reason) => void markWebhookProcessed(event.id, reason).catch(() => {}),
+        nativePolls: () => nativePolls,
         onRival: (chatId, messageId) => {
           log.error({ chatId, messageId }, "this line sent a message this process didn't — is another Atlas running on the same Linq line?");
           opts.onRival?.(chatId);
@@ -82,8 +84,15 @@ export async function createTransport(cfg: Config, opts: { world?: SimWorld; onR
       platform = "linq";
       build = () => Spectrum({ providers: [lp.config({})] });
       resolve = (app, chat) => lp(app).space.get(chat.provider_chat_id);
-      linq = { api, selfHandles, setSecret: (s) => (secret = s) };
-      cleanups.push(() => queue.close(), () => new Promise<void>((r) => server.close(() => r())));
+      linq = { api, selfHandles, setSecret: (s) => (secret = s), setNativePolls: (on) => (nativePolls = on) };
+      cleanups.push(
+        () => queue.close(),
+        // The relay keeps a keep-alive connection open; close it or server.close() never returns.
+        () => new Promise<void>((r) => {
+          server.closeAllConnections();
+          server.close(() => r());
+        }),
+      );
       log.info({ port: cfg.LINQ_WEBHOOK_PORT, handles: [...selfHandles].length }, "linq webhook server listening");
       break;
     }

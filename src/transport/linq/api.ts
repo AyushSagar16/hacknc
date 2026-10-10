@@ -185,10 +185,9 @@ export class LinqApi {
   }
 
   async listWebhookSubscriptions(): Promise<{ id: string; target_url: string }[]> {
-    const result = await this.call<{ webhook_subscriptions?: { id: string; target_url: string }[]; data?: { id: string; target_url: string }[] }>(
-      `/webhook-subscriptions`,
-    );
-    return result.webhook_subscriptions ?? result.data ?? [];
+    type Sub = { id: string; target_url: string; subscribed_events?: string[]; is_active?: boolean };
+    const result = await this.call<{ subscriptions?: Sub[]; webhook_subscriptions?: Sub[]; data?: Sub[] }>(`/webhook-subscriptions`);
+    return result.subscriptions ?? result.webhook_subscriptions ?? result.data ?? [];
   }
 
   async createWebhookSubscription(targetUrl: string, events: string[]): Promise<{ id: string; secret?: string }> {

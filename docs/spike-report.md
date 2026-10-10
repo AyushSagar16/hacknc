@@ -53,9 +53,15 @@ account is needed. From the Partner API v3 docs and the reference team's experie
 | Stale relay webhooks | Caused 9-minute-late, out-of-order events for the reference team | `npm run live` deletes `…/relay/…` subscriptions before starting |
 | Two processes on one line | Both answered for the reference team | One line per teammate; echo detection logs loudly if this line sends something we didn't |
 
-**Still to verify on our own line** (this needs the Linq signup and the friends' phones; it's the
-first thing to run once the line exists):
-- [ ] group receive and send
+**Verified live on 2026-10-10** (line +1 205 503 0484, free Shared tier):
+- [x] private chat receive and send (only after `linq contacts add`; an unregistered sender's first text was held and delivered ~10 minutes later)
+- [x] creating a group from an iPhone/Mac with the Atlas number fires `chat.created`, then `message.received`; Atlas's intro is delivered to the group
+- [x] signature verification with a webhook subscription's `signing_secret` (tunnel mode)
+- [x] `linq webhooks listen` relays only its own default event list, which has no `poll.*` events, and rejects them via `--events` ("Unknown events"); a direct subscription accepts them
+- [x] Shared-line contacts are claimed per partner ("already assigned to another partner")
+
+**Still to verify on our own line:**
+- [ ] group messages from friends who never texted the line privately
 - [ ] typing returns 403 in groups
 - [ ] tapback out and in
 - [ ] threaded reply
