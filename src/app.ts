@@ -9,6 +9,7 @@ import { planningFeature } from "./agent/features/planning.ts";
 import { budgetsFeature } from "./agent/features/budgets.ts";
 import { proposalsFeature } from "./agent/features/proposals.ts";
 import { moneyFeature } from "./agent/features/money.ts";
+import { weatherFeature } from "./agent/features/weather.ts";
 import { createLlm, type Llm } from "./agent/llm.ts";
 import { JobRunner, pruneOld } from "./pipeline/jobs.ts";
 import { Pipeline } from "./pipeline/pipeline.ts";
@@ -47,7 +48,7 @@ export async function startAtlas(opts: AppOptions): Promise<AtlasApp> {
   await migrate();
   const llm = opts.llm ?? createLlm({ mode: cfg.LLM_MODE, apiKey: cfg.GEMINI_API_KEY, embedModel: cfg.GEMINI_EMBED_MODEL });
   const jobs = new JobRunner();
-  const features: Feature[] = [planningFeature, budgetsFeature, proposalsFeature, moneyFeature, ...(opts.extraFeatures ?? [])];
+  const features: Feature[] = [planningFeature, budgetsFeature, proposalsFeature, moneyFeature, weatherFeature, ...(opts.extraFeatures ?? [])];
 
   const transport = await createTransport(cfg, { world: opts.world });
   let pipeline!: Pipeline;

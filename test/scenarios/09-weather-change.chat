@@ -1,0 +1,36 @@
+# Weather watch: once the trip is locked Atlas checks the forecast on a schedule. A dry check says
+# nothing; when a day with an outdoor plan flips to rain it offers one swap (a message and a poll)
+# and never repeats it; "yeah swap it" in words applies the swap. Forecasts are injected, so no
+# network is needed (overrides win over Open-Meteo, and a fully overridden trip never fetches).
+today 2026-10-10 14:00
+members maya leo priya
+atlas joins by maya
+expect atlas says 3
+trip lock charleston 2026-10-16 2026-10-18
+expect trip.status = "locked"
+expect sql SELECT kind FROM jobs WHERE singleton_key LIKE 'weather:%' = [{"kind":"weather.check"}]
+# The drafted plan: fri king street walk, sat folly beach + fort sumter (outdoor), sun food tour (indoor).
+weather inject 2026-10-16 clear
+weather inject 2026-10-17 clear
+weather inject 2026-10-18 clear
+weather check
+expect atlas quiet
+expect sql SELECT source, count(*)::int AS n FROM weather_snapshots GROUP BY source = [{"source":"override","n":3}]
+# Saturday, the beach day, turns wet.
+weather inject 2026-10-17 rain 70 64
+weather check
+expect atlas says 2
+expect atlas ~ "flipped to rain"
+expect atlas ~ "swap the folly beach day for the city market & lowcountry food tour on sunday"
+expect poll ~ "swap"
+expect sql SELECT kind, status FROM polls WHERE kind = 'weather_swap' = [{"kind":"weather_swap","status":"open"}]
+# Same forecast at the next check: no repeat.
+weather check
+expect atlas quiet
+expect sql SELECT day::text AS day, kind FROM weather_alerts = [{"day":"2026-10-17","kind":"turned_wet"}]
+# Answered in words instead of the poll: the agent calls the tool, the plan swaps, the poll closes.
+~agent call apply_weather_swap {"apply":true}
+maya: atlas yeah swap it
+expect atlas ~ "done: city market & lowcountry food tour moved to saturday, folly beach day to sunday"
+expect sql SELECT itinerary->1->'items'->0->>'name' AS sat FROM trips = [{"sat":"City Market & Lowcountry food tour"}]
+expect sql SELECT status, winner_idx FROM polls WHERE kind = 'weather_swap' = [{"status":"closed","winner_idx":0}]

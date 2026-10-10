@@ -3,6 +3,7 @@
 import { daysBetween } from "../../clock.ts";
 import { recordAsk } from "../../profile/store.ts";
 import { updateTrip } from "../../trips/state.ts";
+import { startWeatherWatch } from "./weather.ts";
 import type { Feature, TurnCtx } from "../feature.ts";
 import { ToolError, say, str, strList, type Tool } from "../tools.ts";
 
@@ -74,6 +75,8 @@ const setTripDates: Tool = {
     const nights = daysBetween(start, end);
     if (nights < 1 || nights > 21) throw new ToolError("a trip is 1 to 21 nights");
     ctx.trip = await updateTrip(ctx.trip.id, { start_date: start, end_date: end });
+    // A locked trip watches the forecast for its dates; restart the watch for the new ones.
+    if (ctx.trip.status === "locked" || ctx.trip.status === "ongoing") await startWeatherWatch(ctx.trip);
     return { ok: true, data: { start, end, nights }, next: "dates saved; mention them in one line if helpful" };
   },
 };
