@@ -53,6 +53,7 @@ export function buildConstraints(
   const dates = opts.tripStart && opts.tripEnd ? { start: opts.tripStart, end: opts.tripEnd } : view.dates ? { start: view.dates.start, end: view.dates.end } : null;
   const nights = opts.nights ?? (dates ? Math.max(1, Math.round((Date.parse(dates.end) - Date.parse(dates.start)) / 86_400_000)) : view.nights.suggested);
   const ceilings = members.map((m) => m.budgetCeilingCents).filter((c): c is number => typeof c === "number");
-  const tier = opts.tier ?? (ceilings.length && Math.min(...ceilings) < 90_000 ? "budget" : "mid");
+  // College-trip default is budget tier; mid only when everyone's budget is comfortably high.
+  const tier = opts.tier ?? (ceilings.length && Math.min(...ceilings) >= 160_000 ? "mid" : "budget");
   return { group: { members, startDate: dates?.start, endDate: dates?.end, nights, tier }, prefs, dates, notes };
 }

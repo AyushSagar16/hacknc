@@ -43,7 +43,8 @@ export class Figures {
     const unknown: MoneyMention[] = [];
     const privateLeaks: GuardResult["privateLeaks"] = [];
     for (const mention of parseMoneyMentions(text)) {
-      const matches = this.items.filter((f) => close(mention, f.cents));
+      const hedged = /(about|around|roughly|approx\.?|~|like|under|over|almost|nearly)\s*$/i.test(text.slice(Math.max(0, mention.index - 14), mention.index));
+      const matches = this.items.filter((f) => close(mention, f.cents, hedged));
       if (matches.length === 0) {
         unknown.push(mention);
         continue;
@@ -63,10 +64,12 @@ export class Figures {
   }
 }
 
-/** Rounded mentions ("$1.2k", "about $600") get more slack than exact ones. */
-function close(m: MoneyMention, cents: number): boolean {
-  const rounded = /k\b|grand|about|around|~|roughly/i.test(m.raw) || (m.cents % 10_000 === 0 && Math.abs(cents) >= 50_000);
-  const tolerance = Math.max(100, Math.abs(cents) * (rounded ? 0.05 : 0.005));
+/** Rounded or hedged mentions ("$1.2k", "about $600", "$550") get more slack than exact ones. */
+function close(m: MoneyMention, cents: number, hedged: boolean): boolean {
+  const roundHundreds = /k\b|grand/i.test(m.raw) || m.cents % 10_000 === 0;
+  const roundTens = m.cents % 1_000 === 0;
+  const pct = hedged || roundHundreds ? 0.05 : roundTens ? 0.02 : 0.005;
+  const tolerance = Math.max(100, Math.abs(cents) * pct);
   return Math.abs(Math.abs(m.cents) - Math.abs(cents)) <= tolerance;
 }
 

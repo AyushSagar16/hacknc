@@ -88,15 +88,23 @@ function optionFigures(options: StoredOption[]): Figure[] {
   return out;
 }
 
-function explainRejections(rejected: Rejection[], tc: TurnCtx): string {
-  const counts = new Map<string, number>();
+/** What's blocking, in plain words, from the filter's per-destination reasons. */
+function explainRejections(rejected: Rejection[]): string {
+  const kinds: [RegExp, string][] = [
+    [/ceiling|budget/i, "over someone's budget"],
+    [/veto|ruled out|doesn't want/i, "vetoed"],
+    [/season|freezing|hurricane|too hot|too cold/i, "wrong season"],
+    [/drive|fly|flight|passport/i, "outside someone's travel limits"],
+    [/vegetarian|vegan|halal|kosher|gluten|dietary/i, "tough for someone's diet"],
+  ];
+  const byDest = new Map<string, Set<string>>();
   for (const r of rejected) {
-    const key = r.reason.replace(/^.*?(over .*?'s ceiling).*$/, "$1 budget").replace(/by ~\$[\d,]+/, "");
-    counts.set(key, (counts.get(key) ?? 0) + 1);
+    const kind = kinds.find(([re]) => re.test(r.reason))?.[1] ?? "doesn't fit";
+    byDest.set(r.destinationId, (byDest.get(r.destinationId) ?? new Set()).add(kind));
   }
-  const top = [...counts].sort((a, b) => b[1] - a[1]).slice(0, 3).map(([r]) => r);
-  void tc;
-  return top.join("; ");
+  const counts = new Map<string, number>();
+  for (const set of byDest.values()) for (const k of set) counts.set(k, (counts.get(k) ?? 0) + 1);
+  return [...counts].sort((a, b) => b[1] - a[1]).slice(0, 2).map(([k, n]) => `${n} places ${k}`).join(", ");
 }
 
 /** Build, price and post three options with a poll. Returns what happened for the model. */
@@ -107,7 +115,7 @@ export async function proposeDestinations(tc: TurnCtx, opts: { nights?: number; 
   const catalog = destinations().filter((d) => !(opts.exclude ?? []).some((x) => findDestination(x)?.id === d.id));
   const { passed, rejected } = hardFilter(catalog, built.group);
   if (passed.length === 0) {
-    const why = explainRejections(rejected, tc);
+    const why = explainRejections(rejected);
     say(tc, `nothing in my list fits everyone yet (${why || "too many constraints"}). want to stretch the budget, loosen dates, or stay closer to home?`);
     return { posted: true, options: [], why };
   }

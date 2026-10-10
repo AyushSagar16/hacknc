@@ -18,10 +18,16 @@ export interface AddressedInput {
 
 export type AddressedReason = "named" | "reply_to_atlas" | "answers_question" | null;
 
+/** "atlas seems useful", "atlas is so organized": talking about Atlas, not to it. */
+const ABOUT_WORDS = "seems|is|was|looks|sounds|has|had|knows|says|said|thinks|be|been|being|kinda|really|literally|lowkey|just|always|never";
+
 export function mentionPattern(agentName: string): RegExp {
   const n = agentName.toLowerCase().replace(/[^a-z0-9]/g, "");
+  // Addressing: "@atlas", "hey atlas", a message that starts with the name (unless the next word
+  // is about Atlas, like "seems"), "atlas ...?", a bare "atlas", or a trailing vocative
+  // ("thoughts, atlas?"). "let's ask atlas later" is left to the speak gate.
   return new RegExp(
-    `(?:@${n}\\b|\\b(?:at|hey|hi|hello|yo|ok|okay|thanks|thx|ty|sup)\\s+${n}\\b|^\\W*${n}\\b\\W|^\\W*${n}\\W*$|[,!]\\s*${n}\\W*$|\\b${n}\\s*\\?\\s*$)`,
+    `(?:@${n}\\b|\\b(?:at|hey|hi|hello|yo|ok|okay|thanks|thx|ty|sup)\\s+${n}\\b|^\\W*${n}\\b(?!\\s+(?:${ABOUT_WORDS})\\b)(?:\\W|$)|^\\W*${n}\\b.*\\?\\s*$|[,!]\\s*${n}\\W*$|\\b${n}\\s*\\?\\s*$)`,
     "i",
   );
 }
