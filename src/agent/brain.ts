@@ -19,6 +19,7 @@ import type { Feature, TurnCtx } from "./feature.ts";
 import { Figures } from "./figures.ts";
 import type { Llm } from "./llm.ts";
 import { describeSituation } from "./situation.ts";
+import { isSmallTalk } from "./smallTalk.ts";
 import { RECENT_MESSAGE_COUNT, speakGate } from "./speakGate.ts";
 import { ToolRegistry, say } from "./tools.ts";
 
@@ -197,7 +198,9 @@ export function createBrain(deps: BrainDeps): TurnHandler {
       await extraction;
       return { actions, route: route === "silent" ? "quiet" : route, addressed: false };
     }
-    if (!addressed) {
+    // Laughter and acks with nothing pending: no gate call (the deterministic triggers below still run).
+    const smallTalk = !addressed && hints.length === 0 && remaining.every((m) => isSmallTalk(m.text));
+    if (!addressed && !smallTalk) {
       const lastAtlas = [...history].reverse().find((h) => h.direction === "outbound");
       const verdict = await speakGate(
         llm,
@@ -311,6 +314,10 @@ async function runExtraction(tc: TurnCtx, llm: Llm, cfg: Config, agentName: stri
     [tc.chat.id, new Date(tc.now.getTime() - 6 * 3_600_000)],
   );
   if (pending.length === 0) return { tensions: [], newConstraints: false };
+  if (pending.every((m) => isSmallTalk(m.text))) {
+    await markExtracted(pending.map((m) => m.id), tc.now);
+    return { tensions: [], newConstraints: false };
+  }
   const firstId = pending[0]!.id;
   const context = tc.history.filter((h) => h.id < firstId).slice(-6);
   const privateRows = await q<{ person_id: number }>(`SELECT person_id FROM budgets WHERE trip_id = $1 AND visibility = 'private'`, [tc.trip.id]);

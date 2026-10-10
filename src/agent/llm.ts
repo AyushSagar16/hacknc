@@ -107,7 +107,13 @@ export class GeminiLlm implements Llm {
           await this.once({ role: "summary", model, system: "reply ok", contents: [{ role: "user", parts: [{ text: "ping" }] }], timeoutMs: 8_000, maxOutputTokens: 5 }, model, false);
           out[model] = `ok ${Date.now() - t0}ms`;
         } catch (err) {
-          this.markUnhealthy(model, 3 * 60_000, (err as Error).message);
+          // Thinking models can spend the tiny ping budget before writing anything (MAX_TOKENS).
+          // That still proves the model is up and has quota, so it isn't a reason to skip it.
+          if (err instanceof LlmError && err.kind === "empty") {
+            out[model] = `ok ${Date.now() - t0}ms`;
+            return;
+          }
+          this.markUnhealthy(model, benchMs(err), (err as Error).message);
           out[model] = `unhealthy: ${(err as Error).message.slice(0, 60)}`;
         }
       }),
@@ -142,9 +148,7 @@ export class GeminiLlm implements Llm {
             last = retryErr;
           }
         }
-        if (err instanceof LlmError && err.kind === "timeout") this.markUnhealthy(model, 3 * 60_000, msg);
-        else if (OVERLOADED.test(msg)) this.markUnhealthy(model, 2 * 60_000, msg);
-        else if (NOT_FOUND.test(msg)) this.markUnhealthy(model, 60 * 60_000, msg);
+        if ((err instanceof LlmError && err.kind === "timeout") || OVERLOADED.test(msg) || NOT_FOUND.test(msg)) this.markUnhealthy(model, benchMs(err), msg);
         else if (!isLast) this.log.warn({ model, err: msg.slice(0, 160) }, "gemini call failed; trying the next model");
       }
     }
@@ -207,6 +211,23 @@ export class GeminiLlm implements Llm {
 }
 
 const THINKING = { minimal: ThinkingLevel.MINIMAL, low: ThinkingLevel.LOW, medium: ThinkingLevel.MEDIUM } as const;
+
+/**
+ * How long to skip a model after a failure. A quota 429 says how long to wait (RetryInfo), and a
+ * daily quota won't come back for hours, so neither is retried on the overload schedule.
+ */
+export function benchMs(err: unknown): number {
+  const msg = (err as Error)?.message ?? String(err);
+  if (err instanceof LlmError && err.kind === "timeout") return 3 * 60_000;
+  if (NOT_FOUND.test(msg)) return 60 * 60_000;
+  if (/\b429\b|RESOURCE_EXHAUSTED|quota/i.test(msg)) {
+    if (/PerDay/i.test(msg)) return 30 * 60_000;
+    const delay = /"?retryDelay"?\s*:\s*"(\d+(?:\.\d+)?)s"/.exec(msg);
+    if (delay) return Math.max(15_000, Math.ceil(Number(delay[1]) * 1000));
+    return 60_000;
+  }
+  return 2 * 60_000;
+}
 
 function toResult(parts: LlmPart[]): GenerateResult {
   const text = parts

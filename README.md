@@ -164,6 +164,13 @@ investigation is in [docs/spike-report.md](docs/spike-report.md).
 | Speak gate | `gemini-3.5-flash-lite` | The fastest Flash-family model; it runs on most messages and fails closed |
 | Memory | `gemini-embedding-2`, 768 dims | Recall over months of chat |
 
+If a model is overloaded, out of quota or timing out, Atlas falls back to the next model in
+`GEMINI_FALLBACK_MODELS` and skips the failing one for a while. For a daily quota, that's 30 minutes;
+for a per-minute quota, it's the retry delay Google returns. Free-tier quota is counted per model, so
+spreading roles across models stretches it. One way is `GEMINI_MODEL_EXTRACT=gemini-3.5-flash-lite`,
+which keeps extraction off the agent's quota. Laughter and acks ("lol", "😂", "ok") skip the models
+entirely. For a live demo, turn on billing for the key's Google Cloud project and set a budget alert.
+
 ## Testing
 
 - `npm test` runs unit and integration tests against a real Postgres, with a fake Linq API, a fake

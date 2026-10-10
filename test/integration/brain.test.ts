@@ -24,8 +24,13 @@ describeDb("brain", () => {
     // Right after the intro's question, a message may be an answer: the agent decides (NO_REPLY here).
     expect(await chat.say("leo", "lol did you see the game")).toEqual([]);
     expect(llm.calls.filter((c) => c.role === "agent")).toHaveLength(1);
-    for (const text of ["haha yes", "insane", "omg"]) expect(await chat.say("priya", text)).toEqual([]);
-    expect(llm.calls.filter((c) => c.role === "gate").length).toBeGreaterThanOrEqual(1);
+    for (const text of ["haha yes", "insane", "that game was wild"]) expect(await chat.say("priya", text)).toEqual([]);
+    const gateCalls = llm.calls.filter((c) => c.role === "gate").length;
+    expect(gateCalls).toBeGreaterThanOrEqual(1);
+    // Pure laughter costs no model calls at all.
+    const before = llm.calls.length;
+    expect(await chat.say("leo", "lmaooo 😂")).toEqual([]);
+    expect(llm.calls.length).toBe(before);
     // A second join event never repeats the intro.
     expect(await chat.addMember("sam", "+15550109999")).toHaveLength(1);
   });
