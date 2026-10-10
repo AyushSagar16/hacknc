@@ -43,24 +43,32 @@ export function budgetFigures(rows: BudgetRow[], label: (id: number) => string):
   return figures;
 }
 
-/** The group message, deterministic. */
+/** The group message, deterministic: the list, the number Atlas plans around, and (first time) how. */
 export function budgetMessage(rows: BudgetRow[], label: (id: number) => string, opts: { firstTime: boolean }): string[] {
   if (rows.length === 0) return [];
   const p = pool(rows);
   const out: string[] = [];
   if (!p.anyPrivate) {
-    const each = rows.map((r) => `${label(r.person_id).toLowerCase()} ${formatUsd(effectiveCents(r)!)}`).join(" · ");
-    const range = p.count >= 2 ? `\nso everyone's comfortable up to ${formatUsd(p.ceilingCents)} per person (range ${formatUsd(p.minCents)}–${formatUsd(p.maxCents)})` : "";
-    out.push(`trip budgets, ${DISCLAIMER}:\n${each}${range}`);
+    const each = rows.map((r) => `${label(r.person_id).toLowerCase()}: ${formatUsd(effectiveCents(r)!)}`).join("\n");
+    out.push(`💰 trip budgets\n${each}`);
+    if (p.count >= 2) out.push(`so i'll plan around ${formatUsd(p.ceilingCents)} each, which works for everyone\n(from demo spending profiles, not your real bank)`);
+    else out.push(`(from demo spending profiles, not your real bank)`);
   } else if (p.count >= 3) {
-    out.push(`trip budgets, ${DISCLAIMER}: with someone keeping theirs private i'll only share the pooled number. everyone's comfortable up to ${formatUsd(p.ceilingCents)} per person`);
+    out.push(`💰 someone's keeping their budget private, so here's just the pooled number:\neveryone's good up to ${formatUsd(p.ceilingCents)} each\n(from demo spending profiles, not your real bank)`);
   } else {
     out.push(`budgets stay pooled between you two (${DISCLAIMER}). i'll flag anything over what you can both do`);
   }
   if (opts.firstTime) {
-    out.push(`how i got these: typical paychecks minus recurring bills minus typical everyday spending, times the months until the trip, times half, capped so next month's bills stay covered. "set my budget to ___" changes yours, "keep my budget private" hides it`);
+    out.push(`how i got these: what you earn, minus bills and everyday spending, for each month until the trip, then half of that\nwant a different number? say "set my budget to ___" or "keep my budget private"`);
   }
   return out;
+}
+
+/** Below this nothing on the map is plannable (gas alone costs more); treat it as a joke, not a budget. */
+export const MIN_BUDGET_CENTS = 50_00;
+
+function tooLowReply(name: string, cents: number): string {
+  return `${formatUsd(cents)} won't get anyone out of town 😅 ${name}, what's a real number? anything ${formatUsd(MIN_BUDGET_CENTS)}+ works`;
 }
 
 const LOADING_TEXT = "pulling demo spending profiles for";
@@ -120,8 +128,9 @@ const setMyBudget: Tool = {
     const amount = num(args.amount_usd);
     if (!amount || amount <= 0 || amount > 50_000) throw new ToolError("amount_usd must be a positive dollar amount");
     if (ctx.senderId === null) throw new ToolError("no sender");
+    if (Math.round(amount * 100) < MIN_BUDGET_CENTS) throw new ToolError(`budgets under ${formatUsd(MIN_BUDGET_CENTS)} aren't realistic; ask what they really want to spend`);
     const row = await setAdjusted(ctx.senderId, ctx.trip.id, Math.round(amount * 100));
-    const text = row.visibility === "private" ? "updated your budget (kept private)" : `done, your trip budget is now ${formatUsd(effectiveCents(row)!)}`;
+    const text = row.visibility === "private" ? "updated your budget (kept private)" : `done, your budget is now ${formatUsd(effectiveCents(row)!)} 👍`;
     say(ctx, text);
     ctx.figures.add({ cents: effectiveCents(row)!, label: "sender's budget", source: "user:stated", visibility: row.visibility, ownerId: ctx.senderId });
     return { ok: true, posted: [text] };
@@ -196,11 +205,16 @@ export const budgetsFeature: Feature = {
     },
     budget_set: async (msg, tc, cmd) => {
       if (msg.person_id === null || cmd.kind !== "budget_set") return;
+      if (cmd.amountCents < MIN_BUDGET_CENTS) {
+        tc.figures.add({ cents: cmd.amountCents, label: "budget someone typed", source: "user:stated", visibility: "public" });
+        say(tc, tooLowReply(tc.label(msg.person_id).toLowerCase(), cmd.amountCents));
+        return;
+      }
       const row = await setAdjusted(msg.person_id, tc.trip.id, cmd.amountCents);
       if (row.visibility === "private") say(tc, "updated your budget (kept private)");
       else {
         tc.figures.add({ cents: cmd.amountCents, label: "budget just set", source: "user:stated", visibility: "public" });
-        say(tc, `done, ${tc.label(msg.person_id).toLowerCase()}'s trip budget is now ${formatUsd(cmd.amountCents)}`);
+        say(tc, `done, ${tc.label(msg.person_id).toLowerCase()}'s budget is now ${formatUsd(cmd.amountCents)} 👍${tc.trip.status === "locked" ? "\n(the payment plan is based on trip cost, so it doesn't change)" : ""}`);
       }
     },
   },

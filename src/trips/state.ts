@@ -20,6 +20,7 @@ export interface TripRow {
   start_date: string | null;
   end_date: string | null;
   deposit_deadline: string | null;
+  split_mode: "by_cost" | "even";
   itinerary: ItineraryDay[];
   locked_at: Date | null;
 }

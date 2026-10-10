@@ -23,7 +23,7 @@ expect atlas says 1
 expect atlas ~ "covers both"
 expect sql SELECT count(*)::int AS n FROM facts = [{"n":11}]
 maya: set my budget to 700
-expect atlas ~ "maya's trip budget is now $700"
+expect atlas ~ "maya's budget is now $700"
 leo: set my budget to 650
 priya: set my budget to 600
 maya: atlas give us some options

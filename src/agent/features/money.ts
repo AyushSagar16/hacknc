@@ -34,32 +34,73 @@ const day = (iso: string) => new Date(`${iso}T12:00:00Z`).toLocaleDateString("en
 
 // ---------- (a)+(b) shares and payment plan ----------
 
-async function sharesFor(trip: TripRow, memberIds: number[]): Promise<Map<number, number>> {
-  const row = await one<{ options: { destId: string; avgCents: number; perPerson: Record<string, { totalCents: number }> }[] }>(
+type PerPersonCost = { totalCents: number; transportMode?: "flight" | "drive" };
+
+async function sharesFor(trip: TripRow, memberIds: number[]): Promise<{ shares: Map<number, number>; modes: Map<number, string> }> {
+  const row = await one<{ options: { destId: string; avgCents: number; perPerson: Record<string, PerPersonCost> }[] }>(
     `SELECT options FROM proposals WHERE trip_id = $1 ORDER BY id DESC LIMIT 1`,
     [trip.id],
   );
   const option = row?.options.find((o) => o.destId === trip.destination_id);
-  const out = new Map<number, number>();
+  const shares = new Map<number, number>();
+  const modes = new Map<number, string>();
   for (const id of memberIds) {
-    const cents = option?.perPerson[String(id)]?.totalCents ?? option?.avgCents;
-    if (cents) out.set(id, Math.round(cents / 500) * 500);
+    const cost = option?.perPerson[String(id)];
+    const cents = cost?.totalCents ?? option?.avgCents;
+    if (cents) shares.set(id, Math.round(cents / 500) * 500);
+    if (cost?.transportMode) modes.set(id, cost.transportMode);
   }
-  return out;
+  return { shares, modes };
+}
+
+/** One equal share each: the group's total split evenly, rounded to $5 like every estimate. */
+export function evenShares(shares: Map<number, number>): Map<number, number> {
+  if (shares.size === 0) return shares;
+  const total = [...shares.values()].reduce((a, b) => a + b, 0);
+  const each = Math.round(total / shares.size / 500) * 500;
+  return new Map([...shares.keys()].map((id) => [id, each]));
+}
+
+/** "4 payments of $173.75" when they're equal, otherwise each amount with its date. */
+export function installmentLines(plan: { dueDate: string; amountCents: number }[]): string[] {
+  if (plan.length === 0) return [];
+  const same = plan.every((p) => p.amountCents === plan[0]!.amountCents);
+  if (same) {
+    const what = plan.length === 1 ? `1 payment of ${formatUsd(plan[0]!.amountCents)}` : `${plan.length} payments of ${formatUsd(plan[0]!.amountCents)}`;
+    return [what, plan.map((p) => day(p.dueDate)).join(", ")];
+  }
+  return plan.map((p) => `${day(p.dueDate)}: ${formatUsd(p.amountCents)}`);
+}
+
+/** Why the shares aren't equal, in one line (travel is the only thing that differs per person). */
+function whyDifferent(shares: Map<number, number>, modes: Map<number, string>, label: (id: number) => string): string | null {
+  if (new Set(shares.values()).size <= 1) return null;
+  const drivers = [...shares.keys()].filter((id) => modes.get(id) === "drive").map((id) => label(id).toLowerCase());
+  const flyers = [...shares.keys()].filter((id) => modes.get(id) === "flight").map((id) => label(id).toLowerCase());
+  const travel =
+    drivers.length && flyers.length
+      ? `${nameList(drivers)} ${drivers.length === 1 ? "drives" : "drive"}, ${flyers.length === shares.size - drivers.length ? "everyone else flies" : `${nameList(flyers)} fly`}`
+      : "flights cost different amounts from each home city";
+  return `shares differ because travel does (${travel}).\nwant one equal share instead? say "split it evenly"`;
 }
 
 async function setupPaymentPlan(tc: TurnCtx): Promise<void> {
   const trip = tc.trip;
   if (!trip.start_date) return;
-  let shares = await sharesFor(trip, tc.members.map((m) => m.id));
+  const mode = trip.split_mode ?? "by_cost";
+  let { shares, modes } = await sharesFor(trip, tc.members.map((m) => m.id));
   if (shares.size === 0) shares = await estimatedShares(tc);
   if (shares.size === 0) return;
+  if (mode === "even") shares = evenShares(shares);
   await tc.nonCancellable();
   const today = tc.today;
   let deadline = trip.deposit_deadline ?? addDays(trip.start_date, -7);
   if (deadline <= today) deadline = addDays(today, 1);
   const client = sharedNessie();
-  const lines: string[] = [];
+  // by_cost keeps the original key shape so plans posted before split modes existed aren't duplicated.
+  const keyFor = (personId: number, i: number) => (mode === "even" ? `inst:${trip.id}:even:${personId}:${i}` : `inst:${trip.id}:${personId}:${i}`);
+  await cancelOtherPlan(trip, mode, client);
+  const bubbles: string[] = [];
   let offline = !client;
   for (const [personId, shareCents] of shares) {
     const link = await linkFor(personId);
@@ -71,12 +112,12 @@ async function setupPaymentPlan(tc: TurnCtx): Promise<void> {
       paydays = inferPaycheckCadence(pay).nextPaydays(addDays(today, 1), deadline);
     }
     const plan = planInstallments({ shareCents, today, deadline, paydays });
-    const parts: string[] = [];
     for (const [i, inst] of plan.entries()) {
-      const key = `inst:${trip.id}:${personId}:${i}`;
+      const key = keyFor(personId, i);
       const existing = await one<{ id: number; nessie_bill_id: string | null }>(`SELECT id, nessie_bill_id FROM installments WHERE idempotency_key = $1`, [key]);
       let billId = existing?.nessie_bill_id ?? null;
       if (!existing) await q(`INSERT INTO installments (trip_id, person_id, due_date, amount_cents, idempotency_key, created_at) VALUES ($1,$2,$3,$4,$5,$6)`, [trip.id, personId, inst.dueDate, inst.amountCents, key, now()]);
+      else await q(`UPDATE installments SET status = 'scheduled' WHERE id = $1 AND status = 'cancelled'`, [existing.id]);
       if (!billId && client && link?.checking_id && !link.seed_progress.offline) {
         try {
           billId = (
@@ -99,16 +140,50 @@ async function setupPaymentPlan(tc: TurnCtx): Promise<void> {
           log().warn({ err: (err as Error).message }, "could not create nessie bill; installment kept locally");
         }
       }
-      parts.push(`${formatUsd(inst.amountCents)} ${day(inst.dueDate)}`);
       tc.figures.add({ cents: inst.amountCents, label: `${tc.label(personId)} installment`, source: billId ? `nessie:${billId}` : "estimate:plan", visibility: "public" });
     }
     tc.figures.add({ cents: shareCents, label: `${tc.label(personId)}'s share (est.)`, source: "estimate:proposal", visibility: "public" });
-    lines.push(`${tc.label(personId).toLowerCase()} (${formatUsd(shareCents)}): ${parts.join(" · ")}`);
+    bubbles.push([`${tc.label(personId).toLowerCase()}: ${formatUsd(shareCents)} total`, ...installmentLines(plan)].join("\n"));
   }
-  say(
-    tc,
-    `payment plan for everyone's share (est., paid off by ${day(deadline)}), ${offline ? "scheduled here (demo profiles are offline, so not in nessie yet)" : "set up as nessie bills timed to your paydays"}:\n${lines.join("\n")}`,
+  const where = offline ? "estimates, demo profiles are offline so it's tracked here" : "estimates, set up as bills in your demo nessie accounts";
+  const header = `💸 payment plan${mode === "even" ? ", split evenly" : ""}\nsmall payments on your paydays, all done by ${day(deadline)}\n(${where})`;
+  const footer = mode === "even" ? `everyone pays the same now. "split by cost" switches back` : whyDifferent(shares, modes, (id) => tc.label(id));
+  say(tc, header, ...bubbles, ...(footer ? [footer] : []));
+}
+
+/** Switching split modes retires the other plan's installments (and their Nessie bills). */
+async function cancelOtherPlan(trip: TripRow, mode: "by_cost" | "even", client: ReturnType<typeof sharedNessie>): Promise<void> {
+  const stale = await q<{ id: number; person_id: number; nessie_bill_id: string | null }>(
+    `UPDATE installments SET status = 'cancelled' WHERE trip_id = $1 AND status = 'scheduled'
+       AND (CASE WHEN $2 = 'even' THEN idempotency_key NOT LIKE $3 ELSE idempotency_key LIKE $3 END)
+     RETURNING id, person_id, nessie_bill_id`,
+    [trip.id, mode, `inst:${trip.id}:even:%`],
   );
+  if (!client) return;
+  for (const s of stale) {
+    if (!s.nessie_bill_id) continue;
+    try {
+      await client.remove(`/bills/${s.nessie_bill_id}`, s.person_id);
+    } catch (err) {
+      log().warn({ err: (err as Error).message }, "could not remove a retired nessie bill");
+    }
+  }
+}
+
+/** Change how the trip is shared and re-post the plan. */
+export async function setSplitMode(tc: TurnCtx, mode: "by_cost" | "even"): Promise<void> {
+  if (!tc.trip.destination_id || !tc.trip.start_date) {
+    tc.trip = await updateTrip(tc.trip.id, { split_mode: mode });
+    say(tc, mode === "even" ? "got it, everyone pays the same. i'll split it evenly once we lock a place" : "got it, everyone covers their own travel. i'll split it that way once we lock a place");
+    return;
+  }
+  if (tc.trip.split_mode === mode) {
+    await setupPaymentPlan(tc);
+    return;
+  }
+  await tc.nonCancellable();
+  tc.trip = await updateTrip(tc.trip.id, { split_mode: mode });
+  await setupPaymentPlan(tc);
 }
 
 /** No proposal behind this destination (locked by name): estimate each share from the catalog. */
@@ -535,11 +610,28 @@ const paymentPlanTool: Tool = {
   },
 };
 
+const splitModeTool: Tool = {
+  soloPost: true,
+  sideEffects: true,
+  decl: {
+    name: "set_cost_split",
+    description:
+      "Change how the trip's cost is shared and re-post the payment plan. \"even\" = everyone pays one equal share (when people say everyone should pay the same); \"by_cost\" = each person covers their own travel. Posts its own messages.",
+    parameters: { type: "object", properties: { mode: { type: "string", enum: ["even", "by_cost"] } }, required: ["mode"] },
+  },
+  async run(args, ctx) {
+    const mode = args.mode === "even" ? "even" : args.mode === "by_cost" ? "by_cost" : undefined;
+    if (!mode) throw new ToolError('mode must be "even" or "by_cost"');
+    await setSplitMode(ctx as TurnCtx, mode);
+    return { ok: true, next: "the new plan was posted; NO_REPLY or one short line" };
+  },
+};
+
 // ---------- feature ----------
 
 export const moneyFeature: Feature = {
   name: "money",
-  tools: [logExpenseTool, correctExpenseTool, balancesTool, settleTool, paymentPlanTool],
+  tools: [logExpenseTool, correctExpenseTool, balancesTool, settleTool, paymentPlanTool, splitModeTool],
 
   async onTripLocked(_trip, tc) {
     await setupPaymentPlan(tc);
@@ -570,6 +662,9 @@ export const moneyFeature: Feature = {
       say(tc, (await balanceLines(tc)).join("\n"));
     },
     settle_up: async (_msg, tc) => proposeSettleUp(tc),
+    split_mode: async (_msg, tc, cmd) => {
+      if (cmd.kind === "split_mode") await setSplitMode(tc, cmd.mode);
+    },
   },
 
   async figures(tc) {

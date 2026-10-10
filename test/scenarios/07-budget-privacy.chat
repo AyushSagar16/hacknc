@@ -11,15 +11,15 @@ leo: hi
 priya: yo
 jobs
 leo: what's our budget
-expect atlas ~ "based on demo spending profiles (synthetic sandbox data, not your real bank)"
-expect atlas ~ "how i got these: typical paychecks minus recurring bills"
+expect atlas ~ "from demo spending profiles, not your real bank"
+expect atlas ~ "how i got these: what you earn, minus bills"
 expect sql SELECT count(*)::int AS n FROM nessie_links WHERE seed_status = 'ready' = [{"n":3}]
 expect sql SELECT count(DISTINCT persona)::int AS n FROM nessie_links = [{"n":3}]
 priya: keep my budget private
 expect atlas ~ "your budget stays private"
 maya: what's our budget?
-expect atlas ~ "i'll only share the pooled number"
-expect atlas !~ "priya $"
+expect atlas ~ "here's just the pooled number"
+expect atlas !~ "priya: $"
 expect sql SELECT visibility FROM budgets b JOIN people p ON p.id = b.person_id WHERE p.display_name = 'Priya' = [{"visibility":"private"}]
 dm priya
 priya: what's my budget?

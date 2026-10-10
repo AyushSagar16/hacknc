@@ -20,9 +20,14 @@ priya: set my budget to 900
 maya: atlas everyone agreed, we're doing charleston
 expect atlas ~ "charleston it is!"
 expect atlas ~ "locked in for nov 12–16"
-expect atlas ~ "payment plan for everyone's share"
+expect atlas ~ "💸 payment plan"
 expect trip.status = "locked"
 expect sql SELECT count(*)::int AS n FROM installments = [{"n":3}]
+# "everyone should pay the same": one equal share each, the old plan retired
+leo: everyone should be paying the same amount
+expect atlas ~ "💸 payment plan, split evenly"
+expect atlas ~ "everyone pays the same now"
+expect sql SELECT count(DISTINCT total)::int AS n FROM (SELECT person_id, sum(amount_cents) AS total FROM installments WHERE status = 'scheduled' GROUP BY person_id) s = [{"n":1}]
 # the trip starts
 clock +33d
 maya: i paid 64 for dinner

@@ -35,11 +35,12 @@ describeDb("budgets from Nessie demo profiles", () => {
     expect(links.every((l) => l.seed_status === "ready")).toBe(true);
 
     const replies = await chat.say("leo", "what's our budget");
-    expect(replies[0]!.text).toMatch(/^trip budgets, based on demo spending profiles \(synthetic sandbox data, not your real bank\):\nmaya \$[\d,]+ · leo \$[\d,]+ · priya \$[\d,]+\nso everyone's comfortable up to \$[\d,]+ per person/);
-    expect(replies[1]!.text).toMatch(/^how i got these/);
+    expect(replies[0]!.text).toMatch(/^💰 trip budgets\nmaya: \$[\d,]+\nleo: \$[\d,]+\npriya: \$[\d,]+$/);
+    expect(replies[1]!.text).toMatch(/^so i'll plan around \$[\d,]+ each, which works for everyone\n\(from demo spending profiles, not your real bank\)$/);
+    expect(replies[2]!.text).toMatch(/^how i got these/);
     // Second time, no explanation bubble.
     const again = await chat.say("maya", "what's our budget?");
-    expect(again).toHaveLength(1);
+    expect(again).toHaveLength(2);
   });
 
   it("keeps a private budget out of the group message", async () => {
@@ -52,8 +53,8 @@ describeDb("budgets from Nessie demo profiles", () => {
     const ack = await chat.say("priya", "keep my budget private");
     expect(ack[0]!.text).toMatch(/your budget stays private/);
     const replies = await chat.say("leo", "what's our budget");
-    expect(replies[0]!.text).toMatch(/i'll only share the pooled number/);
-    expect(replies[0]!.text).not.toMatch(/priya \$/);
+    expect(replies[0]!.text).toMatch(/here's just the pooled number/);
+    expect(replies[0]!.text).not.toMatch(/priya:? \$/);
     const row = await q<{ suggested_cents: number }>(`SELECT b.suggested_cents FROM budgets b JOIN people p ON p.id = b.person_id WHERE p.display_name = 'Priya'`);
     expect(replies.map((r) => r.text).join(" ")).not.toContain(`$${(row[0]!.suggested_cents / 100).toLocaleString("en-US")} `);
   });
@@ -66,9 +67,22 @@ describeDb("budgets from Nessie demo profiles", () => {
     await pastIntro(chat);
     await t.app.jobs.runDue();
     const r = await chat.say("maya", "set my budget to 600");
-    expect(r[0]!.text).toBe("done, maya's trip budget is now $600");
+    expect(r[0]!.text).toBe("done, maya's budget is now $600 👍");
     const budgets = await chat.say("leo", "what's our budget");
-    expect(budgets[0]!.text).toContain("maya $600");
+    expect(budgets[0]!.text).toContain("maya: $600");
+  });
+
+  it("won't save a joke budget", async () => {
+    setClock(new FixedClock(new Date("2026-10-10T18:00:00Z")));
+    setNessieClient(null);
+    t = await testAtlas();
+    const chat = t.chat("b3b", ["maya", "leo", "priya"]);
+    await pastIntro(chat);
+    await t.app.jobs.runDue();
+    const r = await chat.say("leo", "set my budget to $1");
+    expect(r[0]!.text).toMatch(/^\$1 won't get anyone out of town/);
+    const rows = await q<{ adjusted_cents: number | null }>(`SELECT b.adjusted_cents FROM budgets b JOIN people p ON p.id = b.person_id WHERE p.display_name = 'Leo'`);
+    expect(rows.every((row) => row.adjusted_cents === null)).toBe(true);
   });
 
   it("seeds a real-shaped Nessie customer and reads the same budget back", async () => {
