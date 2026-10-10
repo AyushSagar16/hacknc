@@ -1,0 +1,75 @@
+# The demo, end to end, in the simulator. Offline it uses the scripted model answers below;
+# with --live, Gemini answers instead (wording varies, every number and decision is still code).
+#   npm run sim -- run demo/rehearsal.chat [--live]
+today 2026-10-10 14:00
+members maya leo priya
+# 1. atlas joins
+atlas joins by maya
+expect atlas ~ "your trip and financial planner"
+# 2. banter: quiet
+~agent text: NO_REPLY
+leo: lol did anyone see the game last night
+~agent text: NO_REPLY
+priya: insane
+~agent text: NO_REPLY
+maya: lmao
+expect atlas quiet
+# 3. preferences from natural chat (+ the disagreement)
+~extract [{"message":0,"about":"maya","key":"date_window","polarity":"positive","explicit":true,"retracts":false,"confidence":0.9,"quote":"free nov 12-16","earliest":"2026-11-12","latest":"2026-11-16"},{"message":0,"about":"maya","key":"home_city","polarity":"positive","explicit":true,"retracts":false,"confidence":0.95,"quote":"flying out of raleigh","city":"Raleigh"},{"message":0,"about":"maya","key":"activity","polarity":"positive","explicit":true,"retracts":false,"confidence":0.9,"quote":"i want a beach","tag":"beach"}]
+maya: ok real talk, i'm free nov 12-16, flying out of raleigh, and i want a beach
+~extract [{"message":0,"about":"leo","key":"destination","polarity":"negative","explicit":true,"retracts":false,"confidence":0.95,"quote":"cancun is too pricey for me","place":"Cancún"},{"message":0,"about":"leo","key":"dietary","polarity":"positive","explicit":true,"retracts":false,"confidence":0.95,"quote":"i'm vegetarian","need":"vegetarian"},{"message":0,"about":"leo","key":"home_city","polarity":"positive","explicit":true,"retracts":false,"confidence":0.9,"quote":"i'd leave from charlotte","city":"Charlotte"},{"message":0,"about":"leo","key":"date_window","polarity":"positive","explicit":true,"retracts":false,"confidence":0.9,"quote":"same dates","earliest":"2026-11-12","latest":"2026-11-16"}]
+leo: cancun is too pricey for me and i'm vegetarian. same dates, i'd leave from charlotte
+clock +15m
+~extract {"facts":[{"message":0,"about":"priya","key":"travel_limit","polarity":"positive","explicit":true,"retracts":false,"confidence":0.95,"quote":"i can only do driving distance","limit":"no_flying"},{"message":0,"about":"priya","key":"activity","polarity":"positive","explicit":true,"retracts":false,"confidence":0.9,"quote":"i'm all about food","tag":"food"},{"message":0,"about":"priya","key":"date_window","polarity":"positive","explicit":true,"retracts":false,"confidence":0.9,"quote":"12-16 works","earliest":"2026-11-12","latest":"2026-11-16"}],"tensions":[{"topic":"beach vs food city","sides":["maya","priya"]}]}
+~agent text: maya wants a beach and priya's more of a food person, and priya can only drive. a beach town with a real food scene covers both
+priya: 12-16 works but i can only do driving distance. beaches bore me, i'm all about food
+expect atlas ~ "covers both"
+# 4. budgets from nessie demo profiles + privacy
+jobs
+leo: what's our budget?
+expect atlas ~ "based on demo spending profiles"
+priya: keep my budget private
+expect atlas ~ "your budget stays private"
+maya: set my budget to 800
+leo: set my budget to 800
+priya: set my budget to 700
+# 5. options + native poll + lock
+maya: atlas give us some options
+expect atlas ~ "three options for nov 12–16"
+expect atlas !~ "cancún"
+maya vote 1
+leo vote 1
+expect atlas ~ "wins (2 of 3)"
+expect atlas ~ "payment plan"
+expect trip.status = "locked"
+# 6. the weather changes as the trip nears
+clock +27d
+weather inject all clear 10 75
+weather check
+weather inject 2026-11-14 rain 80 66
+weather check
+expect atlas ~ "rain"
+# 7. money during the trip
+clock +6d
+maya: i paid 64 for dinner
+# with NESSIE_API_KEY set this line also says "(nessie purchase ✓)"
+expect atlas ~ "logged #1: dinner $64.00"
+expect atlas ~ "split 3 ways"
+~gate SPEAK dispute
+~agent call correct_expense {"expense_number":1,"amount_usd":46}
+~agent text: NO_REPLY
+priya: wait dinner was 46 not 64
+expect atlas ~ "to fix it"
+maya: yes
+expect atlas ~ "fixed"
+clock +3d
+leo: atlas let's settle up
+expect atlas ~ "the fewest transfers"
+leo: confirm
+priya: confirm
+expect atlas ~ "all settled up"
+# 8. memory
+~agent call recall_memory {"query":"leo food"}
+~agent text: leo's vegetarian (he said so on oct 10), and he'd leave from charlotte
+maya: atlas what did leo say about food again?
+expect atlas ~ "vegetarian"
