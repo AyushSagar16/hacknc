@@ -40,6 +40,8 @@ export interface AppOptions {
   startJobs?: boolean;
   names?: (handle: string) => string | undefined;
   extraFeatures?: Feature[];
+  /** Serve the judge console on CONSOLE_PORT (localhost only). */
+  console?: boolean;
 }
 
 export async function startAtlas(opts: AppOptions): Promise<AtlasApp> {
@@ -88,6 +90,17 @@ export async function startAtlas(opts: AppOptions): Promise<AtlasApp> {
   jobs.register("maintenance.prune", async () => pruneOld());
   if (opts.startJobs !== false) jobs.start(1_000);
 
+  let consoleServer: import("node:http").Server | undefined;
+  if (opts.console) {
+    try {
+      const { startConsole } = await import("./console/server.ts");
+      consoleServer = await startConsole(cfg.CONSOLE_PORT);
+      log.info({ url: `http://127.0.0.1:${cfg.CONSOLE_PORT}` }, "judge console");
+    } catch (err) {
+      log.warn({ err: (err as Error).message }, "console not started (port busy?)");
+    }
+  }
+
   await pipeline.recover();
   const done = transport.run((space, message) => pipeline.ingest(space, message)).catch((err) => {
     log.error({ err: (err as Error).message }, "inbound loop crashed");
@@ -105,6 +118,7 @@ export async function startAtlas(opts: AppOptions): Promise<AtlasApp> {
     done,
     async stop() {
       jobs.stop();
+      consoleServer?.close();
       await transport.stop();
       await done;
     },

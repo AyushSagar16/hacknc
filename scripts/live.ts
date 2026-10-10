@@ -20,7 +20,8 @@ if (spawnSync("linq", ["--version"], { stdio: "ignore" }).status !== 0) {
   process.exit(1);
 }
 
-const app = await startAtlas({ cfg, names: rosterName });
+const app = await startAtlas({ cfg, names: rosterName, console: true });
+console.log(`judge console: http://127.0.0.1:${cfg.CONSOLE_PORT}`);
 const api = app.transport.linq!.api;
 
 // Remove relay subscriptions left behind by earlier sessions (only CLI relay targets).

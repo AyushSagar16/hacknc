@@ -26,6 +26,7 @@ const session = await startSession({
   llmMode: live ? "live" : "scripted",
   debounceMs: args[0] === "run" ? 20 : 900,
   logFile: join(process.cwd(), ".sim", "atlas.log"),
+  console: args[0] !== "run",
 });
 const print = (e: Parameters<typeof formatEntry>[0]) => console.log(formatEntry(e));
 
@@ -45,6 +46,7 @@ const members = (option("members") ?? "maya,leo,priya").split(",");
 const runner = new ScenarioRunner(session, print, { live, chatId: "sim-group", extensions: simExtensions(session) });
 await runner.step(`members ${members.join(" ")}`);
 console.log(`\x1b[90msimulator: ${members.join(", ")} in a group chat. model: ${live ? "gemini (live)" : "scripted (no GEMINI_API_KEY; script replies with ~agent ...)"}`);
+console.log(`judge console: http://127.0.0.1:${session.cfg.CONSOLE_PORT}`);
 console.log(`type "maya: hi", "atlas joins", "leo react like atlas.last", "maya vote 2", "clock +2d", "/state", "/facts", "/help", "/quit"\x1b[0m\n`);
 if (!flag("empty")) await runner.step("atlas joins by maya");
 

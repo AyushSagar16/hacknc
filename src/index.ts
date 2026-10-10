@@ -9,7 +9,8 @@ import { rosterName } from "./roster.ts";
 
 const cfg = config();
 const log = childLog({ component: "main" });
-const app = await startAtlas({ cfg, names: rosterName });
+const app = await startAtlas({ cfg, names: rosterName, console: true });
+console.log(`atlas is listening (${cfg.IMESSAGE_MODE}). judge console: http://127.0.0.1:${cfg.CONSOLE_PORT}`);
 
 let stopping = false;
 const shutdown = async (signal: string) => {

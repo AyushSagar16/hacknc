@@ -30,6 +30,7 @@ export interface SessionOptions {
   database?: string; // reuse a named database (REPL); default: a fresh clone
   env?: Record<string, string>;
   logFile?: string;
+  console?: boolean;
 }
 
 const adminUrl = (cfg: Config) => cfg.DATABASE_URL;
@@ -104,6 +105,7 @@ export async function startSession(opts: SessionOptions): Promise<SimSession> {
     pacing: opts.pacing ? undefined : () => 0,
     startJobs: false,
     names: (h) => world.nameOf(h),
+    console: opts.console,
   });
   return {
     app,

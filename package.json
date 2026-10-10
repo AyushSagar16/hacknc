@@ -13,7 +13,6 @@
     "demo": "tsx --env-file-if-exists=.env scripts/demo.ts",
     "ops": "tsx --env-file-if-exists=.env scripts/ops.ts",
     "nessie:probe": "tsx --env-file-if-exists=.env scripts/nessie-probe.ts",
-    "gemini:smoke": "tsx --env-file-if-exists=.env scripts/gemini-smoke.ts",
     "test": "vitest run",
     "test:watch": "vitest",
     "test:scenarios": "tsx scripts/e2e.ts",
