@@ -4,3 +4,7 @@ node_modules
 dist
 *.log
 .DS_Store
+.sim/
+demo/roster.json
+test/fixtures/linq/raw/
+.atlas/
