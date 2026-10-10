@@ -40,7 +40,10 @@ export function groupView(members: GroupMember[], today: string): GroupView {
   const maxs = members.map((m) => m.profile.maxNights?.value).filter((n): n is number => typeof n === "number");
   const minNights = mins.length ? Math.max(...mins) : null;
   const maxNights = maxs.length ? Math.min(...maxs) : null;
-  const suggested = Math.max(1, Math.min(maxNights ?? 4, Math.max(minNights ?? 3, 3)));
+  // With no stated trip length, use the whole shared window (up to a week); otherwise 3 nights.
+  const windowNights = earliest && latest && earliest <= latest ? daysBetween(earliest, latest) : null;
+  const preferred = minNights === null && maxNights === null && windowNights ? Math.min(windowNights, 7) : 3;
+  const suggested = Math.max(1, Math.min(maxNights ?? 7, Math.max(minNights ?? 1, preferred)));
 
   const blackouts = members.flatMap((m) => m.profile.blackouts.map((b) => b.value));
   const dates = earliest || latest ? pickDates(earliest ?? today, latest, suggested, blackouts) : null;

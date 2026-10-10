@@ -17,7 +17,10 @@ function formatDay(iso: string): string {
 }
 
 export function formatRange(start: string, end: string): string {
-  return `${formatDay(start)}–${formatDay(end)}`;
+  const a = formatDay(start);
+  const b = formatDay(end);
+  // "nov 12–16" within a month, "nov 28–dec 3" across months.
+  return a.split(" ")[0] === b.split(" ")[0] ? `${a}–${b.split(" ")[1]}` : `${a}–${b}`;
 }
 
 const askForMissingInfo: Tool = {
