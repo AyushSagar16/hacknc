@@ -178,7 +178,8 @@ export function linqPlatform(deps: LinqPlatformDeps) {
         case "poll": {
           if (deps.nativePolls && !deps.nativePolls()) throw UnsupportedError.content("poll", LINQ_PLATFORM, "poll votes aren't subscribed on this connection");
           // Linq polls carry no question, so the question goes first as its own bubble.
-          await api.sendMessage(chatId, [{ type: "text", value: content.title }], { idempotencyKey: guid ? `${guid}:q` : undefined });
+          const question = await api.sendMessage(chatId, [{ type: "text", value: content.title }], { idempotencyKey: guid ? `${guid}:q` : undefined });
+          ownMessageIds.set(question.id, true); // ours, so its message.sent echo isn't taken for a rival
           const { messageId } = await api.createPoll(
             chatId,
             content.options.map((o) => o.title),
