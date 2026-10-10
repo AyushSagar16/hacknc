@@ -196,7 +196,9 @@ export class GeminiLlm implements Llm {
       : texts;
     const response = await this.ai.models.embedContent({
       model: this.embedModel,
-      contents: prefixed,
+      // One Content per text: gemini-embedding-2 reads a bare string array as the parts of a
+      // single input and returns one vector for all of them.
+      contents: prefixed.map((text) => ({ role: "user", parts: [{ text }] })),
       config: {
         outputDimensionality: EMBED_DIM,
         abortSignal: AbortSignal.timeout(10_000),

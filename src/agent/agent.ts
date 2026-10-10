@@ -74,12 +74,27 @@ export async function runAgent(input: AgentInput): Promise<AgentOutput> {
     return { bubbles: [], toolCalls, failed: kind };
   }
   const soloPosted = toolCalls.some((c) => c.ok && input.tools.isSolo(c.name));
-  return { bubbles: toBubbles(text, input.agentName), toolCalls, soloPosted };
+  return { bubbles: toBubbles(text, input.agentName, input.tools.decls().map((d) => d.name)), toolCalls, soloPosted };
 }
 
-/** NO_REPLY → nothing; blank lines split bubbles; a list stays in one bubble; at most three. */
-export function toBubbles(text: string, agentName: string): string[] {
-  const cleaned = text
+/**
+ * NO_REPLY → nothing; blank lines split bubbles; a list stays in one bubble; at most three.
+ * Small models sometimes write a tool call as text ("default_api:show_budgets{}"); that never
+ * reaches the chat.
+ */
+export function toBubbles(text: string, agentName: string, toolNames: string[] = []): string[] {
+  let cleaned = text;
+  if (toolNames.length) {
+    // An optional namespace ("default_api.", "setDefaultApi:"), a tool name, then {…} or (…).
+    const names = toolNames.map((n) => n.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")).join("|");
+    const call = `(?:\\b[A-Za-z_]\\w*[:.])?\\b(?:${names})\\s*(?:\\{[^{}]*\\}|\\([^()]*\\))`;
+    cleaned = cleaned
+      .replace(/```\w*\n?[\s\S]*?```/g, (block) => (new RegExp(call).test(block) ? "" : block))
+      .replace(new RegExp(call, "g"), "");
+  }
+  cleaned = cleaned
+    // Tag-shaped leftovers of a call: <call:…>, </call:default_api>, <tool_call>…
+    .replace(/<\/?(?:call|tool_call|function_call|tool_code)\b[^>]*>|<\/?[\w:]*default_api[^>]*>/gi, "")
     .replace(/\bNO_REPLY\b/g, "")
     .replace(new RegExp(`^\\s*\\[?${agentName}\\]?:\\s*`, "i"), "")
     .replace(/\*\*(.+?)\*\*/g, "$1")

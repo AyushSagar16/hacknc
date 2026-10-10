@@ -1,4 +1,4 @@
-// Gemini Flash reads each batch of new messages and reports facts; we validate every one
+// Gemini reads each batch of new messages and reports facts; we validate every one
 // (known person, known key, well-formed value, plausible dates) before it is stored. The
 // model never writes to the profile directly — src/profile/aggregate.ts decides what's true.
 import { readFileSync } from "node:fs";

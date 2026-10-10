@@ -44,4 +44,18 @@ describe("money guard", () => {
     expect(toBubbles("**hey**\n\nsecond\n\nthird\n\nfourth", "Atlas")).toEqual(["hey", "second", "third"]);
     expect(toBubbles("atlas: hi", "Atlas")).toEqual(["hi"]);
   });
+
+  it("toBubbles drops tool calls a small model wrote as text", () => {
+    const tools = ["ask_for_missing_info", "show_budgets"];
+    expect(toBubbles("drop your dates and home cities below so i can line them up.setDefaultApi:ask_for_missing_info{}", "Atlas", tools)).toEqual([
+      "drop your dates and home cities below so i can line them up.",
+    ]);
+    expect(toBubbles("default_api.show_budgets()", "Atlas", tools)).toEqual([]);
+    expect(toBubbles("here you go\n\n```tool_code\nshow_budgets({})\n```", "Atlas", tools)).toEqual(["here you go"]);
+    expect(toBubbles("got those, maya. where are you flying from?\n<call:></call:default_api>", "Atlas", tools)).toEqual([
+      "got those, maya. where are you flying from?",
+    ]);
+    // Mentioning a tool-like word in prose is fine.
+    expect(toBubbles("want me to show budgets?", "Atlas", tools)).toEqual(["want me to show budgets?"]);
+  });
 });
