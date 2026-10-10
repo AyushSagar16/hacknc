@@ -209,6 +209,15 @@ export class SimWorld {
     return chat;
   }
 
+  /** Display name for a sim handle ("+15550100001" → "Maya"), so the roster is known like a demo roster. */
+  nameOf(handle: string): string | undefined {
+    for (const chat of this.chats.values()) {
+      const m = chat.members.find((x) => x.handle === handle);
+      if (m) return m.name.charAt(0).toUpperCase() + m.name.slice(1);
+    }
+    return undefined;
+  }
+
   get(id: string): SimChat {
     const chat = this.chats.get(id);
     if (!chat) throw new Error(`no sim chat ${id}`);
