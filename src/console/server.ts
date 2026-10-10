@@ -15,7 +15,7 @@ const PAGE = `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta n
 header{display:flex;gap:12px;align-items:center;padding:14px 20px;border-bottom:1px solid var(--line);position:sticky;top:0;background:var(--bg);z-index:1}
 h1{font-size:16px;margin:0}select{font:inherit;padding:4px 8px;border-radius:8px;border:1px solid var(--line);background:var(--card);color:var(--ink)}
 main{display:grid;grid-template-columns:repeat(auto-fit,minmax(380px,1fr));gap:14px;padding:16px 20px}
-section{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:12px 14px;min-width:0}
+section{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:12px 14px;min-width:0;max-height:440px;overflow:auto}
 h2{font-size:12px;letter-spacing:.06em;text-transform:uppercase;color:var(--mute);margin:0 0 8px}
 table{width:100%;border-collapse:collapse;font-size:12.5px}td,th{text-align:left;padding:4px 6px;border-top:1px solid var(--line);vertical-align:top;word-break:break-word}th{color:var(--mute);font-weight:500;border-top:0}
 .msg{padding:3px 0}.atlas{color:var(--accent)}.mute{color:var(--mute)}.good{color:var(--good)}.bad{color:var(--bad)}code{font-size:11.5px}
