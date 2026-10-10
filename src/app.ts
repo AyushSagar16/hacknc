@@ -49,7 +49,7 @@ export async function startAtlas(opts: AppOptions): Promise<AtlasApp> {
   const { cfg } = opts;
   const log = childLog({ component: "app" });
   await migrate();
-  const llm = opts.llm ?? createLlm({ mode: cfg.LLM_MODE, apiKey: cfg.GEMINI_API_KEY, embedModel: cfg.GEMINI_EMBED_MODEL });
+  const llm = opts.llm ?? createLlm({ mode: cfg.LLM_MODE, apiKey: cfg.GEMINI_API_KEY, embedModel: cfg.GEMINI_EMBED_MODEL, fallbacks: cfg.GEMINI_FALLBACK_MODELS });
   const jobs = new JobRunner();
   const features: Feature[] = [planningFeature, budgetsFeature, proposalsFeature, moneyFeature, weatherFeature, memoryFeature, ...(opts.extraFeatures ?? [])];
 
@@ -101,6 +101,10 @@ export async function startAtlas(opts: AppOptions): Promise<AtlasApp> {
       log.warn({ err: (err as Error).message }, "console not started (port busy?)");
     }
   }
+
+  // Probe the configured models in the background so an overloaded one is skipped from the start.
+  const warm = (llm as { warmup?: (m: string[]) => Promise<Record<string, string>> }).warmup;
+  if (warm) void warm.call(llm, [cfg.GEMINI_MODEL_AGENT, cfg.GEMINI_MODEL_GATE, cfg.GEMINI_MODEL_EXTRACT, ...cfg.GEMINI_FALLBACK_MODELS]).then((r) => log.info({ models: r }, "gemini warm-up"));
 
   await pipeline.recover();
   const done = transport.run((space, message) => pipeline.ingest(space, message)).catch((err) => {

@@ -243,6 +243,8 @@ export function createBrain(deps: BrainDeps): TurnHandler {
       return { actions, route: "agent_failed", addressed, gate };
     }
     let bubbles = addressed ? out.bubbles : out.bubbles.slice(0, 1);
+    // A tool already posted the question/breakdown: the model's lead-in would only repeat it.
+    if (out.soloPosted || (!addressed && actions.length > toolStart)) bubbles = [];
     const guarded = guardBubbles(bubbles, figures, { isGroup: true });
     if (guarded.violations.length) {
       log.warn({ violations: guarded.violations }, "money guard dropped the model's text");

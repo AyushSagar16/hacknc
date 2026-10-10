@@ -40,6 +40,8 @@ export interface Tool {
   decl: ToolDecl;
   /** Money and Nessie writes: the turn becomes non-cancellable before this tool runs. */
   sideEffects?: boolean;
+  /** Its post says everything (a question, a breakdown); the model's own lead-in is dropped. */
+  soloPost?: boolean;
   run(args: Record<string, unknown>, ctx: ToolCtx): Promise<ToolResult>;
 }
 
@@ -58,6 +60,10 @@ export class ToolRegistry {
   add(...tools: Tool[]): this {
     for (const t of tools) this.tools.set(t.decl.name, t);
     return this;
+  }
+
+  isSolo(name: string): boolean {
+    return this.tools.get(name)?.soloPost === true;
   }
 
   get(name: string): Tool | undefined {

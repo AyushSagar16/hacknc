@@ -22,6 +22,8 @@ export interface AgentInput {
 
 export interface AgentOutput {
   bubbles: string[];
+  /** A tool whose post stands alone ran successfully. */
+  soloPosted?: boolean;
   toolCalls: { name: string; ok: boolean; error?: string }[];
   failed?: LlmError["kind"];
   guarded?: boolean;
@@ -66,7 +68,8 @@ export async function runAgent(input: AgentInput): Promise<AgentOutput> {
     log.warn({ err: (err as Error).message, kind }, "agent call failed");
     return { bubbles: [], toolCalls, failed: kind };
   }
-  return { bubbles: toBubbles(text, input.agentName), toolCalls };
+  const soloPosted = toolCalls.some((c) => c.ok && input.tools.isSolo(c.name));
+  return { bubbles: toBubbles(text, input.agentName), toolCalls, soloPosted };
 }
 
 /** NO_REPLY → nothing; blank lines split bubbles; a list stays in one bubble; at most three. */

@@ -43,6 +43,8 @@ export interface GenerateRequest {
 }
 
 export interface GenerateResult {
+  /** The model that actually answered (after any failover). */
+  model?: string;
   text: string;
   functionCalls: { name: string; args: Record<string, unknown>; id?: string }[];
   /** The model's parts exactly as returned (thought signatures included) to append to history. */
@@ -67,22 +69,93 @@ export const EMBED_DIM = 768;
 
 // ---------- Gemini ----------
 
+const OVERLOADED = /\b(503|500|502|504|429)\b|UNAVAILABLE|high demand|overloaded|RESOURCE_EXHAUSTED|INTERNAL|DEADLINE/i;
+const NOT_FOUND = /\b404\b|NOT_FOUND|is not found|not supported for generateContent/i;
+const BAD_THINKING = /thinking/i;
+
 export class GeminiLlm implements Llm {
   private readonly ai: GoogleGenAI;
   private readonly log = childLog({ component: "llm.gemini" });
+  /** Models that just timed out or were overloaded are skipped until this time. */
+  private readonly unhealthyUntil = new Map<string, number>();
+  private readonly noThinking = new Set<string>();
 
   constructor(
     apiKey: string,
     private readonly embedModel: string,
+    private readonly fallbacks: string[] = [],
   ) {
     this.ai = new GoogleGenAI({ apiKey });
   }
 
+  private healthy(model: string): boolean {
+    return (this.unhealthyUntil.get(model) ?? 0) < Date.now();
+  }
+
+  private markUnhealthy(model: string, ms: number, why: string): void {
+    this.unhealthyUntil.set(model, Date.now() + ms);
+    this.log.warn({ model, why: why.slice(0, 120), skipForSec: Math.round(ms / 1000) }, "gemini model unhealthy; failing over");
+  }
+
+  /** Ping each model once so an overloaded primary is skipped from the first real message. */
+  async warmup(models: string[]): Promise<Record<string, string>> {
+    const out: Record<string, string> = {};
+    await Promise.all(
+      [...new Set(models)].map(async (model) => {
+        const t0 = Date.now();
+        try {
+          await this.once({ role: "summary", model, system: "reply ok", contents: [{ role: "user", parts: [{ text: "ping" }] }], timeoutMs: 8_000, maxOutputTokens: 5 }, model, false);
+          out[model] = `ok ${Date.now() - t0}ms`;
+        } catch (err) {
+          this.markUnhealthy(model, 3 * 60_000, (err as Error).message);
+          out[model] = `unhealthy: ${(err as Error).message.slice(0, 60)}`;
+        }
+      }),
+    );
+    return out;
+  }
+
+  /**
+   * Try the requested model, then each fallback, skipping models that failed recently. Overload
+   * (503/429/timeouts) fails over; a model that rejects the thinking setting is retried without it.
+   */
   async generate(req: GenerateRequest): Promise<GenerateResult> {
+    const chain = [req.model, ...this.fallbacks.filter((m) => m !== req.model)];
+    const usable = chain.filter((m) => this.healthy(m));
+    const order = usable.length ? usable : chain;
+    let last: unknown;
+    for (const [i, model] of order.entries()) {
+      const isLast = i === order.length - 1;
+      // With somewhere to fall back to, don't wait the full budget on a struggling model.
+      const timeoutMs = isLast ? req.timeoutMs : Math.min(req.timeoutMs, 12_000);
+      try {
+        return await this.once({ ...req, timeoutMs }, model, !this.noThinking.has(model));
+      } catch (err) {
+        last = err;
+        const msg = (err as Error).message;
+        if (err instanceof LlmError && (err.kind === "refused" || err.kind === "empty")) throw err;
+        if (BAD_THINKING.test(msg) && /400|INVALID_ARGUMENT/.test(msg) && req.thinking) {
+          this.noThinking.add(model);
+          try {
+            return await this.once({ ...req, timeoutMs }, model, false);
+          } catch (retryErr) {
+            last = retryErr;
+          }
+        }
+        if (err instanceof LlmError && err.kind === "timeout") this.markUnhealthy(model, 3 * 60_000, msg);
+        else if (OVERLOADED.test(msg)) this.markUnhealthy(model, 2 * 60_000, msg);
+        else if (NOT_FOUND.test(msg)) this.markUnhealthy(model, 60 * 60_000, msg);
+        else if (!isLast) this.log.warn({ model, err: msg.slice(0, 160) }, "gemini call failed; trying the next model");
+      }
+    }
+    throw last instanceof LlmError ? last : new LlmError((last as Error)?.message ?? "gemini failed", "api");
+  }
+
+  private async once(req: GenerateRequest, model: string, withThinking: boolean): Promise<GenerateResult> {
     const signal = AbortSignal.timeout(req.timeoutMs);
     try {
       const response = await this.ai.models.generateContent({
-        model: req.model,
+        model,
         contents: req.contents as never,
         config: {
           systemInstruction: req.system,
@@ -93,7 +166,7 @@ export class GeminiLlm implements Llm {
             ? { tools: [{ functionDeclarations: req.tools.map((t) => ({ name: t.name, description: t.description, parametersJsonSchema: t.parameters })) }] }
             : {}),
           ...(req.jsonSchema ? { responseMimeType: "application/json", responseJsonSchema: req.jsonSchema } : {}),
-          ...(req.thinking ? { thinkingConfig: { thinkingLevel: THINKING[req.thinking] } } : {}),
+          ...(req.thinking && withThinking ? { thinkingConfig: { thinkingLevel: THINKING[req.thinking] } } : {}),
         },
       });
       const candidate = response.candidates?.[0];
@@ -102,11 +175,10 @@ export class GeminiLlm implements Llm {
         const reason = candidate?.finishReason ?? response.promptFeedback?.blockReason ?? "no candidates";
         throw new LlmError(`gemini returned nothing (${reason})`, String(reason).includes("SAFETY") ? "refused" : "empty");
       }
-      return toResult(parts);
+      return { ...toResult(parts), model };
     } catch (err) {
       if (err instanceof LlmError) throw err;
-      if (signal.aborted) throw new LlmError(`gemini ${req.role} call timed out after ${req.timeoutMs}ms`, "timeout");
-      this.log.warn({ role: req.role, err: (err as Error).message }, "gemini call failed");
+      if (signal.aborted) throw new LlmError(`gemini ${model} ${req.role} call timed out after ${req.timeoutMs}ms`, "timeout");
       throw new LlmError((err as Error).message, "api");
     }
   }
@@ -161,7 +233,7 @@ export class TracedLlm implements Llm {
     const t0 = Date.now();
     try {
       const result = await this.inner.generate(req);
-      void trace(req, Date.now() - t0, result.text.slice(0, 120), null);
+      void trace({ ...req, model: result.model ?? req.model }, Date.now() - t0, result.text.slice(0, 120), null);
       return result;
     } catch (err) {
       void trace(req, Date.now() - t0, null, (err as Error).message);
@@ -171,6 +243,10 @@ export class TracedLlm implements Llm {
 
   embed(texts: string[], kind: "query" | "document"): Promise<number[][]> {
     return this.inner.embed(texts, kind);
+  }
+
+  warmup(models: string[]): Promise<Record<string, string>> {
+    return this.inner instanceof GeminiLlm ? this.inner.warmup(models) : Promise.resolve({});
   }
 }
 
@@ -321,9 +397,9 @@ export function hashEmbed(texts: string[], _kind: "query" | "document"): number[
 
 const STOP = new Set(["the", "a", "an", "to", "of", "and", "is", "i", "we", "for", "in", "on", "it", "that", "what", "did", "about", "say", "said"]);
 
-export function createLlm(opts: { mode: "live" | "replay" | "record" | "fake"; apiKey?: string; embedModel: string; cassette?: string }): Llm {
+export function createLlm(opts: { mode: "live" | "replay" | "record" | "fake"; apiKey?: string; embedModel: string; fallbacks?: string[]; cassette?: string }): Llm {
   if (opts.mode === "fake") return new FakeLlm();
-  const live = opts.apiKey ? new TracedLlm(new GeminiLlm(opts.apiKey, opts.embedModel)) : undefined;
+  const live = opts.apiKey ? new TracedLlm(new GeminiLlm(opts.apiKey, opts.embedModel, opts.fallbacks ?? [])) : undefined;
   if (opts.mode === "live") {
     if (!live) return new NoKeyLlm();
     return live;

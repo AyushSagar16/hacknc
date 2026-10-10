@@ -94,7 +94,7 @@ export async function startSession(opts: SessionOptions): Promise<SimSession> {
   const clock = new OffsetClock();
   setClock(clock);
   const world = new SimWorld();
-  const live: Llm | undefined = opts.llmMode === "live" ? createLlm({ mode: "live", apiKey: cfg.GEMINI_API_KEY, embedModel: cfg.GEMINI_EMBED_MODEL }) : undefined;
+  const live: Llm | undefined = opts.llmMode === "live" ? createLlm({ mode: "live", apiKey: cfg.GEMINI_API_KEY, embedModel: cfg.GEMINI_EMBED_MODEL, fallbacks: cfg.GEMINI_FALLBACK_MODELS }) : undefined;
   const llm = new ScriptedLlm(live);
   const app = await startAtlas({
     cfg,

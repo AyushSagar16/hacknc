@@ -25,6 +25,7 @@ export function formatRange(start: string, end: string): string {
 }
 
 const askForMissingInfo: Tool = {
+  soloPost: true,
   decl: {
     name: "ask_for_missing_info",
     description:

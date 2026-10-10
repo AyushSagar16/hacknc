@@ -505,6 +505,7 @@ const correctExpenseTool: Tool = {
 };
 
 const balancesTool: Tool = {
+  soloPost: true,
   decl: { name: "show_balances", description: "Post who owes whom right now (fewest transfers). Posts its own message.", parameters: { type: "object", properties: {} } },
   async run(_args, ctx) {
     const lines = await balanceLines(ctx as TurnCtx);

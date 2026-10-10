@@ -80,6 +80,7 @@ async function postBudgets(tc: TurnCtx): Promise<void> {
 }
 
 const showBudgets: Tool = {
+  soloPost: true,
   decl: {
     name: "show_budgets",
     description: "Post everyone's suggested trip budget (from their Nessie demo spending profiles) and the pooled per-person figure. Respects private budgets. Use when budgets come up or before proposing options.",
