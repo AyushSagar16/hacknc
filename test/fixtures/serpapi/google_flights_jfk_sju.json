@@ -1,0 +1,61 @@
+{
+  "search_metadata": {
+    "id": "fixture-flights-jfk-sju",
+    "status": "Success",
+    "created_at": "2026-10-10 14:00:01 UTC",
+    "processed_at": "2026-10-10 14:00:01 UTC",
+    "total_time_taken": 1.98
+  },
+  "search_parameters": {
+    "engine": "google_flights",
+    "hl": "en",
+    "gl": "us",
+    "type": "1",
+    "departure_id": "JFK",
+    "arrival_id": "SJU",
+    "outbound_date": "2027-03-06",
+    "return_date": "2027-03-10",
+    "currency": "USD",
+    "adults": 1,
+    "sort_by": "2"
+  },
+  "other_flights": [
+    {
+      "flights": [
+        {
+          "departure_airport": { "name": "John F. Kennedy International Airport", "id": "JFK", "time": "2027-03-06 08:00" },
+          "arrival_airport": { "name": "Luis Muñoz Marín International Airport", "id": "SJU", "time": "2027-03-06 12:05" },
+          "duration": 245,
+          "airline": "JetBlue",
+          "travel_class": "Economy",
+          "flight_number": "B6 403"
+        }
+      ],
+      "total_duration": 245,
+      "price": 389,
+      "type": "Round trip",
+      "departure_token": "fixture-token-jfk-1"
+    },
+    {
+      "flights": [
+        {
+          "departure_airport": { "name": "John F. Kennedy International Airport", "id": "JFK", "time": "2027-03-06 15:30" },
+          "arrival_airport": { "name": "Luis Muñoz Marín International Airport", "id": "SJU", "time": "2027-03-06 19:40" },
+          "duration": 250,
+          "airline": "Frontier",
+          "travel_class": "Economy",
+          "flight_number": "F9 1277"
+        }
+      ],
+      "total_duration": 250,
+      "price": 412,
+      "type": "Round trip",
+      "departure_token": "fixture-token-jfk-2"
+    }
+  ],
+  "price_insights": {
+    "lowest_price": 389,
+    "price_level": "low",
+    "typical_price_range": [400, 600]
+  }
+}

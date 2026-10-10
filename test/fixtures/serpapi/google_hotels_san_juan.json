@@ -1,0 +1,393 @@
+{
+  "search_metadata": {
+    "id": "fixture-hotels-san-juan",
+    "status": "Success",
+    "created_at": "2026-10-10 14:00:02 UTC",
+    "processed_at": "2026-10-10 14:00:02 UTC",
+    "total_time_taken": 3.12
+  },
+  "search_parameters": {
+    "engine": "google_hotels",
+    "q": "San Juan hotels",
+    "gl": "us",
+    "hl": "en",
+    "currency": "USD",
+    "check_in_date": "2027-03-06",
+    "check_out_date": "2027-03-10",
+    "adults": 2,
+    "children": 0
+  },
+  "search_information": {
+    "total_results": 1873
+  },
+  "ads": [
+    {
+      "name": "Sponsored Resort",
+      "source": "Example Travel",
+      "price": "$99",
+      "extracted_price": 99,
+      "link": "https://example.com/ad"
+    }
+  ],
+  "properties": [
+    {
+      "type": "hotel",
+      "name": "El San Juan Hotel",
+      "link": "https://example.com/hotel/0",
+      "gps_coordinates": {
+        "latitude": 18.45,
+        "longitude": -66.07
+      },
+      "check_in_time": "3:00 PM",
+      "check_out_time": "11:00 AM",
+      "rate_per_night": {
+        "lowest": "$105",
+        "extracted_lowest": 105,
+        "before_taxes_fees": "$89",
+        "extracted_before_taxes_fees": 89
+      },
+      "total_rate": {
+        "lowest": "$420",
+        "extracted_lowest": 420,
+        "before_taxes_fees": "$357",
+        "extracted_before_taxes_fees": 357
+      },
+      "hotel_class": "4-star hotel",
+      "extracted_hotel_class": 4,
+      "overall_rating": 3.9,
+      "reviews": 300,
+      "amenities": [
+        "Free Wi-Fi",
+        "Pool",
+        "Air conditioning"
+      ],
+      "property_token": "fixture-property-0",
+      "serpapi_property_details_link": "https://serpapi.com/search.json?engine=google_hotels&property_token=fixture-property-0"
+    },
+    {
+      "type": "hotel",
+      "name": "La Concha Renaissance",
+      "link": "https://example.com/hotel/1",
+      "gps_coordinates": {
+        "latitude": 18.452,
+        "longitude": -66.072
+      },
+      "check_in_time": "3:00 PM",
+      "check_out_time": "11:00 AM",
+      "rate_per_night": {
+        "lowest": "$117",
+        "extracted_lowest": 117,
+        "before_taxes_fees": "$99",
+        "extracted_before_taxes_fees": 99
+      },
+      "total_rate": {
+        "lowest": "$468",
+        "extracted_lowest": 468,
+        "before_taxes_fees": "$398",
+        "extracted_before_taxes_fees": 398
+      },
+      "hotel_class": "4-star hotel",
+      "extracted_hotel_class": 4,
+      "overall_rating": 4.1,
+      "reviews": 417,
+      "amenities": [
+        "Free Wi-Fi",
+        "Pool",
+        "Air conditioning"
+      ],
+      "property_token": "fixture-property-1",
+      "serpapi_property_details_link": "https://serpapi.com/search.json?engine=google_hotels&property_token=fixture-property-1"
+    },
+    {
+      "type": "hotel",
+      "name": "Condado Ocean Club",
+      "link": "https://example.com/hotel/2",
+      "gps_coordinates": {
+        "latitude": 18.454,
+        "longitude": -66.074
+      },
+      "check_in_time": "3:00 PM",
+      "check_out_time": "11:00 AM",
+      "rate_per_night": {
+        "lowest": "$128",
+        "extracted_lowest": 128,
+        "before_taxes_fees": "$109",
+        "extracted_before_taxes_fees": 109
+      },
+      "total_rate": {
+        "lowest": "$512",
+        "extracted_lowest": 512,
+        "before_taxes_fees": "$435",
+        "extracted_before_taxes_fees": 435
+      },
+      "hotel_class": "4-star hotel",
+      "extracted_hotel_class": 4,
+      "overall_rating": 4.3,
+      "reviews": 534,
+      "amenities": [
+        "Free Wi-Fi",
+        "Pool",
+        "Air conditioning"
+      ],
+      "property_token": "fixture-property-2",
+      "serpapi_property_details_link": "https://serpapi.com/search.json?engine=google_hotels&property_token=fixture-property-2"
+    },
+    {
+      "type": "hotel",
+      "name": "Sheraton Old San Juan",
+      "link": "https://example.com/hotel/3",
+      "gps_coordinates": {
+        "latitude": 18.456,
+        "longitude": -66.076
+      },
+      "check_in_time": "3:00 PM",
+      "check_out_time": "11:00 AM",
+      "rate_per_night": {
+        "lowest": "$130",
+        "extracted_lowest": 130,
+        "before_taxes_fees": "$110",
+        "extracted_before_taxes_fees": 110
+      },
+      "hotel_class": "4-star hotel",
+      "extracted_hotel_class": 4,
+      "overall_rating": 4.5,
+      "reviews": 651,
+      "amenities": [
+        "Free Wi-Fi",
+        "Pool",
+        "Air conditioning"
+      ],
+      "property_token": "fixture-property-3",
+      "serpapi_property_details_link": "https://serpapi.com/search.json?engine=google_hotels&property_token=fixture-property-3"
+    },
+    {
+      "type": "hotel",
+      "name": "Courtyard Isla Verde",
+      "link": "https://example.com/hotel/4",
+      "gps_coordinates": {
+        "latitude": 18.458,
+        "longitude": -66.078
+      },
+      "check_in_time": "3:00 PM",
+      "check_out_time": "11:00 AM",
+      "rate_per_night": {
+        "lowest": "$140",
+        "extracted_lowest": 140,
+        "before_taxes_fees": "$119",
+        "extracted_before_taxes_fees": 119
+      },
+      "total_rate": {
+        "lowest": "$560",
+        "extracted_lowest": 560,
+        "before_taxes_fees": "$476",
+        "extracted_before_taxes_fees": 476
+      },
+      "hotel_class": "4-star hotel",
+      "extracted_hotel_class": 4,
+      "overall_rating": 4.7,
+      "reviews": 768,
+      "amenities": [
+        "Free Wi-Fi",
+        "Pool",
+        "Air conditioning"
+      ],
+      "property_token": "fixture-property-4",
+      "serpapi_property_details_link": "https://serpapi.com/search.json?engine=google_hotels&property_token=fixture-property-4"
+    },
+    {
+      "type": "hotel",
+      "name": "O:LV Fifty Five",
+      "link": "https://example.com/hotel/5",
+      "gps_coordinates": {
+        "latitude": 18.46,
+        "longitude": -66.08
+      },
+      "check_in_time": "3:00 PM",
+      "check_out_time": "11:00 AM",
+      "rate_per_night": {
+        "lowest": "$151",
+        "extracted_lowest": 151,
+        "before_taxes_fees": "$128",
+        "extracted_before_taxes_fees": 128
+      },
+      "total_rate": {
+        "lowest": "$604",
+        "extracted_lowest": 604,
+        "before_taxes_fees": "$513",
+        "extracted_before_taxes_fees": 513
+      },
+      "hotel_class": "4-star hotel",
+      "extracted_hotel_class": 4,
+      "overall_rating": 3.9,
+      "reviews": 885,
+      "amenities": [
+        "Free Wi-Fi",
+        "Pool",
+        "Air conditioning"
+      ],
+      "property_token": "fixture-property-5",
+      "serpapi_property_details_link": "https://serpapi.com/search.json?engine=google_hotels&property_token=fixture-property-5"
+    },
+    {
+      "type": "hotel",
+      "name": "Villa Herencia",
+      "link": "https://example.com/hotel/6",
+      "gps_coordinates": {
+        "latitude": 18.462,
+        "longitude": -66.082
+      },
+      "check_in_time": "3:00 PM",
+      "check_out_time": "11:00 AM",
+      "rate_per_night": {
+        "lowest": "$172",
+        "extracted_lowest": 172,
+        "before_taxes_fees": "$146",
+        "extracted_before_taxes_fees": 146
+      },
+      "total_rate": {
+        "lowest": "$688",
+        "extracted_lowest": 688,
+        "before_taxes_fees": "$585",
+        "extracted_before_taxes_fees": 585
+      },
+      "hotel_class": "4-star hotel",
+      "extracted_hotel_class": 4,
+      "overall_rating": 4.1,
+      "reviews": 1002,
+      "amenities": [
+        "Free Wi-Fi",
+        "Pool",
+        "Air conditioning"
+      ],
+      "property_token": "fixture-property-6",
+      "serpapi_property_details_link": "https://serpapi.com/search.json?engine=google_hotels&property_token=fixture-property-6"
+    },
+    {
+      "type": "hotel",
+      "name": "AC Hotel San Juan Condado",
+      "link": "https://example.com/hotel/7",
+      "gps_coordinates": {
+        "latitude": 18.464,
+        "longitude": -66.084
+      },
+      "check_in_time": "3:00 PM",
+      "check_out_time": "11:00 AM",
+      "rate_per_night": {
+        "lowest": "$186",
+        "extracted_lowest": 186,
+        "before_taxes_fees": "$158",
+        "extracted_before_taxes_fees": 158
+      },
+      "total_rate": {
+        "lowest": "$742",
+        "extracted_lowest": 742,
+        "before_taxes_fees": "$631",
+        "extracted_before_taxes_fees": 631
+      },
+      "hotel_class": "4-star hotel",
+      "extracted_hotel_class": 4,
+      "overall_rating": 4.3,
+      "reviews": 1119,
+      "amenities": [
+        "Free Wi-Fi",
+        "Pool",
+        "Air conditioning"
+      ],
+      "property_token": "fixture-property-7",
+      "serpapi_property_details_link": "https://serpapi.com/search.json?engine=google_hotels&property_token=fixture-property-7"
+    },
+    {
+      "type": "hotel",
+      "name": "Condado Vanderbilt",
+      "link": "https://example.com/hotel/8",
+      "gps_coordinates": {
+        "latitude": 18.466,
+        "longitude": -66.086
+      },
+      "check_in_time": "3:00 PM",
+      "check_out_time": "11:00 AM",
+      "rate_per_night": {
+        "lowest": "$220",
+        "extracted_lowest": 220,
+        "before_taxes_fees": "$187",
+        "extracted_before_taxes_fees": 187
+      },
+      "total_rate": {
+        "lowest": "$880",
+        "extracted_lowest": 880,
+        "before_taxes_fees": "$748",
+        "extracted_before_taxes_fees": 748
+      },
+      "hotel_class": "4-star hotel",
+      "extracted_hotel_class": 4,
+      "overall_rating": 4.5,
+      "reviews": 1236,
+      "amenities": [
+        "Free Wi-Fi",
+        "Pool",
+        "Air conditioning"
+      ],
+      "property_token": "fixture-property-8",
+      "serpapi_property_details_link": "https://serpapi.com/search.json?engine=google_hotels&property_token=fixture-property-8"
+    },
+    {
+      "type": "hotel",
+      "name": "Dorado Beach Ritz-Carlton Reserve",
+      "link": "https://example.com/hotel/9",
+      "gps_coordinates": {
+        "latitude": 18.468,
+        "longitude": -66.088
+      },
+      "check_in_time": "3:00 PM",
+      "check_out_time": "11:00 AM",
+      "rate_per_night": {
+        "lowest": "$310",
+        "extracted_lowest": 310,
+        "before_taxes_fees": "$264",
+        "extracted_before_taxes_fees": 264
+      },
+      "total_rate": {
+        "lowest": "$1240",
+        "extracted_lowest": 1240,
+        "before_taxes_fees": "$1054",
+        "extracted_before_taxes_fees": 1054
+      },
+      "hotel_class": "4-star hotel",
+      "extracted_hotel_class": 4,
+      "overall_rating": 4.7,
+      "reviews": 1353,
+      "amenities": [
+        "Free Wi-Fi",
+        "Pool",
+        "Air conditioning"
+      ],
+      "property_token": "fixture-property-9",
+      "serpapi_property_details_link": "https://serpapi.com/search.json?engine=google_hotels&property_token=fixture-property-9"
+    },
+    {
+      "type": "vacation rental",
+      "name": "Old San Juan Loft",
+      "link": "https://example.com/hotel/10",
+      "gps_coordinates": {
+        "latitude": 18.47,
+        "longitude": -66.09
+      },
+      "check_in_time": "3:00 PM",
+      "check_out_time": "11:00 AM",
+      "overall_rating": 3.9,
+      "reviews": 1470,
+      "amenities": [
+        "Free Wi-Fi",
+        "Pool",
+        "Air conditioning"
+      ],
+      "property_token": "fixture-property-10",
+      "serpapi_property_details_link": "https://serpapi.com/search.json?engine=google_hotels&property_token=fixture-property-10"
+    }
+  ],
+  "serpapi_pagination": {
+    "current_from": 1,
+    "current_to": 11,
+    "next_page_token": "fixture-next"
+  }
+}
