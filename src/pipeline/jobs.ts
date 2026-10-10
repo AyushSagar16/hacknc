@@ -6,7 +6,8 @@ import { now } from "../clock.ts";
 import { childLog } from "../log.ts";
 import { db, one, q, type Queryable } from "../db/pool.ts";
 
-export type JobHandler = (payload: Record<string, unknown>, ctx: { jobId: number; attempt: number }) => Promise<void>;
+/** Return `{ rescheduleAt }` to run the same job again later (recurring work like weather checks). */
+export type JobHandler = (payload: Record<string, unknown>, ctx: { jobId: number; attempt: number }) => Promise<void | { rescheduleAt?: Date | null; payload?: Record<string, unknown> }>;
 
 export interface JobRow {
   id: number;
@@ -124,8 +125,16 @@ export class JobRunner {
     const handler = this.handlers.get(job.kind);
     if (!handler) return;
     try {
-      await handler(job.payload, { jobId: job.id, attempt: job.attempts });
-      await q(`UPDATE jobs SET done_at = $2, locked_at = NULL WHERE id = $1`, [job.id, now()]);
+      const outcome = await handler(job.payload, { jobId: job.id, attempt: job.attempts });
+      if (outcome && outcome.rescheduleAt) {
+        await q(`UPDATE jobs SET due_at = $2, locked_at = NULL, attempts = 0, last_error = NULL, payload = COALESCE($3, payload) WHERE id = $1`, [
+          job.id,
+          outcome.rescheduleAt,
+          outcome.payload ? JSON.stringify(outcome.payload) : null,
+        ]);
+      } else {
+        await q(`UPDATE jobs SET done_at = $2, locked_at = NULL WHERE id = $1`, [job.id, now()]);
+      }
     } catch (err) {
       const chatId = typeof job.payload.chatId === "number" ? job.payload.chatId : null;
       await recordJobFailure(job.kind, job.id, job.payload, err, chatId);

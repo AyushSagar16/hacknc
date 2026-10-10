@@ -12,6 +12,7 @@ import type { Llm } from "./llm.ts";
 import type { Action } from "../transport/outbound.ts";
 import type { JobHandler } from "../pipeline/jobs.ts";
 import type { TripRow } from "../trips/state.ts";
+import type { PollRow } from "../trips/pollStore.ts";
 
 /** What background jobs get: a way to post into a chat, the model, config. */
 export interface AppServices {
@@ -66,6 +67,8 @@ export interface Feature {
   afterTurn?(tc: TurnCtx): Promise<void>;
   /** When a destination and dates are locked in (e.g. start weather watch, payment plan). */
   onTripLocked?(trip: TripRow, tc: TurnCtx): Promise<void>;
+  /** A poll this feature owns reached a decision. Return true if it handled it (posting via tc.out). */
+  onPollDecided?(poll: PollRow, winnerIdx: number, tc: TurnCtx): Promise<boolean>;
   /** A new person was seen in a chat (e.g. link a Nessie sandbox customer). */
   onNewMember?(chatId: number, personId: number, svc: AppServices): Promise<void>;
 }
