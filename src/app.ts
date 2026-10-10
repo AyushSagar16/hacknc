@@ -4,7 +4,7 @@ import type { Config } from "./config.ts";
 import { childLog } from "./log.ts";
 import { migrate } from "./db/migrate.ts";
 import { createBrain } from "./agent/brain.ts";
-import type { Feature } from "./agent/feature.ts";
+import type { AppServices, Feature } from "./agent/feature.ts";
 import { planningFeature } from "./agent/features/planning.ts";
 import { createLlm, type Llm } from "./agent/llm.ts";
 import { JobRunner, pruneOld } from "./pipeline/jobs.ts";
@@ -15,6 +15,7 @@ import type { SimWorld } from "./transport/sim/platform.ts";
 export interface AtlasApp {
   cfg: Config;
   llm: Llm;
+  services: AppServices;
   transport: Transport;
   pipeline: Pipeline;
   jobs: JobRunner;
@@ -55,12 +56,28 @@ export async function startAtlas(opts: AppOptions): Promise<AtlasApp> {
     maxWaitMs: opts.maxWaitMs,
     pacing: opts.pacing ?? defaultPacing,
     names: opts.names,
+    onNewMember: async (chatId, personId) => {
+      for (const f of features) if (f.onNewMember) await f.onNewMember(chatId, personId, services).catch((err) => log.warn({ err: (err as Error).message, feature: f.name }, "onNewMember failed"));
+    },
   });
   if (opts.world) {
     opts.world.waitIdle = (chatId) => pipeline.waitIdle("sim", chatId);
     opts.world.expect = (chatId) => pipeline.expect("sim", chatId);
   }
 
+  const services: AppServices = {
+    cfg,
+    llm,
+    post: async (chatId, guidPrefix, actions) => {
+      await pipeline.enqueue(chatId, guidPrefix, actions);
+      await pipeline.flush(chatId);
+    },
+    poke: (chatId) => pipeline.poke(chatId),
+  };
+  for (const f of features) {
+    if (!f.jobs) continue;
+    for (const [kind, handler] of Object.entries(f.jobs(services))) jobs.register(kind, handler);
+  }
   jobs.register("outbox.flush", async (payload) => {
     await pipeline.flush(Number(payload.chatId));
   });
@@ -76,6 +93,7 @@ export async function startAtlas(opts: AppOptions): Promise<AtlasApp> {
   return {
     cfg,
     llm,
+    services,
     transport,
     pipeline,
     jobs,

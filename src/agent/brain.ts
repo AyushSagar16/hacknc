@@ -46,6 +46,13 @@ export function createBrain(deps: BrainDeps): TurnHandler {
   const agentName = cfg.AGENT_NAME;
 
   return async (input: TurnInput): Promise<TurnResult> => {
+    let ctxRef: TurnCtx | undefined;
+    const result = await turn(input, (tc) => (ctxRef = tc));
+    if (ctxRef) for (const f of features) if (f.afterTurn) await f.afterTurn(ctxRef).catch(() => {});
+    return result;
+  };
+
+  async function turn(input: TurnInput, expose: (tc: TurnCtx) => void): Promise<TurnResult> {
     const log = childLog({ component: "brain", chatId: input.chat.id, turnId: input.turnId });
     const { chat } = input;
     const now = clockNow();
@@ -85,6 +92,7 @@ export function createBrain(deps: BrainDeps): TurnHandler {
       batch: input.batch,
       history,
       consumed: new Set(),
+      features,
       profiles: async () => (profilesCache ??= await profilesFor(members.map((m) => m.id))),
       view: async () => {
         const profiles = await tc.profiles();
@@ -94,6 +102,7 @@ export function createBrain(deps: BrainDeps): TurnHandler {
         );
       },
     };
+    expose(tc);
     const refreshTrip = async () => {
       tc.trip = await tripFor(chat.id);
     };
@@ -251,7 +260,7 @@ export function createBrain(deps: BrainDeps): TurnHandler {
     for (const b of bubbles) actions.push({ type: "say", text: b });
     actions.push(...toolPosts);
     return { actions, route: "agent", addressed, gate };
-  };
+  }
 }
 
 async function runCommand(cmd: Command, msg: MessageRow, tc: TurnCtx, features: Feature[], agentName: string): Promise<void> {

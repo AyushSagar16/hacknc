@@ -7,6 +7,21 @@ import type { PersonProfile } from "../profile/aggregate.ts";
 import type { Command } from "./commands.ts";
 import type { Figure } from "./figures.ts";
 import type { Tool, ToolCtx } from "./tools.ts";
+import type { Config } from "../config.ts";
+import type { Llm } from "./llm.ts";
+import type { Action } from "../transport/outbound.ts";
+import type { JobHandler } from "../pipeline/jobs.ts";
+import type { TripRow } from "../trips/state.ts";
+
+/** What background jobs get: a way to post into a chat, the model, config. */
+export interface AppServices {
+  cfg: Config;
+  llm: Llm;
+  /** Queue actions for a chat and send them now (guidPrefix must be unique per producer, e.g. "job42"). */
+  post(chatId: number, guidPrefix: string, actions: Action[]): Promise<void>;
+  /** Run a normal turn for a chat soon (e.g. after a background job changed state). */
+  poke(chatId: number): Promise<void>;
+}
 
 export interface TurnCtx extends ToolCtx {
   batch: MessageRow[];
@@ -15,6 +30,13 @@ export interface TurnCtx extends ToolCtx {
   view(): Promise<GroupView>;
   /** Set when a message in the batch was handled deterministically (no model needed for it). */
   consumed: Set<number>;
+  /** All features (to fire lifecycle hooks like onTripLocked). */
+  features: Feature[];
+}
+
+/** Call every feature's onTripLocked hook; failures are logged by the caller's job/turn, never thrown. */
+export async function fireTripLocked(trip: TripRow, tc: TurnCtx): Promise<void> {
+  for (const f of tc.features) if (f.onTripLocked) await f.onTripLocked(trip, tc).catch(() => {});
 }
 
 export interface Section {
@@ -38,4 +60,12 @@ export interface Feature {
   summary?(tc: TurnCtx): Promise<string[]>;
   /** A private 1:1 chat with one person. Return true if handled. */
   directMessage?(msg: MessageRow, tc: TurnCtx): Promise<boolean>;
+  /** Background job handlers this feature owns, keyed by job kind. */
+  jobs?(svc: AppServices): Record<string, JobHandler>;
+  /** After every turn (e.g. queue memory embedding). Must not throw. */
+  afterTurn?(tc: TurnCtx): Promise<void>;
+  /** When a destination and dates are locked in (e.g. start weather watch, payment plan). */
+  onTripLocked?(trip: TripRow, tc: TurnCtx): Promise<void>;
+  /** A new person was seen in a chat (e.g. link a Nessie sandbox customer). */
+  onNewMember?(chatId: number, personId: number, svc: AppServices): Promise<void>;
 }
