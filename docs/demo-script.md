@@ -33,7 +33,7 @@ npm run live
 Maya adds the Atlas number to the group.
 
 > **Atlas:** hi, i'm atlas, your trip and financial planner. i'll listen in, keep track of what everyone wants and what everyone can spend, and help us actually book this thing. you can tell me to stay quiet any time
-> **Atlas:** i read the chat but only jump in when it helps…budgets i suggest come from demo spending profiles (sandbox data, not your real bank)…
+> **Atlas:** i read along and jump in to keep the plan moving…budgets i suggest come from demo spending profiles (sandbox data, not your real bank)…
 > **Atlas:** so where are we thinking, and when?
 
 **Say:** "That's a real iMessage group on a real number. We wrote a custom Spectrum platform for a

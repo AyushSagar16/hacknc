@@ -11,6 +11,7 @@ import { proposalsFeature } from "./agent/features/proposals.ts";
 import { moneyFeature } from "./agent/features/money.ts";
 import { weatherFeature } from "./agent/features/weather.ts";
 import { memoryFeature } from "./agent/features/memory.ts";
+import { presenceFeature, scheduleOnlineNudges } from "./agent/features/presence.ts";
 import { createLlm, type Llm } from "./agent/llm.ts";
 import { JobRunner, pruneOld } from "./pipeline/jobs.ts";
 import { Pipeline } from "./pipeline/pipeline.ts";
@@ -51,7 +52,7 @@ export async function startAtlas(opts: AppOptions): Promise<AtlasApp> {
   await migrate();
   const llm = opts.llm ?? createLlm({ mode: cfg.LLM_MODE, apiKey: cfg.GEMINI_API_KEY, embedModel: cfg.GEMINI_EMBED_MODEL, fallbacks: cfg.GEMINI_FALLBACK_MODELS });
   const jobs = new JobRunner();
-  const features: Feature[] = [planningFeature, budgetsFeature, proposalsFeature, moneyFeature, weatherFeature, memoryFeature, ...(opts.extraFeatures ?? [])];
+  const features: Feature[] = [planningFeature, budgetsFeature, proposalsFeature, moneyFeature, weatherFeature, memoryFeature, presenceFeature, ...(opts.extraFeatures ?? [])];
 
   const transport = await createTransport(cfg, { world: opts.world });
   let pipeline!: Pipeline;
@@ -80,6 +81,7 @@ export async function startAtlas(opts: AppOptions): Promise<AtlasApp> {
       await pipeline.flush(chatId);
     },
     poke: (chatId) => pipeline.poke(chatId),
+    nudge: (chatId, reason) => pipeline.nudge(chatId, reason),
   };
   for (const f of features) {
     if (!f.jobs) continue;
@@ -108,6 +110,9 @@ export async function startAtlas(opts: AppOptions): Promise<AtlasApp> {
   if (warm) void warm.call(llm, [cfg.GEMINI_MODEL_AGENT, cfg.GEMINI_MODEL_GATE, cfg.GEMINI_MODEL_EXTRACT]).then((r) => log.info({ models: r }, "gemini warm-up"));
 
   await pipeline.recover();
+  // Coming online: follow up in groups that were mid-conversation when Atlas was last running.
+  const followUps = await scheduleOnlineNudges(cfg).catch((err) => (log.warn({ err: (err as Error).message }, "online follow-ups not scheduled"), 0));
+  if (followUps) log.info({ chats: followUps }, "following up in groups with an unanswered message");
   const done = transport.run((space, message) => pipeline.ingest(space, message)).catch((err) => {
     log.error({ err: (err as Error).message }, "inbound loop crashed");
   });

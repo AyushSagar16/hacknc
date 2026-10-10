@@ -34,6 +34,8 @@ export interface TurnInput {
   signal: AbortSignal;
   /** Call before any side effect that must not be repeated (money, Nessie writes). */
   nonCancellable(): Promise<void>;
+  /** Set when nothing new arrived and Atlas was asked to follow up on its own (why, for the agent). */
+  nudge?: string;
 }
 
 export interface TurnResult {
@@ -71,6 +73,8 @@ interface ChatState {
   expected: number;
   waiters: (() => void)[];
   membersRefreshedAt?: number;
+  /** A follow-up was requested; the next turn runs even with no new messages. */
+  nudge?: string;
 }
 
 export class Pipeline {
@@ -240,6 +244,19 @@ export class Pipeline {
     st.timer = setTimeout(() => void this.runTurn(st), delay);
   }
 
+  /** Run a turn with no new messages so Atlas can follow up on its own (an idle group, a restart). */
+  async nudge(chatId: number, reason: string): Promise<void> {
+    const chat = await getChat(chatId);
+    if (!chat) return;
+    const st = this.state(`${chat.platform}:${chat.provider_chat_id}`);
+    st.chatId = chat.id;
+    this.byChatId.set(chat.id, st);
+    // A turn already running is talking to the group; never cancel it for a follow-up.
+    if (st.running || st.timer) return;
+    st.nudge = reason;
+    this.bump(st);
+  }
+
   /** Schedule a turn for a chat now (proactive work, boot recovery). */
   async poke(chatId: number): Promise<void> {
     const chat = await getChat(chatId);
@@ -267,7 +284,10 @@ export class Pipeline {
     const t0 = Date.now();
     try {
       const batch = await claimUnclaimed(chatId, turnId);
-      if (batch.length === 0) {
+      // New messages win over a follow-up: the turn answers them instead.
+      const nudge = batch.length === 0 ? st.nudge : undefined;
+      st.nudge = undefined;
+      if (batch.length === 0 && !nudge) {
         await q(`UPDATE turns SET status='done', route='empty', finished_at=$2 WHERE id=$1`, [turnId, now()]);
         return;
       }
@@ -275,6 +295,7 @@ export class Pipeline {
         chat,
         turnId,
         batch,
+        nudge,
         signal: abort.signal,
         nonCancellable: async () => {
           if (st.running) st.running.cancellable = false;

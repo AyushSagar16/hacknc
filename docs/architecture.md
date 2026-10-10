@@ -78,11 +78,17 @@ remaining messages:
   not addressed → speak gate (gemini-3.5-flash-lite, temp 0, 3.5 s timeout, JSON {decision, reason}, fails closed)
                   input: last 12 messages, stage, facts, deterministic hints (stuck poll, date conflict,
                   majority shared, installments due, trip over), minutes since Atlas spoke, unprompted count
-  extraction result: a fresh disagreement can trigger one unprompted line (≤4 unprompted/hour)
+  extraction result: a fresh disagreement can trigger one unprompted line (≤12 unprompted/hour)
   agent (gemini-3.5-flash-lite, ≤4 tool rounds): stateless situation (trip, resolved profiles with quotes,
          feature sections, allowed figures, recalled memories, last 30 messages, new messages)
   money guard: every $ figure must match a registered figure the audience may see, or the text is dropped
 outbox → ordered sends with client GUIDs → text fallbacks
+
+follow-up (no new messages): after a human message Atlas didn't answer, a `chat.nudge` job is
+  scheduled NUDGE_IDLE_SECONDS out (pushed back by every new message). If the group is still quiet
+  and the last word is still human, the agent gets the situation plus "the chat went quiet, take the
+  next step". The same check runs on startup for groups that were mid-conversation. At most one
+  follow-up per unanswered message; quiet mode and the unprompted cap apply.
 ```
 
 The gate prompt is in `src/agent/prompts/speak-gate.md`, the agent's in `src/agent/prompts/system.md`

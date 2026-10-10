@@ -22,6 +22,8 @@ export interface AppServices {
   post(chatId: number, guidPrefix: string, actions: Action[]): Promise<void>;
   /** Run a normal turn for a chat soon (e.g. after a background job changed state). */
   poke(chatId: number): Promise<void>;
+  /** Run a turn with no new messages so Atlas follows up on its own; `reason` is shown to the agent. */
+  nudge(chatId: number, reason: string): Promise<void>;
 }
 
 export interface TurnCtx extends ToolCtx {

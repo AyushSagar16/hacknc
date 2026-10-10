@@ -52,6 +52,17 @@ const schema = z.object({
 
   SERPAPI_API_KEY: optionalString,
 
+  /**
+   * When a group goes quiet after a human message Atlas didn't answer, follow up after this many
+   * seconds to move the plan forward. 0 turns it off. Default: 150 on a real line, off in the simulator.
+   */
+  NUDGE_IDLE_SECONDS: optionalString.transform((v) => {
+    if (v === undefined) return undefined;
+    const n = Number(v);
+    if (!Number.isInteger(n) || n < 0) throw new Error(`expected a whole number of seconds, got "${v}"`);
+    return n;
+  }),
+
   ALLOWED_CHATS: csv,
   OPERATOR_HANDLES: csv,
   CONSOLE_PORT: intWithDefault(8790),

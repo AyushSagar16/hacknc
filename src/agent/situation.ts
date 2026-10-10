@@ -78,6 +78,7 @@ export async function describeSituation(
     answers_question: " (may be answering your last question; reply NO_REPLY if it's just banter)",
   };
   for (const m of opts.remaining) lines.push(`${line(m, tc)}${TAGS[opts.reasons.get(m.id) ?? ""] ?? ""}`);
+  if (opts.remaining.length === 0) lines.push("(none: you're following up on your own, see heads up)");
   if (![...opts.reasons.values()].some((r) => r !== null)) {
     lines.push("", "note: these don't tag you. a quick check thought you might help, but it's often wrong: reply NO_REPLY unless the group clearly needs you, and keep it to one short bubble.");
   }

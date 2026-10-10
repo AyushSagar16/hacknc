@@ -1,6 +1,7 @@
 import { afterEach, describe, expect, it } from "vitest";
 import { q } from "../../src/db/pool.ts";
-import { callResult, FakeLlm, jsonResult, textResult } from "../../src/agent/llm.ts";
+import { callResult, FakeLlm, jsonResult, textResult, type GenerateRequest } from "../../src/agent/llm.ts";
+import { OffsetClock, setClock, systemClock } from "../../src/clock.ts";
 import { dbAvailable } from "../helpers/db.ts";
 import { pastIntro, quietFake, testAtlas, type TestAtlas } from "../helpers/atlas.ts";
 
@@ -137,5 +138,64 @@ describeDb("brain", () => {
     expect(first.map((r) => r.text)).toEqual(["maya + leo + priya: what dates work for you, and where would you be leaving from?"]);
     const second = await chat.say("maya", "atlas ok what now");
     expect(second).toEqual([]);
+  });
+
+  it("answers in its own words when there's nobody left to ask", async () => {
+    // Seen live: everyone had been asked, the tool posted nothing, and Atlas went silent.
+    const afterTool = (req: GenerateRequest) => req.contents.at(-1)!.parts.some((p) => "functionResponse" in p);
+    const llm = quietFake().set("agent", (req) => (afterTool(req) ? textResult("sounds like winter break works for maya. leo, priya, same?") : callResult("ask_for_missing_info", {})));
+    t = await testAtlas({ llm });
+    const chat = t.chat("g10", ["maya", "leo", "priya"]);
+    await chat.addAtlas();
+    expect((await chat.say("maya", "atlas let's plan something")).map((r) => r.text)).toEqual([
+      "maya + leo + priya: what dates work for you, and where would you be leaving from?",
+    ]);
+    expect((await chat.say("maya", "atlas i'm free over winter break")).map((r) => r.text)).toEqual(["sounds like winter break works for maya. leo, priya, same?"]);
+  });
+
+  it("follows up on its own once the group goes quiet after an unanswered message", async () => {
+    const clock = new OffsetClock();
+    setClock(clock);
+    try {
+      const followingUp = (req: GenerateRequest) => JSON.stringify(req.contents).includes("following up on your own");
+      const llm = quietFake().set("agent", (req) => (followingUp(req) ? textResult("maya's free nov 12-16. leo, priya, does that work for you?") : textResult("NO_REPLY")));
+      t = await testAtlas({ llm, env: { NUDGE_IDLE_SECONDS: "60" } });
+      const chat = t.chat("g11", ["maya", "leo", "priya"]);
+      await pastIntro(chat);
+      expect(await chat.say("maya", "i'm free nov 12-16 btw")).toEqual([]);
+      const before = chat.lastEntry();
+
+      await t.app.jobs.runDue();
+      await t.world.waitIdle("g11");
+      expect(chat.atlasSince(before)).toEqual([]); // not quiet long enough yet
+
+      clock.advance(90_000);
+      await t.app.jobs.runDue();
+      await t.world.waitIdle("g11");
+      expect(chat.atlasSince(before).map((e) => e.text)).toEqual(["maya's free nov 12-16. leo, priya, does that work for you?"]);
+
+      // Atlas has the last word now, so there's nothing more to follow up on.
+      clock.advance(10 * 60_000);
+      await t.app.jobs.runDue();
+      await t.world.waitIdle("g11");
+      expect(chat.atlasSince(before)).toHaveLength(1);
+      const routes = await q<{ route: string }>(`SELECT route FROM turns WHERE route LIKE 'nudge%'`);
+      expect(routes.map((r) => r.route)).toEqual(["nudge"]);
+    } finally {
+      setClock(systemClock);
+    }
+  });
+
+  it("doesn't follow up when quiet mode is on", async () => {
+    const llm = quietFake().set("agent", () => textResult("hello?"));
+    t = await testAtlas({ llm, env: { NUDGE_IDLE_SECONDS: "1" } });
+    const chat = t.chat("g12", ["maya", "leo", "priya"]);
+    await chat.addAtlas();
+    await chat.say("maya", "atlas stay quiet");
+    await chat.say("leo", "so where are we going");
+    await new Promise((r) => setTimeout(r, 1_100));
+    await t.app.jobs.runDue();
+    await t.world.waitIdle("g12");
+    expect(chat.lastEntry()?.text).toBe("so where are we going");
   });
 });

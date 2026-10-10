@@ -5,8 +5,9 @@
 Add Atlas's number to the group. It introduces itself, then reads along. It keeps track of what
 everyone wants ("cancun is too pricey for me", "i'm vegetarian", "i can't fly after the 14th") and
 what everyone can spend, then keeps the plan moving. It proposes three priced options, runs a
-poll, sets up a payment plan, splits expenses during the trip and settles up at the end. It only
-speaks when it helps, and "atlas stay quiet" mutes it.
+poll, sets up a payment plan, splits expenses during the trip and settles up at the end. It chimes
+in whenever the trip or money comes up and stays out of banter. When the group goes quiet on an
+unanswered message, it follows up with the next step. "atlas stay quiet" mutes it.
 
 - **It reads the conversation.** There are no forms. Each person's preferences and constraints
   are extracted from normal chat, with the words they came from, and resolved deterministically
@@ -76,6 +77,7 @@ judge console is at http://127.0.0.1:8790. Without a Gemini key, deterministic f
 | `GEMINI_MODEL_AGENT` / `_GATE` / `_EXTRACT` / `GEMINI_EMBED_MODEL` | Model overrides |
 | `NESSIE_API_KEY`, `NESSIE_BASE_URL` | Capital One Nessie sandbox |
 | `SERPAPI_API_KEY` | Live Google Flights / Hotels prices (optional; otherwise labeled estimates) |
+| `NUDGE_IDLE_SECONDS` | How long a group must be quiet after an unanswered message before Atlas follows up (default 150 on a real line, off in the simulator; 0 = off) |
 | `ALLOWED_CHATS`, `OPERATOR_HANDLES`, `CONSOLE_PORT`, `DEFAULT_TIMEZONE`, `LOG_LEVEL`, `LOG_FILE` | Operations |
 
 ### Database

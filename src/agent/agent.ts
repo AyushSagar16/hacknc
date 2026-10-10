@@ -33,6 +33,7 @@ export async function runAgent(input: AgentInput): Promise<AgentOutput> {
   const log = childLog({ component: "agent", chatId: input.ctx.chat.id });
   const contents: LlmContent[] = [{ role: "user", parts: [{ text: input.situation }] }];
   const toolCalls: AgentOutput["toolCalls"] = [];
+  let soloPosted = false;
   const maxRounds = input.maxRounds ?? 4;
   let text = "";
   try {
@@ -57,10 +58,15 @@ export async function runAgent(input: AgentInput): Promise<AgentOutput> {
       const responses: LlmPart[] = [];
       let allSolo = true;
       for (const call of result.functionCalls) {
+        const before = input.ctx.out.length;
         const outcome = await input.tools.run(call.name, call.args, input.ctx);
         toolCalls.push({ name: call.name, ok: outcome.ok, error: outcome.ok ? undefined : outcome.error });
         responses.push({ functionResponse: { name: call.name, id: call.id, response: outcome as unknown as Record<string, unknown> } });
-        allSolo &&= outcome.ok && input.tools.isSolo(call.name);
+        // "Solo" only counts when the tool actually posted: ask_for_missing_info posts nothing when
+        // everyone was already asked, and then the model's own words are the whole reply.
+        const posted = outcome.ok && input.tools.isSolo(call.name) && input.ctx.out.length > before;
+        soloPosted ||= posted;
+        allSolo &&= posted;
       }
       // A post that stands alone needs no lead-in, and any words the model added would be dropped
       // (brain.ts), so don't spend another call asking for them.
@@ -73,7 +79,6 @@ export async function runAgent(input: AgentInput): Promise<AgentOutput> {
     log.warn({ err: (err as Error).message, kind }, "agent call failed");
     return { bubbles: [], toolCalls, failed: kind };
   }
-  const soloPosted = toolCalls.some((c) => c.ok && input.tools.isSolo(c.name));
   return { bubbles: toBubbles(text, input.agentName, input.tools.decls().map((d) => d.name)), toolCalls, soloPosted };
 }
 

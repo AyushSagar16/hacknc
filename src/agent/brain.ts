@@ -29,13 +29,13 @@ export interface BrainDeps {
   features: Feature[];
 }
 
-export const UNPROMPTED_PER_HOUR = 4;
+export const UNPROMPTED_PER_HOUR = 12;
 
 export function introLines(agentName: string): string[] {
   const n = agentName.toLowerCase();
   return [
     `hi, i'm ${n}, your trip and financial planner. i'll listen in, keep track of what everyone wants and what everyone can spend, and help us actually book this thing. you can tell me to stay quiet any time`,
-    `i read the chat but only jump in when it helps. tag me ("${n}") whenever. budgets i suggest come from demo spending profiles (sandbox data, not your real bank), and "keep my budget private" means i only ever use yours pooled`,
+    `i read along and jump in to keep the plan moving. tag me ("${n}") whenever. budgets i suggest come from demo spending profiles (sandbox data, not your real bank), and "keep my budget private" means i only ever use yours pooled`,
     `so where are we thinking, and when?`,
   ];
 }
@@ -177,6 +177,12 @@ export function createBrain(deps: BrainDeps): TurnHandler {
       if (msg.speakable) remaining.push(msg);
     }
 
+    // ---------- a follow-up with no new messages (the group went quiet, or atlas came back online) ----------
+    if (input.nudge && input.batch.length === 0) {
+      await extraction;
+      return followUp(tc, input.nudge, input, log);
+    }
+
     if (remaining.length === 0) {
       await extraction;
       return { actions, route };
@@ -267,6 +273,27 @@ export function createBrain(deps: BrainDeps): TurnHandler {
     actions.push(...toolPosts);
     return { actions, route: "agent", addressed, gate };
   }
+
+  /** Nobody said anything new: look at where the plan stands and move it one step, or stay quiet. */
+  async function followUp(tc: TurnCtx, why: string, input: TurnInput, log: ReturnType<typeof childLog>): Promise<TurnResult> {
+    const { chat, out: actions } = tc;
+    const gate = (decision: string) => ({ decision, reason: `follow-up: ${why}`.slice(0, 200) });
+    if (chat.quiet_mode) return { actions, route: "nudge_quiet", addressed: false };
+    if ((await unpromptedLastHour(chat.id, tc.now)) >= UNPROMPTED_PER_HOUR) return { actions, route: "nudge_capped", addressed: false };
+    const hints = [why];
+    for (const f of features) if (f.hints) hints.push(...(await f.hints(tc)));
+    const situation = await describeSituation(tc, { remaining: [], reasons: new Map(), hints, tensions: [], features, agentName });
+    const toolStart = actions.length;
+    const out = await runAgent({ llm, model: cfg.GEMINI_MODEL_AGENT, situation, tools, ctx: tc, signal: input.signal, agentName });
+    if (out.failed) return { actions, route: "nudge_failed", addressed: false, gate: gate("NO_REPLY") };
+    const toolPosts = actions.splice(toolStart);
+    const guarded = guardBubbles(out.soloPosted || toolPosts.length ? [] : out.bubbles.slice(0, 2), tc.figures, { isGroup: true });
+    if (guarded.violations.length) log.warn({ violations: guarded.violations }, "money guard dropped the follow-up text");
+    for (const b of guarded.bubbles) actions.push({ type: "say", text: b });
+    actions.push(...toolPosts);
+    const spoke = actions.length > toolStart;
+    return { actions, route: spoke ? "nudge" : "nudge_silent", addressed: false, gate: gate(spoke ? "SPEAK" : "NO_REPLY") };
+  }
 }
 
 async function runCommand(cmd: Command, msg: MessageRow, tc: TurnCtx, features: Feature[], agentName: string): Promise<void> {
@@ -353,7 +380,7 @@ function tripFacts(tc: TurnCtx): string[] {
 
 async function unpromptedLastHour(chatId: number, now: Date): Promise<number> {
   const row = await one<{ n: number }>(
-    `SELECT count(*)::int AS n FROM turns WHERE chat_id = $1 AND route = 'agent' AND addressed = false AND started_at > $2`,
+    `SELECT count(*)::int AS n FROM turns WHERE chat_id = $1 AND route IN ('agent', 'nudge') AND addressed = false AND started_at > $2`,
     [chatId, new Date(now.getTime() - 3_600_000)],
   );
   return row?.n ?? 0;
