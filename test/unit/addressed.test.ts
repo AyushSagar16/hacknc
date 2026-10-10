@@ -11,10 +11,10 @@ const names = new Map([[1, "maya"], [2, "leo"], [3, "priya"]]);
 const reason = (message: MessageRow, history: MessageRow[]) => addressedReason({ message, history: [...history, message], agentName: "Atlas", namesById: names });
 
 describe("mentions", () => {
-  it.each(["@atlas hi", "hey atlas", "Hey Atlas, what's the plan", "atlas, help", "atlas can you find flights", "ok atlas", "thoughts, atlas?", "what do you think atlas?", "atlas"])("%s → addressed", (t) => {
+  it.each(["@atlas hi", "hey atlas", "Hey Atlas, what's the plan", "atlas, help", "atlas can you find flights", "ok atlas", "thoughts, atlas?", "what do you think atlas?", "atlas", "UNC winter break, I'm free. Atlas. Let's keep moving.", "ok. atlas, what now", "Atlas: options pls"])("%s → addressed", (t) => {
     expect(mentionsAgent(t, "Atlas")).toBe(true);
   });
-  it.each(["atlas seems useful", "let's ask atlas later lol", "lol atlas is so organized", "i love my atlas of the world"])("%s → not addressed", (t) => {
+  it.each(["atlas seems useful", "let's ask atlas later lol", "lol atlas is so organized", "i love my atlas of the world", "lol. atlas is so organized", "we bought the atlas. it was huge"])("%s → not addressed", (t) => {
     expect(mentionsAgent(t, "Atlas")).toBe(false);
   });
 });

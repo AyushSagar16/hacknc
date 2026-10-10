@@ -23,19 +23,19 @@ expect atlas says 1
 expect atlas ~ "covers both"
 expect sql SELECT count(*)::int AS n FROM facts = [{"n":11}]
 maya: set my budget to 700
-expect atlas ~ "maya's trip budget is $700"
+expect atlas ~ "maya's trip budget is now $700"
 leo: set my budget to 650
 priya: set my budget to 600
 maya: atlas give us some options
 expect atlas ~ "three options for nov 12–16"
 expect atlas !~ "cancún"
-expect atlas ~ "gas"
+expect atlas ~ "🚗"
 expect sql SELECT status, rendered_as FROM polls = [{"status":"open","rendered_as":"native"}]
 expect trip.status = "voting"
 maya vote 1
 expect atlas quiet
 leo vote 1
-expect atlas ~ "wins (2 of 3)"
+expect atlas ~ "it is! 2 of 3 votes"
 expect atlas ~ "locked in for nov 12–16"
 expect atlas ~ "to book"
 expect trip.status = "locked"

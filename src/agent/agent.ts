@@ -18,6 +18,8 @@ export interface AgentInput {
   signal: AbortSignal;
   maxRounds?: number;
   agentName: string;
+  /** Someone named Atlas or replied to it: silence is not an acceptable answer. */
+  mustAnswer?: boolean;
 }
 
 export interface AgentOutput {
@@ -27,32 +29,45 @@ export interface AgentOutput {
   toolCalls: { name: string; ok: boolean; error?: string }[];
   failed?: LlmError["kind"];
   guarded?: boolean;
+  /** The model never produced words (only thoughts, or NO_REPLY when it had to answer), even after a retry. */
+  empty?: boolean;
+  /** The model was nudged once after an empty answer. */
+  retried?: boolean;
 }
+
+/** Sent once when the model answered with nothing at all (Gemini sometimes returns only thought parts). */
+export const EMPTY_NUDGE = "(your last answer came back empty. reply to the group now in 1–2 short lines, or NO_REPLY if there is truly nothing to add.)";
+/** Sent once when the model said NO_REPLY to someone who named it directly. */
+export const ADDRESSED_NUDGE = "(someone tagged you by name, so NO_REPLY isn't an option. answer them now in 1–2 short lines: what you know, or the one thing you need from whom.)";
 
 export async function runAgent(input: AgentInput): Promise<AgentOutput> {
   const log = childLog({ component: "agent", chatId: input.ctx.chat.id });
   const contents: LlmContent[] = [{ role: "user", parts: [{ text: input.situation }] }];
   const toolCalls: AgentOutput["toolCalls"] = [];
+  const toolNames = input.tools.decls().map((d) => d.name);
+  const outStart = input.ctx.out.length;
   let soloPosted = false;
   const maxRounds = input.maxRounds ?? 4;
-  let text = "";
-  try {
-    for (let round = 0; round <= maxRounds; round++) {
+
+  /** Tool rounds until the model writes text (or a solo post ends the turn). Returns the text. */
+  const converse = async (rounds: number, thinking: "minimal" | "low"): Promise<{ text: string; ended: boolean }> => {
+    for (let round = 0; round <= rounds; round++) {
       if (input.signal.aborted && toolCalls.length === 0) throw new Error("aborted");
       const result = await input.llm.generate({
         role: "agent",
         model: input.model,
         system: SYSTEM_PROMPT,
         contents,
-        tools: round < maxRounds ? input.tools.decls() : undefined,
+        tools: round < rounds ? input.tools.decls() : undefined,
         temperature: 0.6,
         timeoutMs: 20_000,
-        thinking: "low",
+        thinking,
         trace: { chatId: input.ctx.chat.id, turnId: input.ctx.turnId },
       });
       if (result.functionCalls.length === 0) {
-        text = result.text;
-        break;
+        // Keep the model's visible words in the transcript so a nudge reads as a follow-up.
+        if (result.text) contents.push({ role: "model", parts: [{ text: result.text }] });
+        return { text: result.text, ended: false };
       }
       contents.push({ role: "model", parts: result.parts });
       const responses: LlmPart[] = [];
@@ -70,20 +85,51 @@ export async function runAgent(input: AgentInput): Promise<AgentOutput> {
       }
       // A post that stands alone needs no lead-in, and any words the model added would be dropped
       // (brain.ts), so don't spend another call asking for them.
-      if (allSolo) break;
+      if (allSolo) return { text: "", ended: true };
       contents.push({ role: "user", parts: responses });
+    }
+    return { text: "", ended: false };
+  };
+
+  /** Append a nudge to the conversation as the user's next words. */
+  const nudge = (text: string) => {
+    const last = contents[contents.length - 1]!;
+    if (last.role === "user") contents[contents.length - 1] = { ...last, parts: [...last.parts, { text }] };
+    else contents.push({ role: "user", parts: [{ text }] });
+  };
+
+  let text = "";
+  let retried = false;
+  try {
+    const first = await converse(maxRounds, "low");
+    text = first.text;
+    const toolPosted = input.ctx.out.length > outStart;
+    if (!first.ended && !toolPosted && toBubbles(text, input.agentName, toolNames).length === 0) {
+      // Empty text that isn't a deliberate NO_REPLY is a model hiccup (thoughts only), not a choice.
+      // NO_REPLY to someone who named Atlas is a choice it isn't allowed to make.
+      const explicitNoReply = /\bNO_REPLY\b/.test(text);
+      const why = !explicitNoReply ? EMPTY_NUDGE : input.mustAnswer ? ADDRESSED_NUDGE : undefined;
+      if (why) {
+        retried = true;
+        log.info({ explicitNoReply, mustAnswer: Boolean(input.mustAnswer) }, "agent answer was empty; nudging once");
+        nudge(why);
+        const second = await converse(Math.min(2, maxRounds), "minimal");
+        text = second.text;
+      }
     }
   } catch (err) {
     if ((err as Error).message === "aborted") throw err;
     const kind = err instanceof LlmError ? err.kind : "api";
     log.warn({ err: (err as Error).message, kind }, "agent call failed");
-    return { bubbles: [], toolCalls, failed: kind };
+    return { bubbles: [], toolCalls, failed: kind, retried };
   }
-  return { bubbles: toBubbles(text, input.agentName, input.tools.decls().map((d) => d.name)), toolCalls, soloPosted };
+  const bubbles = toBubbles(text, input.agentName, toolNames);
+  const empty = bubbles.length === 0 && !soloPosted && input.ctx.out.length === outStart && (retried || !/\bNO_REPLY\b/.test(text));
+  return { bubbles, toolCalls, soloPosted, empty, retried };
 }
 
 /**
- * NO_REPLY → nothing; blank lines split bubbles; a list stays in one bubble; at most three.
+ * NO_REPLY → nothing; blank lines split bubbles; a list (and its "…:" lead-in) stays in one bubble; at most three.
  * Small models sometimes write a tool call as text ("default_api:show_budgets{}"); that never
  * reaches the chat.
  */
@@ -106,11 +152,19 @@ export function toBubbles(text: string, agentName: string, toolNames: string[] =
     .replace(/^#+\s*/gm, "")
     .trim();
   if (!cleaned) return [];
-  return cleaned
+  const parts = cleaned
     .split(/\n\s*\n/)
     .map((b) => b.trim())
-    .filter(Boolean)
-    .slice(0, 3);
+    .filter(Boolean);
+  // A lead-in that ends in ":" belongs with the list after it ("top spots:" + "- skybridge…"):
+  // split apart, an untagged reply (one bubble) would send a dangling "here's what to do:".
+  const merged: string[] = [];
+  for (const p of parts) {
+    const prev = merged[merged.length - 1];
+    if (prev !== undefined && prev.endsWith(":")) merged[merged.length - 1] = `${prev}\n${p}`;
+    else merged.push(p);
+  }
+  return merged.slice(0, 3);
 }
 
 /**

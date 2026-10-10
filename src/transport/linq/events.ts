@@ -23,14 +23,18 @@ export function isSkip(r: ReadResult): r is Skip {
 
 export interface PollInfo {
   title: string;
-  options: { id: string; text: string }[];
+  /** `voters` (handles) is present when the info came from the poll API, which lists them. */
+  options: { id: string; text: string; voters?: string[] }[];
 }
+
+/** The option title a vote carries when Atlas couldn't work out which option it was for. */
+export const UNKNOWN_POLL_OPTION = "(unreadable option)";
 
 export interface ReadContext {
   /** Our own line's handles (E.164), to recognize "Atlas was added". */
   selfHandles: ReadonlySet<string>;
-  /** Resolve a poll's options (cached by the platform; falls back to the Linq API). */
-  pollInfo: (pollMessageId: string) => Promise<PollInfo | undefined>;
+  /** Resolve a poll's options (cached by the platform; falls back to the Linq API). `fresh` skips the cache. */
+  pollInfo: (pollMessageId: string, opts?: { fresh?: boolean }) => Promise<PollInfo | undefined>;
   /** Download a media part lazily. */
   download: (url: string) => Promise<Buffer>;
 }
@@ -217,13 +221,29 @@ async function readPollVote(data: unknown, eventId: string, receivedAt: Date, se
   if (v.direction === "outbound" || isMe(v.sender_handle, ctx.selfHandles)) return { skip: "atlas's own vote" };
   const sender = handleOf(v.sender_handle);
   if (!sender) return { skip: "no voter" };
-  const info = await ctx.pollInfo(v.message_id);
-  const chosen = info?.options.find((o) => o.id === v.option_id);
-  if (!info || !chosen || info.options.length < 2) return { skip: `vote on a poll atlas can't read (${v.message_id})` };
+
+  // A vote must never be lost to a cache or API hiccup: cached options, then a fresh read of the
+  // poll, then the poll's own voter list (an added vote shows the sender under their option).
+  // If all of that fails the vote still goes through with an unreadable option, and the poll
+  // feature reconciles it from the provider's voter list later.
+  let info = await ctx.pollInfo(v.message_id).catch(() => undefined);
+  let chosen = info?.options.find((o) => o.id && o.id === v.option_id);
+  if (!chosen) {
+    info = (await ctx.pollInfo(v.message_id, { fresh: true }).catch(() => undefined)) ?? info;
+    chosen = info?.options.find((o) => o.id && o.id === v.option_id);
+  }
+  if (!chosen && selected && info) {
+    const mine = info.options.filter((o) => o.voters?.includes(sender));
+    if (mine.length === 1) chosen = mine[0];
+  }
+  const titles = (info?.options ?? []).map((o) => o.text).filter(Boolean);
+  const optionTitle = chosen?.text || UNKNOWN_POLL_OPTION;
+  const pollTitles = titles.includes(optionTitle) ? titles.slice(0, 10) : [...titles.slice(0, 9), optionTitle];
+  while (pollTitles.length < 2) pollTitles.push(pollTitles.includes(UNKNOWN_POLL_OPTION) ? `${UNKNOWN_POLL_OPTION} ${pollTitles.length}` : UNKNOWN_POLL_OPTION);
   let content: Content;
   try {
-    const poll = asPoll({ title: info.title || "poll", options: info.options.map((o) => ({ title: o.text })) });
-    content = asPollOption({ option: { title: chosen.text }, poll, selected });
+    const poll = asPoll({ title: info?.title || "poll", options: pollTitles.map((title) => ({ title })) });
+    content = asPollOption({ option: { title: optionTitle }, poll, selected });
   } catch {
     return { skip: "poll vote did not fit Spectrum's poll shape" };
   }

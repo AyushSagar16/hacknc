@@ -52,9 +52,21 @@ export async function closePoll(id: number, winnerIdx: number | null, at: Date):
   await q(`UPDATE polls SET status = 'closed', winner_idx = $2, closed_at = $3 WHERE id = $1`, [id, winnerIdx, at]);
 }
 
-export async function recordVote(pollId: number, personId: number, optionIdx: number, selected: boolean, source: string, at: Date, opts: { single?: boolean } = {}): Promise<void> {
+export async function recordVote(
+  pollId: number,
+  personId: number,
+  optionIdx: number,
+  selected: boolean,
+  source: string,
+  at: Date,
+  opts: { single?: boolean; supersedeNonNative?: boolean } = {},
+): Promise<void> {
   // Text and tapback votes are single-choice: a new pick replaces the old one.
   if (opts.single && selected) await q(`UPDATE votes SET selected = false, voted_at = $3 WHERE poll_id = $1 AND person_id = $2 AND option_idx <> $4`, [pollId, personId, at, optionIdx]);
+  // A native vote replaces the same person's earlier text/tapback pick for another option, so
+  // nobody counts twice for having voted both ways (native polls may stay multi-select).
+  if (opts.supersedeNonNative && selected)
+    await q(`UPDATE votes SET selected = false, voted_at = $3 WHERE poll_id = $1 AND person_id = $2 AND option_idx <> $4 AND source <> 'native' AND selected`, [pollId, personId, at, optionIdx]);
   await q(
     `INSERT INTO votes (poll_id, person_id, option_idx, selected, source, voted_at) VALUES ($1,$2,$3,$4,$5,$6)
      ON CONFLICT (poll_id, person_id, option_idx) DO UPDATE SET selected = EXCLUDED.selected, source = EXCLUDED.source, voted_at = EXCLUDED.voted_at`,
@@ -65,4 +77,35 @@ export async function recordVote(pollId: number, personId: number, optionIdx: nu
 export async function votesFor(pollId: number): Promise<{ personId: number; optionIdx: number; selected: boolean }[]> {
   const rows = await q<{ person_id: number; option_idx: number; selected: boolean }>(`SELECT person_id, option_idx, selected FROM votes WHERE poll_id = $1 ORDER BY voted_at`, [pollId]);
   return rows.map((r) => ({ personId: r.person_id, optionIdx: r.option_idx, selected: r.selected }));
+}
+
+export interface VoteRow {
+  personId: number;
+  optionIdx: number;
+  selected: boolean;
+  source: string;
+  votedAt: Date;
+}
+
+/** Every vote row with its source and time (for reconciling against the provider's voter list). */
+export async function voteRows(pollId: number): Promise<VoteRow[]> {
+  const rows = await q<{ person_id: number; option_idx: number; selected: boolean; source: string; voted_at: Date }>(
+    `SELECT person_id, option_idx, selected, source, voted_at FROM votes WHERE poll_id = $1 ORDER BY voted_at`,
+    [pollId],
+  );
+  return rows.map((r) => ({ personId: Number(r.person_id), optionIdx: r.option_idx, selected: r.selected, source: r.source, votedAt: r.voted_at }));
+}
+
+/** Set one vote row exactly (no single-choice side effects). Idempotent. */
+export async function setVote(pollId: number, personId: number, optionIdx: number, selected: boolean, source: string, at: Date): Promise<void> {
+  await q(
+    `INSERT INTO votes (poll_id, person_id, option_idx, selected, source, voted_at) VALUES ($1,$2,$3,$4,$5,$6)
+     ON CONFLICT (poll_id, person_id, option_idx) DO UPDATE SET selected = EXCLUDED.selected, source = EXCLUDED.source, voted_at = EXCLUDED.voted_at`,
+    [pollId, personId, optionIdx, selected, source, at],
+  );
+}
+
+/** Open polls rendered as a native provider poll, across all chats (startup reconciliation). */
+export async function openNativePolls(): Promise<PollRow[]> {
+  return q<PollRow>(`SELECT * FROM polls WHERE status = 'open' AND rendered_as = 'native' AND provider_poll_id IS NOT NULL ORDER BY id`);
 }

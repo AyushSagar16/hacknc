@@ -63,6 +63,21 @@ const schema = z.object({
     return n;
   }),
 
+  /**
+   * Message cadence: Atlas shows the typing indicator and pauses before each bubble like a person
+   * texting, PACE_BASE_MS + PACE_MS_PER_CHAR per character, clamped to [PACE_MIN_MS, PACE_MAX_MS].
+   * The first bubble waits at most PACE_FIRST_MAX_MS (minus the time Atlas already spent typing).
+   * Tapbacks and polls never wait. PACING=off sends back to back (the simulator and tests do).
+   */
+  PACING: optionalString.transform((v) => v ?? "on").pipe(z.enum(["on", "off"])),
+  PACE_BASE_MS: intWithDefault(400),
+  PACE_MS_PER_CHAR: intWithDefault(25),
+  PACE_MIN_MS: intWithDefault(600),
+  PACE_MAX_MS: intWithDefault(2_500),
+  PACE_FIRST_MAX_MS: intWithDefault(1_000),
+  /** Quiet window before answering a message that names Atlas and reads complete (others wait 2.5 s). */
+  ADDRESSED_DEBOUNCE_MS: intWithDefault(1_500),
+
   ALLOWED_CHATS: csv,
   OPERATOR_HANDLES: csv,
   CONSOLE_PORT: intWithDefault(8790),

@@ -14,6 +14,7 @@ import { tripFor } from "../../trips/state.ts";
 import { isoDate } from "../../clock.ts";
 import type { Action } from "../../transport/outbound.ts";
 import type { Feature, TurnCtx } from "../feature.ts";
+import { nameList } from "./planning.ts";
 import type { Figure } from "../figures.ts";
 import { ToolError, num, say, type Tool } from "../tools.ts";
 
@@ -62,7 +63,14 @@ export function budgetMessage(rows: BudgetRow[], label: (id: number) => string, 
   return out;
 }
 
-async function postBudgets(tc: TurnCtx): Promise<void> {
+const LOADING_TEXT = "pulling demo spending profiles for";
+
+/** Atlas already said it's pulling profiles a moment ago; saying it again reads like a stuck bot. */
+function saidLoadingRecently(tc: TurnCtx): boolean {
+  return tc.history.some((h) => h.direction === "outbound" && h.text.includes(LOADING_TEXT) && tc.now.getTime() - h.sent_at.getTime() < 10 * 60_000);
+}
+
+async function postBudgets(tc: TurnCtx, opts: { asked?: boolean } = {}): Promise<void> {
   const view = await tc.view();
   const tripStart = tc.trip.start_date ?? view.dates?.start ?? null;
   const { rows, pending } = await ensureBudgets(tc.trip.id, tc.members.map((m) => m.id), tc.today, tripStart);
@@ -70,7 +78,12 @@ async function postBudgets(tc: TurnCtx): Promise<void> {
   if (pending.length) {
     for (const id of pending) await enqueueJob("nessie.link", { personId: id }, { singletonKey: `nessie:${id}` });
     await enqueueJob("budgets.announce", { chatId: tc.chat.id, attempt: 0 }, { singletonKey: `budgets:${tc.chat.id}`, dueAt: new Date(tc.now.getTime() + 5_000) });
-    say(tc, `pulling demo spending profiles for ${pending.map((id) => label(id).toLowerCase()).join(" + ")} from the nessie sandbox, i'll post everyone's budget in a sec`);
+    if (saidLoadingRecently(tc)) {
+      // Someone asked outright: answer, briefly. From a tool, say nothing and let the model talk.
+      if (opts.asked) say(tc, "still pulling the demo profiles, everyone's budget will land here in a sec");
+      return;
+    }
+    say(tc, `one sec, ${LOADING_TEXT} ${nameList(pending.map((id) => label(id).toLowerCase()))} from the nessie sandbox. i'll post everyone's budget right after`);
     return;
   }
   const firstTime = rows.some((r) => r.announced_at === null);
@@ -90,6 +103,9 @@ const showBudgets: Tool = {
     const tc = ctx as TurnCtx;
     const before = tc.out.length;
     await postBudgets(tc);
+    if (tc.out.length === before) {
+      return { ok: true, data: { loading: true }, next: "budgets are still loading and will post on their own in a moment; don't mention them again, just answer the rest in your own words" };
+    }
     return { ok: true, posted: tc.out.slice(before).map((a) => (a.type === "say" ? a.text : "")), next: "budgets were posted; don't repeat the numbers" };
   },
 };
@@ -105,7 +121,7 @@ const setMyBudget: Tool = {
     if (!amount || amount <= 0 || amount > 50_000) throw new ToolError("amount_usd must be a positive dollar amount");
     if (ctx.senderId === null) throw new ToolError("no sender");
     const row = await setAdjusted(ctx.senderId, ctx.trip.id, Math.round(amount * 100));
-    const text = row.visibility === "private" ? "updated your budget (kept private)" : `set: your trip budget is ${formatUsd(effectiveCents(row)!)}`;
+    const text = row.visibility === "private" ? "updated your budget (kept private)" : `done, your trip budget is now ${formatUsd(effectiveCents(row)!)}`;
     say(ctx, text);
     ctx.figures.add({ cents: effectiveCents(row)!, label: "sender's budget", source: "user:stated", visibility: row.visibility, ownerId: ctx.senderId });
     return { ok: true, posted: [text] };
@@ -167,7 +183,7 @@ export const budgetsFeature: Feature = {
   },
 
   commands: {
-    budget_query: async (_msg, tc) => postBudgets(tc),
+    budget_query: async (_msg, tc) => postBudgets(tc, { asked: true }),
     budget_private: async (msg, tc) => {
       if (msg.person_id === null) return;
       await setVisibility(msg.person_id, tc.trip.id, "private");
@@ -176,7 +192,7 @@ export const budgetsFeature: Feature = {
     budget_public: async (msg, tc) => {
       if (msg.person_id === null) return;
       await setVisibility(msg.person_id, tc.trip.id, "public");
-      say(tc, "ok, your budget is public again");
+      say(tc, "ok, your budget is public again 👍");
     },
     budget_set: async (msg, tc, cmd) => {
       if (msg.person_id === null || cmd.kind !== "budget_set") return;
@@ -184,7 +200,7 @@ export const budgetsFeature: Feature = {
       if (row.visibility === "private") say(tc, "updated your budget (kept private)");
       else {
         tc.figures.add({ cents: cmd.amountCents, label: "budget just set", source: "user:stated", visibility: "public" });
-        say(tc, `set: ${tc.label(msg.person_id).toLowerCase()}'s trip budget is ${formatUsd(cmd.amountCents)}`);
+        say(tc, `done, ${tc.label(msg.person_id).toLowerCase()}'s trip budget is now ${formatUsd(cmd.amountCents)}`);
       }
     },
   },

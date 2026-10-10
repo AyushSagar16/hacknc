@@ -8,7 +8,7 @@ import { now } from "../../clock.ts";
 import { one, q } from "../../db/pool.ts";
 import { enqueueJob } from "../../pipeline/jobs.ts";
 import { embedTurn, rememberDecision } from "../../memory/write.ts";
-import { recall, type MemoryHit } from "../../memory/retrieve.ts";
+import { recall, warmRecall, type MemoryHit, type RecallInput } from "../../memory/retrieve.ts";
 import type { Feature, TurnCtx } from "../feature.ts";
 import { CassetteLlm, FakeLlm, NoKeyLlm, type Llm } from "../llm.ts";
 import { str, type Tool, type ToolCtx } from "../tools.ts";
@@ -125,6 +125,21 @@ const recallMemory: Tool = {
   },
 };
 
+/** The recall the situation section runs for this turn, or undefined when there's nothing to ask. */
+function situationRecall(tc: TurnCtx): RecallInput | undefined {
+  const query = memoryQuery(tc);
+  if (!query) return undefined;
+  const cutoff = tc.now.getTime() - FRESH_MS;
+  const excludeMessageIds = tc.history.filter((h) => h.sent_at.getTime() >= cutoff).map((h) => h.id);
+  return { llm: tc.llm, chatId: tc.chat.id, memberIds: tc.members.map((m) => m.id), query, ...recallScope(tc), excludeMessageIds, now: tc.now };
+}
+
+/** Start this turn's recall early (the brain calls it once it knows Atlas will answer). */
+export function warmMemory(tc: TurnCtx): void {
+  const input = situationRecall(tc);
+  if (input) warmRecall(input);
+}
+
 export const memoryFeature: Feature = {
   name: "memory",
   tools: [recallMemory],
@@ -133,14 +148,13 @@ export const memoryFeature: Feature = {
     // A feature list may name memory twice (default + extraFeatures); recall once per turn.
     if (tc.notes.has("memory.situation")) return null;
     tc.notes.set("memory.situation", true);
-    const query = memoryQuery(tc);
-    if (!query) return null;
-    const cutoff = tc.now.getTime() - FRESH_MS;
-    const excludeMessageIds = tc.history.filter((h) => h.sent_at.getTime() >= cutoff).map((h) => h.id);
+    const input = situationRecall(tc);
+    if (!input) return null;
+    const query = input.query;
     const t0 = Date.now();
     let hits: MemoryHit[];
     try {
-      hits = await recall({ llm: tc.llm, chatId: tc.chat.id, memberIds: tc.members.map((m) => m.id), query, ...recallScope(tc), excludeMessageIds, now: tc.now });
+      hits = await recall(input);
     } catch (err) {
       log.warn({ chatId: tc.chat.id, err: (err as Error).message }, "memory recall failed; continuing without it");
       await trace(tc, query, [], Date.now() - t0, (err as Error).message);

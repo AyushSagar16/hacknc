@@ -5,10 +5,12 @@ wants and can spend, proposes destinations, runs polls, splits expenses and sett
 active member of the group: whenever the trip or money comes up, it chimes in to keep the plan
 moving. It stays out of plain social chat. The newest message(s) did not tag Atlas.
 
-Answer with JSON: {"decision": "SPEAK" or "NO_REPLY", "reason": "<under 12 words>"}.
+Answer with JSON: {"decision": "SPEAK" or "NO_REPLY", "reason": "<under 12 words>"}. On SPEAK, the
+reason is handed to Atlas as what it should do, so make it concrete ("everyone voted: announce the
+winner", "jason asked what to do in gatlinburg").
 
 Staying quiet when the group needed Atlas makes it look broken; speaking over banter is annoying but
-cheap, because an unprompted reply is one short line and a second check can still decline. So when a
+cheap, because an unprompted reply is one short line. So when a
 trip or money message could go either way, choose SPEAK. When it is plainly social, choose NO_REPLY.
 
 SPEAK when any of these is true:

@@ -7,7 +7,7 @@ import { config } from "../../config.ts";
 import { now } from "../../clock.ts";
 import { formatUsd } from "../../money/cents.ts";
 import { one, q } from "../../db/pool.ts";
-import type { MessageRow } from "../../db/repos/core.ts";
+import { activeMembers, ensureMember, insertMessage, upsertPerson, type MessageRow } from "../../db/repos/core.ts";
 import { budgetRows } from "../../nessie/budgets.ts";
 import { interestWeights } from "../../profile/groupView.ts";
 import { destinationById, destinations, findDestination, type Destination } from "../../trips/catalog.ts";
@@ -16,13 +16,13 @@ import { hardFilter, type Rejection } from "../../trips/filter.ts";
 import type { CostBreakdown } from "../../trips/estimate.ts";
 import { draftItinerary } from "../../trips/itinerary.ts";
 import { googleFlightsLink, googleHotelsLink } from "../../trips/links.ts";
-import { closePoll, createPoll, openPolls, recordVote, votesFor, type PollRow } from "../../trips/pollStore.ts";
+import { closePoll, createPoll, openNativePolls, openPolls, recordVote, setVote, voteRows, votesFor, type PollRow } from "../../trips/pollStore.ts";
 import { priceOption, type PriceCache } from "../../trips/pricing.ts";
 import { pickThree, scoreDestinations, type Scored } from "../../trips/score.ts";
 import { updateTrip } from "../../trips/state.ts";
-import { parseVote, tally } from "../../trips/votes.ts";
+import { parseVote, reconcileVotes, tally, type ProviderVote } from "../../trips/votes.ts";
 import { formatRange } from "./planning.ts";
-import { fireTripLocked, type Feature, type TurnCtx } from "../feature.ts";
+import { fireTripLocked, type AppServices, type Feature, type TurnCtx } from "../feature.ts";
 import type { Figure } from "../figures.ts";
 import { ToolError, num, say, str, type Tool } from "../tools.ts";
 
@@ -60,18 +60,20 @@ interface StoredOption {
 const avg = (xs: number[]) => (xs.length ? Math.round(xs.reduce((a, b) => a + b, 0) / xs.length / 100) * 100 : 0);
 /** Estimates read as round numbers: nearest $5. */
 const round5 = (cents: number) => Math.round(cents / 500) * 500;
-const component = (c: CostBreakdown, k: "transport" | "lodging") => (c.sources[k].kind === "live" ? "live fare" : "est.");
+const liveTag = (c: CostBreakdown, k: "transport" | "lodging") => (c.sources[k].kind === "live" ? " live" : "");
 
+/** "2. gatlinburg — ~$630 each" / "✈️ $225 · 🏠 $105 · 🍽 $300" / why it fits. Every $ is a registered figure. */
 function optionLine(i: number, o: StoredOption): string {
-  const sample = Object.values(o.perPerson)[0]!;
-  const spread = o.maxCents - o.minCents > 2_500 ? ` (${formatUsd(o.minCents)}–${formatUsd(o.maxCents)} depending on where you leave from)` : "";
-  const parts = [
-    `${sample.transportMode === "drive" ? "gas" : "flight"} ${formatUsd(avg(Object.values(o.perPerson).map((c) => c.transportCents)))} ${component(sample, "transport")}`,
-    `stay ${formatUsd(avg(Object.values(o.perPerson).map((c) => c.lodgingCents)))} ${component(sample, "lodging")}`,
-    `food + activities ${formatUsd(avg(Object.values(o.perPerson).map((c) => c.foodCents + c.activitiesCents + c.localCents)))} est.`,
-  ];
+  const people = Object.values(o.perPerson);
+  const sample = people[0]!;
+  const spread = o.maxCents - o.minCents > 2_500 ? ` (${formatUsd(o.minCents)}–${formatUsd(o.maxCents)} by home city)` : "";
+  const costs = [
+    `${sample.transportMode === "drive" ? "🚗" : "✈️"} ${formatUsd(avg(people.map((c) => c.transportCents)))}${liveTag(sample, "transport")}`,
+    `🏠 ${formatUsd(avg(people.map((c) => c.lodgingCents)))}${liveTag(sample, "lodging")}`,
+    `🍽 ${formatUsd(avg(people.map((c) => c.foodCents + c.activitiesCents + c.localCents)))}`,
+  ].join(" · ");
   const why = o.reasons.length ? `\n${o.reasons.slice(0, 2).join(", ").toLowerCase()}` : "";
-  return `${i + 1}. ${o.name}: ~${formatUsd(o.avgCents)} per person${spread}\n${parts.join(" · ")}${why}`;
+  return `${i + 1}. ${o.name.toLowerCase()} — ~${formatUsd(o.avgCents)} each${spread}\n${costs}${why}`;
 }
 
 function optionFigures(options: StoredOption[]): Figure[] {
@@ -174,9 +176,9 @@ export async function proposeDestinations(tc: TurnCtx, opts: { nights?: number; 
   tc.figures.addAll(optionFigures(options));
   const when = built.dates ? formatRange(built.dates.start, built.dates.end) : `${built.group.nights} nights, dates tbd`;
   const anyLive = options.some((o) => o.live);
-  say(tc, `three options for ${when}, per person${anyLive ? " (live fares where marked, the rest are estimates)" : " (estimates)"}:`);
+  say(tc, `ok, three options for ${when} 👇\nper person, ${anyLive ? "live fares where it says live, everything else is an estimate" : "prices are estimates"}`);
   for (const [i, o] of options.entries()) say(tc, optionLine(i, o));
-  tc.out.push({ type: "poll", title: "where to? vote below", options: poll.options.map((o) => o.title), pollId: poll.id });
+  tc.out.push({ type: "poll", title: "where are we going? tap to vote 🗳️", options: poll.options.map((o) => o.title), pollId: poll.id });
   return { posted: true, options };
 }
 
@@ -189,7 +191,8 @@ function optionIndexFor(poll: PollRow, title: string): number {
   return poll.options.findIndex((o) => t.startsWith(o.title.toLowerCase().split(" (")[0]!));
 }
 
-async function afterVote(poll: PollRow, tc: TurnCtx, voterId: number, source: "native" | "tapback" | "text" | "agent", msg: MessageRow | null): Promise<void> {
+/** Tally and, when the poll is decided, lock it in (proactively: nobody has to ask). True if decided. */
+async function afterVote(poll: PollRow, tc: TurnCtx, voterId: number | null, source: "native" | "tapback" | "text" | "agent" | "sync", msg: MessageRow | null): Promise<boolean> {
   const votes = await votesFor(poll.id);
   const result = tally(
     poll.options.length,
@@ -203,20 +206,123 @@ async function afterVote(poll: PollRow, tc: TurnCtx, voterId: number, source: "n
     let handled = false;
     if (poll.kind === "destination") handled = await lockFromPoll(poll, result.winner, result.counts[result.winner]!, tc);
     for (const f of tc.features) if (!handled && f.onPollDecided) handled = await f.onPollDecided(poll, result.winner, tc);
-    return;
+    return true;
   }
-  // Not decided yet: acknowledge text votes with a tapback (others already show on the poll).
-  if (source === "text" && msg) {
+  // Not decided yet: stay quiet. Native votes already show on the poll; a text vote gets a tapback.
+  if (source === "text" && msg && voterId !== null) {
     const choice = poll.options[votes.filter((v) => v.personId === voterId && v.selected).at(-1)?.optionIdx ?? 0]?.title.split(" (")[0] ?? "";
     tc.out.push({ type: "react", targetId: msg.provider_message_id, tapback: "like", fallbackText: `got it: ${tc.label(voterId).toLowerCase()} → ${choice.toLowerCase()} (${result.voters} of ${tc.members.length} voted)` });
   }
+  return false;
+}
+
+// ---------- reconciling native polls with the provider's voter list ----------
+
+/** A native poll as the provider reports it: every option with everyone currently voting for it. */
+export interface ProviderPollSnapshot {
+  options: { id?: string; text: string; voters: { handle: string; votedAt?: Date }[] }[];
+}
+export type PollSource = (providerPollId: string) => Promise<ProviderPollSnapshot | undefined>;
+
+let pollSource: PollSource | undefined;
+/** Where native polls' voter lists come from (Linq: `setPollSource(linqPollSource(api))`). Unset = no reconciliation. */
+export function setPollSource(fn: PollSource | undefined): void {
+  pollSource = fn;
+}
+
+/** "everyone voted", "we all voted", "voted", "done voting", "check the poll"… while a native poll is open. */
+const VOTED_SIGNAL =
+  /\b(?:every(?:one|body)|we(?: all)?|all of us|y'?all|i|just|also)\s+(?:has\s+|have\s+|already\s+|just\s+|all\s+)*voted\b|^\W*(?:just\s+)?voted\W*$|\bdone voting\b|\b(?:check|look at|see) the poll\b|\bdid (?:every(?:one|body)|we all) vote\b/i;
+
+async function personForHandle(chatId: number, handle: string, at: Date): Promise<number | undefined> {
+  const known = await one<{ id: number }>(`SELECT id FROM people WHERE handle = $1`, [handle]);
+  const id = known?.id ?? (await upsertPerson(handle, at)).id;
+  // They voted in this chat's poll, so they're in the chat (even if Atlas hadn't heard from them).
+  const member = await one(`SELECT 1 FROM chat_members WHERE chat_id = $1 AND person_id = $2 AND active`, [chatId, id]);
+  if (!member) await ensureMember(chatId, id, at);
+  return id;
+}
+
+/** The provider's votes mapped onto this poll's options and Atlas's people, or undefined if unavailable. */
+async function providerVotes(poll: PollRow, at: Date): Promise<ProviderVote[] | undefined> {
+  if (!pollSource || poll.rendered_as !== "native" || !poll.provider_poll_id) return undefined;
+  let snap: ProviderPollSnapshot | undefined;
+  try {
+    snap = await pollSource(poll.provider_poll_id);
+  } catch {
+    return undefined;
+  }
+  if (!snap || snap.options.length === 0) return undefined;
+  const out: ProviderVote[] = [];
+  for (const [i, o] of snap.options.entries()) {
+    let idx = poll.options.findIndex((p) => p.title === o.text);
+    if (idx < 0) idx = optionIndexFor(poll, o.text);
+    if (idx < 0 && snap.options.length === poll.options.length) idx = i; // same poll, retitled
+    if (idx < 0) continue;
+    for (const v of o.voters) {
+      const personId = await personForHandle(poll.chat_id, v.handle, at);
+      if (personId !== undefined) out.push({ personId, optionIdx: idx, votedAt: v.votedAt });
+    }
+  }
+  return out;
+}
+
+/** Make Atlas's votes match the provider's voter list. Idempotent; returns how many rows changed. */
+export async function reconcilePollVotes(poll: PollRow, at: Date): Promise<number> {
+  const provider = await providerVotes(poll, at);
+  if (!provider) return 0;
+  const changes = reconcileVotes(await voteRows(poll.id), provider, { now: at });
+  for (const c of changes) await setVote(poll.id, c.personId, c.optionIdx, c.selected, c.source, c.at);
+  return changes.length;
+}
+
+/**
+ * Startup: for every open native poll whose provider voter list differs from Atlas's (votes that
+ * arrived while Atlas was down, or webhooks it couldn't read), queue a sync marker and run a turn
+ * for that chat. The turn reconciles and, if the poll is now decided, posts the lock-in on its
+ * own. Returns how many chats were poked. Never throws for one bad poll.
+ */
+export async function reconcileOpenNativePolls(svc: Pick<AppServices, "poke">, at: Date = now()): Promise<number> {
+  let poked = 0;
+  for (const poll of await openNativePolls()) {
+    try {
+      const provider = await providerVotes(poll, at);
+      if (!provider) continue;
+      const stored = await voteRows(poll.id);
+      const changes = reconcileVotes(stored, provider, { now: at });
+      const members = await activeMembers(poll.chat_id);
+      const decided = tally(poll.options.length, stored, members.length, poll.options.map((o) => o.estimatedCostCents ?? 0)).decided;
+      if (changes.length === 0 && !decided) continue;
+      const personId = provider[0]?.personId ?? stored[0]?.personId ?? members[0]?.id;
+      if (personId === undefined) continue;
+      await insertMessage({
+        chatId: poll.chat_id,
+        personId,
+        providerMessageId: `poll-sync:${poll.id}:${at.getTime()}`,
+        direction: "inbound",
+        kind: "poll_vote",
+        text: "(poll votes synced)",
+        meta: { pollSync: true, pollId: poll.id, pollMessageId: poll.provider_poll_id },
+        sentAt: at,
+        receivedAt: at,
+        speakable: false,
+      });
+      await svc.poke(poll.chat_id);
+      poked += 1;
+    } catch {
+      // One unreadable poll never blocks the rest (or startup).
+    }
+  }
+  return poked;
 }
 
 async function lockFromPoll(poll: PollRow, winner: number, count: number, tc: TurnCtx): Promise<boolean> {
   const destId = String(poll.options[winner]?.ref ?? "");
   const dest = destinationById(destId);
   if (!dest) return false;
-  await lockDestination(tc, dest, `${dest.name.toLowerCase()} wins (${count} of ${tc.members.length})`);
+  const name = dest.name.toLowerCase();
+  const n = tc.members.length;
+  await lockDestination(tc, dest, count >= n && n > 1 ? `🎉 ${name} it is! unanimous, ${count} for ${n}` : `🎉 ${name} it is! ${count} of ${n} votes`);
   return true;
 }
 
@@ -239,10 +345,10 @@ export async function lockDestination(tc: TurnCtx, dest: Destination, headline: 
     locked_at: tc.now,
   });
   for (const p of await openPolls(tc.chat.id)) if (p.kind === "destination") await closePoll(p.id, null, tc.now);
-  const when = start && end ? `locked in for ${formatRange(start, end)} 🎉` : "locked in. now we just need dates";
-  say(tc, `${headline}. ${dest.name.toLowerCase()} is ${when}`);
+  say(tc, `${headline}\n${start && end ? `locked in for ${formatRange(start, end)}` : "locked in. now we just need dates"}`);
   if (itinerary.length) {
-    say(tc, `rough plan:\n${itinerary.map((d) => `${new Date(`${d.date}T12:00:00Z`).toLocaleDateString("en-US", { weekday: "short", timeZone: "UTC" }).toLowerCase()}: ${d.items.map((i) => i.name.toLowerCase()).join(", ") || "free day"}`).join("\n")}`);
+    const day = (date: string) => new Date(`${date}T12:00:00Z`).toLocaleDateString("en-US", { weekday: "short", timeZone: "UTC" }).toLowerCase();
+    say(tc, `rough plan 🗺️\n${itinerary.map((d) => `${day(d.date)}: ${d.items.map((i) => i.name.toLowerCase()).join(", ") || "free day, do whatever"}`).join("\n")}`);
   }
   if (start && end) {
     // Flight links only for people the last proposal had flying (drivers get none).
@@ -258,8 +364,8 @@ export async function lockDestination(tc: TurnCtx, dest: Destination, headline: 
           .filter((x): x is string => Boolean(x)),
       ),
     ];
-    const flights = iatas.slice(0, 3).map((o) => `flights from ${o}: ${googleFlightsLink(o, dest.iata, start, end)}`);
-    say(tc, [`to book:`, ...flights, `stays: ${googleHotelsLink(dest.name, start, end, Math.min(tc.members.length, 4))}`].join("\n"));
+    const flights = iatas.slice(0, 3).map((o) => `✈️ from ${o.toLowerCase()}: ${googleFlightsLink(o, dest.iata, start, end)}`);
+    say(tc, [`ready to book? links 👇`, ...flights, `🏠 stays: ${googleHotelsLink(dest.name, start, end, Math.min(tc.members.length, 4))}`].join("\n"));
   }
   await fireTripLocked(tc.trip, tc);
 }
@@ -321,7 +427,7 @@ const lockTool: Tool = {
     if (/^\d+$/.test(input) && poll) dest = destinationById(String(poll.options[Number(input) - 1]?.ref ?? ""));
     dest ??= findDestination(input);
     if (!dest) throw new ToolError(`"${input}" isn't a place i have data for`);
-    await lockDestination(tc, dest, `going with ${dest.name.toLowerCase()}`);
+    await lockDestination(tc, dest, `🎉 ${dest.name.toLowerCase()} it is!`);
     return { ok: true, next: "locked; the lock-in message and plan were posted" };
   },
 };
@@ -337,12 +443,17 @@ export const proposalsFeature: Feature = {
 
     if (msg.kind === "poll_vote") {
       const pollMessageId = msg.meta.pollMessageId as string | null;
-      const poll = polls.find((p) => p.provider_poll_id && p.provider_poll_id === pollMessageId) ?? polls.find((p) => p.rendered_as === "native" && optionIndexFor(p, String(msg.meta.optionTitle)) >= 0);
+      const title = String(msg.meta.optionTitle ?? "");
+      const poll =
+        (msg.meta.pollSync ? polls.find((p) => p.id === Number(msg.meta.pollId)) : undefined) ??
+        polls.find((p) => p.provider_poll_id && p.provider_poll_id === pollMessageId) ??
+        polls.find((p) => p.rendered_as === "native" && optionIndexFor(p, title) >= 0);
       if (!poll) return false;
-      const idx = optionIndexFor(poll, String(msg.meta.optionTitle));
-      if (idx < 0) return false;
-      await recordVote(poll.id, msg.person_id, idx, msg.meta.selected !== false, "native", tc.now);
-      await afterVote(poll, tc, msg.person_id, "native", msg);
+      const idx = msg.meta.pollSync ? -1 : optionIndexFor(poll, title);
+      if (idx >= 0) await recordVote(poll.id, msg.person_id, idx, msg.meta.selected !== false, "native", tc.now, { supersedeNonNative: true });
+      // The provider's voter list is the truth: it also catches votes whose webhook was lost or unreadable.
+      await reconcilePollVotes(poll, tc.now);
+      await afterVote(poll, tc, msg.person_id, msg.meta.pollSync ? "sync" : "native", msg);
       return true;
     }
     if (msg.kind === "reaction") {
@@ -360,10 +471,20 @@ export const proposalsFeature: Feature = {
       const poll = polls.find((p) => p.kind === "destination") ?? polls[0]!;
       const titles = poll.options.map((o) => o.title.split(" (")[0]!);
       const idx = parseVote(msg.text, titles);
-      if (idx === null) return false;
-      await recordVote(poll.id, msg.person_id, idx, true, "text", tc.now, { single: true });
-      await afterVote(poll, tc, msg.person_id, "text", msg);
-      return true;
+      if (idx !== null) {
+        // Counts the same as a native vote; one person never counts twice for voting both ways.
+        await recordVote(poll.id, msg.person_id, idx, true, "text", tc.now, { single: true });
+        await reconcilePollVotes(poll, tc.now);
+        await afterVote(poll, tc, msg.person_id, "text", msg);
+        return true;
+      }
+      // "everyone voted" with a native poll open: read the poll and, if it's decided, lock it in.
+      // Otherwise let the turn carry on (the situation shows who's still missing).
+      if (poll.rendered_as === "native" && VOTED_SIGNAL.test(msg.text)) {
+        await reconcilePollVotes(poll, tc.now);
+        if (await afterVote(poll, tc, null, "sync", null)) return true;
+      }
+      return false;
     }
     return false;
   },

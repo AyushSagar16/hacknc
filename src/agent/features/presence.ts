@@ -55,7 +55,8 @@ export const presenceFeature: Feature = {
   async afterTurn(tc) {
     const seconds = nudgeIdleSeconds(tc.cfg);
     if (seconds === 0 || !tc.chat.is_group || tc.chat.quiet_mode) return;
-    if (!tc.batch.some((m) => m.direction === "inbound" && m.person_id !== null && m.kind === "text")) return;
+    // Stale replays (extraction only) don't count: they'd push the come-back-online follow-up out to the idle delay.
+    if (!tc.batch.some((m) => m.direction === "inbound" && m.person_id !== null && m.kind === "text" && m.speakable)) return;
     await scheduleNudge(tc.chat.id, new Date(now().getTime() + seconds * 1000), "idle");
   },
 

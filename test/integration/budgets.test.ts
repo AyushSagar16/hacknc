@@ -66,7 +66,7 @@ describeDb("budgets from Nessie demo profiles", () => {
     await pastIntro(chat);
     await t.app.jobs.runDue();
     const r = await chat.say("maya", "set my budget to 600");
-    expect(r[0]!.text).toBe("set: maya's trip budget is $600");
+    expect(r[0]!.text).toBe("done, maya's trip budget is now $600");
     const budgets = await chat.say("leo", "what's our budget");
     expect(budgets[0]!.text).toContain("maya $600");
   });

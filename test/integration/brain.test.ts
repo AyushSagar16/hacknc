@@ -6,6 +6,14 @@ import { dbAvailable } from "../helpers/db.ts";
 import { pastIntro, quietFake, testAtlas, type TestAtlas } from "../helpers/atlas.ts";
 
 const describeDb = dbAvailable ? describe : describe.skip;
+/** The deterministic ask when everyone is missing dates and home city (wording varies by chat). */
+const ASK_EVERYONE = /everyone.*:\n- when you're free\n- where you'd be leaving from/;
+const situationOf = (req: GenerateRequest) => (req.contents[0]!.parts[0] as { text: string }).text;
+const lastText = (req: GenerateRequest) =>
+  req.contents
+    .at(-1)!
+    .parts.map((p) => ("text" in p ? p.text : ""))
+    .join(" ");
 
 describeDb("brain", () => {
   let t: TestAtlas | undefined;
@@ -135,9 +143,13 @@ describeDb("brain", () => {
     const chat = t.chat("g8", ["maya", "leo", "priya"]);
     await chat.addAtlas();
     const first = await chat.say("maya", "atlas let's plan something");
-    expect(first.map((r) => r.text)).toEqual(["maya + leo + priya: what dates work for you, and where would you be leaving from?"]);
+    expect(first).toHaveLength(1);
+    expect(first[0]!.text).toMatch(ASK_EVERYONE);
+    // Asked again by name with nobody left to ask: no second ask, but never silence either.
     const second = await chat.say("maya", "atlas ok what now");
-    expect(second).toEqual([]);
+    expect(second.map((r) => r.text)).toHaveLength(1);
+    expect(second[0]!.text).not.toMatch(/when you're free/);
+    expect(second[0]!.text).toMatch(/^i'm here\. where things stand:\n- still need: maya's dates \+ home city/);
   });
 
   it("answers in its own words when there's nobody left to ask", async () => {
@@ -147,9 +159,9 @@ describeDb("brain", () => {
     t = await testAtlas({ llm });
     const chat = t.chat("g10", ["maya", "leo", "priya"]);
     await chat.addAtlas();
-    expect((await chat.say("maya", "atlas let's plan something")).map((r) => r.text)).toEqual([
-      "maya + leo + priya: what dates work for you, and where would you be leaving from?",
-    ]);
+    const asked = await chat.say("maya", "atlas let's plan something");
+    expect(asked).toHaveLength(1);
+    expect(asked[0]!.text).toMatch(ASK_EVERYONE);
     expect((await chat.say("maya", "atlas i'm free over winter break")).map((r) => r.text)).toEqual(["sounds like winter break works for maya. leo, priya, same?"]);
   });
 
@@ -197,5 +209,90 @@ describeDb("brain", () => {
     await t.app.jobs.runDue();
     await t.world.waitIdle("g12");
     expect(chat.lastEntry()?.text).toBe("so where are we going");
+  });
+  it("when the gate says SPEAK, the agent is told why and answers instead of second-guessing", async () => {
+    const llm = quietFake();
+    t = await testAtlas({ llm });
+    const chat = t.chat("g13", ["maya", "leo", "priya"]);
+    await pastIntro(chat);
+    llm.set("gate", () => jsonResult({ decision: "SPEAK", reason: "everyone voted: announce the winner" }));
+    llm.set("agent", (req) => (situationOf(req).includes("you're chiming in because: everyone voted: announce the winner") ? textResult("lisbon it is 🎉") : textResult("NO_REPLY")));
+    const replies = await chat.say("leo", "ok everyone voted");
+    expect(replies.map((r) => r.text)).toEqual(["lisbon it is 🎉"]);
+    const situation = situationOf(llm.calls.filter((c) => c.role === "agent").at(-1)!);
+    expect(situation).not.toContain("often wrong");
+  });
+
+  it("an untagged reply keeps a list together with its lead-in", async () => {
+    const llm = quietFake();
+    t = await testAtlas({ llm });
+    const chat = t.chat("g19", ["maya", "leo", "priya"]);
+    await pastIntro(chat);
+    llm.set("gate", () => jsonResult({ decision: "SPEAK", reason: "leo asked what to do in lisbon" }));
+    llm.set("agent", () => textResult("a few lisbon picks, leo:\n\n- alfama at sunset\n- belém pastries\n\nwant me to add them to the plan?"));
+    expect((await chat.say("leo", "what should we do there"))[0]!.text).toBe("a few lisbon picks, leo:\n- alfama at sunset\n- belém pastries");
+  });
+
+  it("an untagged NO_REPLY is respected without a retry", async () => {
+    const llm = quietFake();
+    t = await testAtlas({ llm });
+    const chat = t.chat("g14", ["maya", "leo", "priya"]);
+    await pastIntro(chat);
+    llm.set("gate", () => jsonResult({ decision: "SPEAK", reason: "trip talk" }));
+    const before = llm.calls.filter((c) => c.role === "agent").length;
+    expect(await chat.say("leo", "lol maya you'd hate the beach")).toEqual([]);
+    expect(llm.calls.filter((c) => c.role === "agent").length - before).toBe(1);
+  });
+
+  it("retries once when the model returns only thoughts (empty text)", async () => {
+    // Seen live: gemini flash-lite returned only thought parts, the text was "" and nothing was sent.
+    const llm = quietFake().set("agent", (req) =>
+      lastText(req).includes("came back empty") ? textResult("gatlinburg in december is cozy: cabins, the smokies, dollywood's lights") : { text: "", functionCalls: [], parts: [{ text: "thinking...", thought: true }] },
+    );
+    t = await testAtlas({ llm });
+    const chat = t.chat("g15", ["maya", "leo", "priya"]);
+    await chat.addAtlas();
+    const replies = await chat.say("maya", "atlas what is there to do?");
+    expect(replies.map((r) => r.text)).toEqual(["gatlinburg in december is cozy: cabins, the smokies, dollywood's lights"]);
+    const agentCalls = llm.calls.filter((c) => c.role === "agent");
+    expect(agentCalls).toHaveLength(2);
+    expect(agentCalls[1]!.thinking).toBe("minimal");
+  });
+
+  it("never stays silent when named, even if the model keeps coming back empty", async () => {
+    const llm = quietFake().set("agent", () => ({ text: "", functionCalls: [], parts: [{ text: "hmm", thought: true }] }));
+    t = await testAtlas({ llm });
+    const chat = t.chat("g16", ["maya", "leo", "priya"]);
+    await chat.addAtlas();
+    const replies = await chat.say("maya", "UNC winter break, I'm free. Atlas. Let's keep moving.");
+    expect(replies).toHaveLength(1);
+    expect(replies[0]!.text).toMatch(/^i'm here\. where things stand:/);
+    expect(llm.calls.filter((c) => c.role === "agent")).toHaveLength(2);
+  });
+
+  it("pushes back once on a NO_REPLY to someone who named atlas", async () => {
+    const llm = quietFake().set("agent", (req) => (lastText(req).includes("NO_REPLY isn't an option") ? textResult("still waiting on leo and priya's dates") : textResult("NO_REPLY")));
+    t = await testAtlas({ llm });
+    const chat = t.chat("g17", ["maya", "leo", "priya"]);
+    await chat.addAtlas();
+    expect((await chat.say("maya", "atlas what happened")).map((r) => r.text)).toEqual(["still waiting on leo and priya's dates"]);
+  });
+
+  it("points the agent at named date periods it should look up", async () => {
+    const llm = quietFake().set("extract", () =>
+      jsonResult({
+        facts: [{ message: 0, about: "maya", key: "date_window", polarity: "positive", explicit: true, retracts: false, confidence: 0.8, quote: "i'm free during nc state's winter break" }],
+        tensions: [],
+      }),
+    );
+    llm.set("agent", () => textResult("ok"));
+    t = await testAtlas({ llm });
+    const chat = t.chat("g18", ["maya", "leo", "priya"]);
+    await chat.addAtlas();
+    await chat.say("maya", "i'm free during nc state's winter break");
+    await chat.say("maya", "atlas so when are we going");
+    const situation = situationOf(llm.calls.filter((c) => c.role === "agent").at(-1)!);
+    expect(situation).toContain(`dates given as a named period, not exact days: Maya ("i'm free during nc state's winter break")`);
+    expect(situation).toContain("set_trip_dates");
   });
 });

@@ -1,0 +1,38 @@
+{
+  "chat_id": "10df84ec-96bc-40ea-84fe-449c38b44e43",
+  "created_at": "2026-10-10T22:30:47.486665Z",
+  "message_id": "ccc2022b-9ff1-4915-9254-89f0d90a3512",
+  "poll": {
+    "options": [
+      {
+        "can_be_edited": false,
+        "creator_handle": { "handle": "+19195550000", "id": "1ac216fb-4fdc-43b8-8b18-21c8402b4816", "is_me": true, "joined_at": "2026-10-10T21:26:56.128565Z", "left_at": null, "service": "iMessage", "status": "active" },
+        "option_id": "38ff39d9-f769-4570-84f0-3a71bff4e0d5",
+        "text": "Medellín (~$835)",
+        "voters": []
+      },
+      {
+        "can_be_edited": false,
+        "creator_handle": { "handle": "+19195550000", "id": "1ac216fb-4fdc-43b8-8b18-21c8402b4816", "is_me": true, "joined_at": "2026-10-10T21:26:56.128565Z", "left_at": null, "service": "iMessage", "status": "active" },
+        "option_id": "d14cc9c0-beff-4dac-a6f6-e24fe8a2e1c2",
+        "text": "Gatlinburg (~$630)",
+        "voters": [
+          { "handle": "+19195550101", "voted_at": "2026-10-10T22:30:53Z" },
+          { "handle": "+19195550102", "voted_at": "2026-10-10T22:30:54Z" },
+          { "handle": "+19195550103", "voted_at": "2026-10-10T22:30:54Z" },
+          { "handle": "+19195550104", "voted_at": "2026-10-10T22:30:55Z" }
+        ]
+      },
+      {
+        "can_be_edited": false,
+        "creator_handle": { "handle": "+19195550000", "id": "1ac216fb-4fdc-43b8-8b18-21c8402b4816", "is_me": true, "joined_at": "2026-10-10T21:26:56.128565Z", "left_at": null, "service": "iMessage", "status": "active" },
+        "option_id": "6e456c97-c4e5-47e9-9dea-dfab23339f11",
+        "text": "Asheville (~$685)",
+        "voters": []
+      }
+    ],
+    "total_voters": 4
+  },
+  "reactions": [],
+  "updated_at": "2026-10-10T22:30:47.486665Z"
+}

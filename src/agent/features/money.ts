@@ -25,6 +25,7 @@ import { buildConstraints } from "../../trips/constraints.ts";
 import { estimateCost } from "../../trips/estimate.ts";
 import { budgetRows } from "../../nessie/budgets.ts";
 import type { AppServices, Feature, TurnCtx } from "../feature.ts";
+import { nameList } from "./planning.ts";
 import type { Figure } from "../figures.ts";
 import { ToolError, num, say, str, strList, type Tool } from "../tools.ts";
 
@@ -163,7 +164,7 @@ function describeSplit(expense: ExpenseRow, tc: TurnCtx): string {
   const others = entries.filter(([id]) => id !== expense.payer_id && expenseShare(expense, id) > 0);
   const amounts = new Set(entries.map(([, c]) => c));
   if (amounts.size <= 2 && Math.max(...amounts) - Math.min(...amounts) <= 1 && entries.length === tc.members.length) {
-    return `split ${entries.length} ways${others.length ? `: ${others.map(([id]) => tc.label(id).toLowerCase()).join(" + ")} owe ${tc.label(expense.payer_id).toLowerCase()} ${formatUsd(others[0]![1], { cents: "always" })} each` : ""}`;
+    return `split ${entries.length} ways${others.length ? `: ${nameList(others.map(([id]) => tc.label(id).toLowerCase()))} owe ${tc.label(expense.payer_id).toLowerCase()} ${formatUsd(others[0]![1], { cents: "always" })} each` : ""}`;
   }
   return others.map(([id, c]) => `${tc.label(id).toLowerCase()} owes ${formatUsd(c, { cents: "always" })}`).join(", ");
 }
@@ -263,7 +264,7 @@ async function balanceLines(tc: TurnCtx): Promise<string[]> {
 async function proposeSettleUp(tc: TurnCtx): Promise<void> {
   const b = await tripBalances(tc.trip.id, tc.members.map((m) => m.id));
   if (b.count === 0) {
-    say(tc, "nothing to settle, no shared expenses logged");
+    say(tc, "nothing to settle yet, no shared expenses logged");
     return;
   }
   if (b.plan.length === 0) {
@@ -282,7 +283,7 @@ async function proposeSettleUp(tc: TurnCtx): Promise<void> {
   say(
     tc,
     `settle-up, the fewest transfers that square everything (${rows.length}):\n${rows.map((r) => `${tc.label(r.from_id).toLowerCase()} → ${tc.label(r.to_id).toLowerCase()} ${formatUsd(r.amount_cents, { cents: "always" })}`).join("\n")}`,
-    `${payers.map((p) => tc.label(p).toLowerCase()).join(" + ")}: reply "confirm" and i'll send yours as a nessie transfer (sandbox money, nothing real moves)`,
+    `${nameList(payers.map((p) => tc.label(p).toLowerCase()))}, reply "confirm" and i'll send yours as a nessie transfer (sandbox money, nothing real moves)`,
   );
 }
 

@@ -9,11 +9,15 @@ import { dbAvailable, freshDb } from "../helpers/db.ts";
 import { quietFake } from "../helpers/atlas.ts";
 import { fakeLinq } from "../helpers/fakeLinq.ts";
 import { callResult, textResult } from "../../src/agent/llm.ts";
+import { reconcileOpenNativePolls, setPollSource } from "../../src/agent/features/proposals.ts";
+import { linqPollSource } from "../../src/transport/linq/platform.ts";
 
 const describeDb = dbAvailable ? describe : describe.skip;
 const SECRET = `whsec_${Buffer.from("atlas-test-secret").toString("base64")}`;
 const LINE = "+19195550000";
 const FRIENDS = ["+19195550101", "+19195550102", "+19195550103"];
+const FOUR = [...FRIENDS, "+19195550104"];
+const NAMES: Record<string, string> = { [FOUR[0]!]: "Maya", [FOUR[1]!]: "Leo", [FOUR[2]!]: "Priya", [FOUR[3]!]: "Sai" };
 
 const freePort = () =>
   new Promise<number>((resolve) => {
@@ -41,18 +45,19 @@ describeDb("Linq line end to end (fake Linq API, real webhook server + Spectrum 
     for (const c of cleanup.reverse()) await c();
     cleanup = [];
     setNessieClient(undefined);
+    setPollSource(undefined);
   });
 
-  async function boot(llm = quietFake()) {
+  async function boot(llm = quietFake(), friends = FRIENDS) {
     const { drop } = await freshDb();
     cleanup.push(drop);
-    const linq = await fakeLinq({ line: LINE, members: FRIENDS });
+    const linq = await fakeLinq({ line: LINE, members: friends });
     cleanup.push(linq.close);
     const port = await freePort();
     const cfg = loadConfig({ ...process.env, IMESSAGE_MODE: "linq", LINQ_API_KEY: "test", LINQ_API_URL: linq.url, LINQ_WEBHOOK_PORT: String(port), LINQ_WEBHOOK_MODE: "subscription", LINQ_WEBHOOK_SECRET: SECRET, LLM_MODE: "fake" });
     setConfig(cfg);
     setNessieClient(null);
-    app = await startAtlas({ cfg, llm, debounceMs: 20, maxWaitMs: 300, pacing: () => 0, startJobs: false, names: (h) => ({ [FRIENDS[0]!]: "Maya", [FRIENDS[1]!]: "Leo", [FRIENDS[2]!]: "Priya" })[h] });
+    app = await startAtlas({ cfg, llm, debounceMs: 20, maxWaitMs: 300, pacing: () => 0, startJobs: false, names: (h) => NAMES[h] });
     const post = async (eventType: string, data: unknown, opts: { id?: string; sign?: boolean; tamper?: boolean } = {}) => {
       const id = opts.id ?? `wh_${Math.random().toString(36).slice(2)}`;
       const body = JSON.stringify({ api_version: "v3", webhook_version: "2026-02-03", event_type: eventType, event_id: id, created_at: new Date().toISOString(), data });
@@ -72,6 +77,36 @@ describeDb("Linq line end to end (fake Linq API, real webhook server + Spectrum 
       ...extra,
     });
     return { linq, post, text };
+  }
+
+  /** Atlas joins a group of `friends`, everyone sets a budget, and Atlas posts a native poll. */
+  async function bootWithPoll(friends: string[], llm = quietFake()) {
+    const booted = await boot(llm, friends);
+    const { linq, post, text } = booted;
+    await post("participant.added", { chat_id: "chat_1", handle: LINE });
+    await until(() => linq.sends().length >= 3);
+    for (const [i, f] of friends.entries()) await post("message.received", text(`b${i}`, f, "set my budget to 900"));
+    await until(() => linq.sends().length >= 3 + friends.length);
+    await post("message.received", text("p1", friends[0]!, "atlas give us some options"));
+    await until(() => linq.calls.some((c) => c.path.endsWith("/polls")));
+    const [pollId] = [...linq.polls.keys()];
+    await until(async () => (await q(`SELECT 1 FROM polls WHERE provider_poll_id = $1`, [pollId])).length > 0);
+    // A vote webhook exactly as Linq sends it (see test/fixtures/linq/poll-vote-added.json).
+    const vote = (from: string, optionIdx: number) => {
+      const optionId = linq.vote(pollId!, optionIdx, from);
+      return post("poll.vote.added", {
+        chat: { id: "chat_1", is_group: true, owner_handle: { handle: LINE, is_me: true } },
+        service: "iMessage",
+        direction: "inbound",
+        option_id: optionId,
+        message_id: pollId,
+        sender_handle: { handle: from, is_me: false, status: "active", service: "iMessage" },
+        zero_retention: false,
+      });
+    };
+    const tripStatus = async () => (await q<{ status: string }>(`SELECT status FROM trips`))[0]?.status;
+    const sentText = () => linq.sends().map((s) => JSON.stringify(s.body)).join("\n");
+    return { ...booted, pollId: pollId!, vote, tripStatus, sentText };
   }
 
   it("introduces itself when added, with idempotency keys, and never fails over typing 403s", async () => {
@@ -121,7 +156,78 @@ describeDb("Linq line end to end (fake Linq API, real webhook server + Spectrum 
     // Two of three vote for option 1 in the native poll → decided.
     for (const f of FRIENDS.slice(0, 2)) await post("poll.vote.added", { message_id: pollId, direction: "inbound", chat: { id: "chat_1", is_group: true }, sender_handle: { handle: f }, option_id: `${pollId}_o0` });
     await until(async () => (await q<{ status: string }>(`SELECT status FROM trips`))[0]?.status === "locked");
-    await until(() => linq.sends().some((s) => /wins \(2 of 3\)/.test(JSON.stringify(s.body))));
+    await until(() => linq.sends().some((s) => /it is! 2 of 3 votes/.test(JSON.stringify(s.body))));
+  });
+
+  it("4 native votes in a 4-person group lock the trip and post the lock-in, plan and links unprompted", async () => {
+    const { vote, tripStatus, sentText, linq } = await bootWithPoll(FOUR);
+    const pollSends = linq.sends().length;
+    await q(`UPDATE trips SET start_date = '2026-11-12', end_date = '2026-11-15'`);
+    // The poll cache has no option ids yet (Linq's create response carries none), so the first
+    // vote is resolved through GET /messages/{id}/poll — the shape that used to be misread.
+    await vote(FOUR[0]!, 1);
+    await until(async () => (await q(`SELECT 1 FROM votes`)).length === 1);
+    // A partial tally stays quiet: the votes show on the poll itself.
+    await new Promise((r) => setTimeout(r, 150));
+    expect(linq.sends().length).toBe(pollSends);
+    for (const f of FOUR.slice(1)) await vote(f, 1);
+    await until(async () => (await tripStatus()) === "locked");
+    // A strict majority (3 of 4) already decides; if the 4th lands in the same batch it's unanimous.
+    await until(() => /it is! (unanimous, 4 for 4|3 of 4 votes)/.test(sentText()));
+    await until(() => /locked in for nov 12–15/.test(sentText()) && /rough plan/.test(sentText()) && /ready to book\?/.test(sentText()));
+    const skipped = await q<{ n: number }>(`SELECT count(*)::int AS n FROM webhook_events WHERE event_type = 'poll.vote.added' AND error IS NOT NULL`);
+    expect(skipped[0]!.n).toBe(0);
+  });
+
+  it("reconciles from the poll's voter list: lost vote webhooks still count, and the lock-in posts itself", async () => {
+    const { linq, vote, tripStatus, sentText, pollId } = await bootWithPoll(FOUR);
+    setPollSource(linqPollSource(app!.transport.linq!.api));
+    // Three people vote on their phones but Atlas never gets those webhooks…
+    for (const f of FOUR.slice(0, 3)) linq.vote(pollId, 2, f);
+    expect(await tripStatus()).toBe("voting");
+    // …then one webhook arrives, and the provider's list fills in the rest.
+    await vote(FOUR[3]!, 2);
+    await until(async () => (await tripStatus()) === "locked");
+    await until(() => /it is! unanimous, 4 for 4/.test(sentText()));
+    const votes = await q<{ n: number }>(`SELECT count(*)::int AS n FROM votes WHERE selected`);
+    expect(votes[0]!.n).toBe(4);
+  });
+
+  it("'we all voted' makes Atlas read the poll and lock it in", async () => {
+    const { linq, post, text, tripStatus, sentText, pollId } = await bootWithPoll(FOUR);
+    setPollSource(linqPollSource(app!.transport.linq!.api));
+    for (const f of FOUR) linq.vote(pollId, 0, f);
+    await post("message.received", text("v1", FOUR[1]!, "ok we all voted"));
+    await until(async () => (await tripStatus()) === "locked");
+    await until(() => /it is! unanimous/.test(sentText()));
+  });
+
+  it("a text vote and a native vote from the same person count once", async () => {
+    const { post, text, vote, tripStatus } = await bootWithPoll(FOUR);
+    setPollSource(linqPollSource(app!.transport.linq!.api));
+    const titles = await q<{ options: { title: string }[] }>(`SELECT options FROM polls WHERE status = 'open'`);
+    const place = titles[0]!.options[1]!.title.split(" (")[0]!;
+    await post("message.received", text("t1", FOUR[0]!, place));
+    await until(async () => (await q(`SELECT 1 FROM votes`)).length === 1);
+    await vote(FOUR[0]!, 1);
+    await vote(FOUR[1]!, 1);
+    // 2 distinct voters of 4 for option 2: not a strict majority, so still voting.
+    await until(async () => (await q<{ n: number }>(`SELECT count(DISTINCT person_id)::int AS n FROM votes WHERE selected`))[0]!.n === 2);
+    await new Promise((r) => setTimeout(r, 150));
+    expect(await tripStatus()).toBe("voting");
+    await vote(FOUR[2]!, 1);
+    await until(async () => (await tripStatus()) === "locked");
+  });
+
+  it("on startup, open native polls are reconciled and a decided one locks without anyone asking", async () => {
+    const { linq, tripStatus, sentText, pollId } = await bootWithPoll(FOUR);
+    setPollSource(linqPollSource(app!.transport.linq!.api));
+    for (const f of FOUR.slice(0, 3)) linq.vote(pollId, 1, f); // votes while Atlas was "down"
+    expect(await reconcileOpenNativePolls(app!.services)).toBe(1);
+    await until(async () => (await tripStatus()) === "locked");
+    await until(() => /it is! 3 of 4 votes/.test(sentText()));
+    // Nothing left to do on a second pass.
+    expect(await reconcileOpenNativePolls(app!.services)).toBe(0);
   });
 
   it("uses native tapbacks and threaded replies on Linq", async () => {

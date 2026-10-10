@@ -2,6 +2,7 @@
 // each person's resolved preferences (with their own words), what features contribute
 // (budgets, polls, expenses, forecast, recalled memories), the figures it may quote, the
 // recent chat and the new messages. Stateless: rebuilt from the database every turn.
+import { q } from "../db/pool.ts";
 import type { MessageRow } from "../db/repos/core.ts";
 import type { Tension } from "../profile/extract.ts";
 import type { PersonProfile } from "../profile/aggregate.ts";
@@ -13,12 +14,25 @@ const HISTORY_LINES = 30;
 
 export async function describeSituation(
   tc: TurnCtx,
-  opts: { remaining: MessageRow[]; reasons: Map<number, AddressedReason>; hints: string[]; tensions: Tension[]; features: Feature[]; agentName: string },
+  opts: {
+    remaining: MessageRow[];
+    reasons: Map<number, AddressedReason>;
+    hints: string[];
+    tensions: Tension[];
+    features: Feature[];
+    agentName: string;
+    /** Why the speak gate (or a deterministic trigger) decided Atlas should chime in untagged. */
+    speakingBecause?: string;
+  },
 ): Promise<string> {
   const { trip } = tc;
-  const view = await tc.view();
-  const profiles = await tc.profiles();
-  const asked = await askedFields(tc.chat.id);
+  const [view, profiles, asked, sections] = await Promise.all([
+    tc.view(),
+    tc.profiles(),
+    askedFields(tc.chat.id),
+    // Feature sections are independent reads (memory recall's embedding is the slow one): run them together.
+    Promise.all(opts.features.map((f) => (f.situation ? f.situation(tc) : null))),
+  ]);
   const weekday = new Intl.DateTimeFormat("en-US", { weekday: "long", month: "long", day: "numeric", year: "numeric", timeZone: tc.chat.timezone }).format(tc.now);
 
   const lines: string[] = [];
@@ -51,11 +65,18 @@ export async function describeSituation(
         .join("; ")}${view.majorityHasShared ? " — a majority has shared, don't wait on the rest" : ""}`,
     );
   }
+  const vague = await vaguePeriods(tc, profiles);
+  if (vague.length) {
+    const canSearch = tc.features.some((f) => f.tools?.some((t) => t.decl.name === "web_search"));
+    lines.push(
+      `dates given as a named period, not exact days: ${vague.map((v) => `${v.label} ("${v.quote}")`).join("; ")}. ${
+        canSearch ? "look the period up with web_search (e.g. \"unc chapel hill winter break 2026 dates\")" : "ask for the exact days, or use dates you know for sure"
+      }, then once most people's windows are known, call set_trip_dates with dates inside the overlap. never guess the dates.`,
+    );
+  }
   if (opts.tensions.length) lines.push(`tensions: ${opts.tensions.map((t) => `${t.topic} (${t.sides.map((s) => tc.label(s)).join(" vs ")})`).join("; ")}`);
 
-  for (const f of opts.features) {
-    if (!f.situation) continue;
-    const section = await f.situation(tc);
+  for (const section of sections) {
     if (section && section.lines.length) {
       lines.push("", `# ${section.title}`, ...section.lines);
     }
@@ -79,8 +100,15 @@ export async function describeSituation(
   };
   for (const m of opts.remaining) lines.push(`${line(m, tc)}${TAGS[opts.reasons.get(m.id) ?? ""] ?? ""}`);
   if (opts.remaining.length === 0) lines.push("(none: you're following up on your own, see heads up)");
-  if (![...opts.reasons.values()].some((r) => r !== null)) {
-    lines.push("", "note: these don't tag you. a quick check thought you might help, but it's often wrong: reply NO_REPLY unless the group clearly needs you, and keep it to one short bubble.");
+  const reasons = [...opts.reasons.values()];
+  if (reasons.some((r) => r === "named" || r === "reply_to_atlas")) {
+    lines.push("", "note: you were tagged by name, so answer them. NO_REPLY isn't an option here: say what you know, or the one thing you need and from whom.");
+  } else if (opts.remaining.length && !reasons.some((r) => r !== null)) {
+    // The gate already decided to speak; tell the agent why instead of asking it to second-guess.
+    lines.push(
+      "",
+      `note: nobody tagged you, but you're chiming in because: ${opts.speakingBecause?.trim() || "the plan can move forward here"}. do that in one or two short lines. only reply NO_REPLY if the new messages turn out to be pure banter between friends.`,
+    );
   }
   return lines.join("\n");
 }
@@ -109,3 +137,25 @@ function describeProfile(p: PersonProfile): string {
 }
 
 const quote = (r: { quote: string | null } | undefined) => (r?.quote ? ` ("${r.quote}")` : "");
+
+/**
+ * People whose latest date window has no dates at all, only a quote like "free during nc state's
+ * winter break": the extractor can't turn a named period into days, so the agent should look it up.
+ */
+async function vaguePeriods(tc: TurnCtx, profiles: Map<number, PersonProfile>): Promise<{ label: string; quote: string }[]> {
+  const ids = tc.members.map((m) => m.id).filter((id) => {
+    const p = profiles.get(id);
+    return !(p?.earliest && p?.latest);
+  });
+  if (ids.length === 0) return [];
+  const rows = await q<{ person_id: number; quote: string }>(
+    `SELECT person_id, quote FROM (
+       SELECT DISTINCT ON (person_id) person_id, quote, value FROM facts
+        WHERE key = 'date_window' AND NOT retracted AND superseded_by IS NULL AND person_id = ANY($1)
+        ORDER BY person_id, observed_at DESC, id DESC
+     ) latest
+     WHERE quote IS NOT NULL AND quote <> '' AND value->>'earliest' IS NULL AND value->>'latest' IS NULL`,
+    [ids],
+  ).catch(() => []);
+  return rows.map((r) => ({ label: tc.label(r.person_id), quote: r.quote.slice(0, 120) }));
+}

@@ -3,7 +3,12 @@
 // flush them in order with stable client GUIDs. A message that arrives mid-turn cancels the
 // turn (unless a money tool already ran or a bubble already went out) and its messages are
 // released back to the queue — carry-forward without a second table.
+//
+// Cadence: once the brain decides to reply it calls input.typing(), and the typing indicator stays
+// up while it thinks. Each bubble then waits a pause scaled to its length (typing shown again
+// between bubbles), so a multi-bubble reply arrives like a person texting, not as a burst.
 import type { Message, Space } from "spectrum-ts";
+import type { Config } from "../config.ts";
 import { now } from "../clock.ts";
 import { childLog } from "../log.ts";
 import { one, q, tx } from "../db/pool.ts";
@@ -36,6 +41,11 @@ export interface TurnInput {
   nonCancellable(): Promise<void>;
   /** Set when nothing new arrived and Atlas was asked to follow up on its own (why, for the agent). */
   nudge?: string;
+  /**
+   * Call once the turn has decided to reply (before the slow agent call): shows the typing
+   * indicator until the first bubble goes out. A turn that ends silent has it cleared. Never throws.
+   */
+  typing?(): void;
 }
 
 export interface TurnResult {
@@ -52,8 +62,21 @@ export interface PipelineOptions {
   resolveSpace: (chat: ChatRow) => Promise<Space>;
   debounceMs?: number;
   maxWaitMs?: number;
-  /** Milliseconds to pause before a bubble (a person types; 0 in tests). */
+  /**
+   * Milliseconds to pause before a text bubble (a person types; 0 in tests). index counts the
+   * bubbles of one flush, so 0 is the first; time already spent showing typing is taken off it.
+   * Tapbacks and polls never pause.
+   */
   pacing?: (text: string, index: number) => number;
+  /**
+   * Shows or clears the typing indicator. Defaults to the Space's startTyping()/stopTyping() (Linq:
+   * POST/DELETE /chats/{id}/typing; the simulator no-ops). false turns typing off. Errors are swallowed.
+   */
+  typing?: false | ((space: Space, on: boolean) => Promise<void>);
+  /** Atlas's name. A message that names Atlas and reads complete gets the shorter quiet window. */
+  agentName?: string;
+  /** Quiet window for such a message (default 1.5 s; never longer than debounceMs). */
+  addressedDebounceMs?: number;
   /** Seconds after which a delivered message is too old to answer (still extracted). */
   staleAfterSeconds?: number;
   /** Known display names by handle (demo roster, simulator). */
@@ -62,6 +85,56 @@ export interface PipelineOptions {
 }
 
 class Cancelled extends Error {}
+
+/** Never wait longer than this on a typing call before sending (a slow indicator must not delay a reply). */
+const TYPING_TIMEOUT_MS = 1_500;
+
+const sleep = (ms: number) => new Promise<void>((r) => setTimeout(r, ms));
+
+/** Resolves when p settles or after ms, whichever is first; never rejects. */
+const settleWithin = (p: Promise<unknown>, ms: number): Promise<void> =>
+  new Promise<void>((resolve) => {
+    const t = setTimeout(resolve, ms);
+    p.then(
+      () => (clearTimeout(t), resolve()),
+      () => (clearTimeout(t), resolve()),
+    );
+  });
+
+/** Pacing from config: base + per-char, clamped; the first bubble is capped shorter (thinking already took time). */
+export function pacingFromConfig(cfg: Pick<Config, "PACING" | "PACE_BASE_MS" | "PACE_MS_PER_CHAR" | "PACE_MIN_MS" | "PACE_MAX_MS" | "PACE_FIRST_MAX_MS">): (text: string, index: number) => number {
+  if (cfg.PACING === "off") return () => 0;
+  return (text, index) => {
+    const ms = Math.max(cfg.PACE_MIN_MS, Math.min(cfg.PACE_MAX_MS, cfg.PACE_BASE_MS + cfg.PACE_MS_PER_CHAR * text.length));
+    return index === 0 ? Math.min(ms, cfg.PACE_FIRST_MAX_MS) : ms;
+  };
+}
+
+/** The text a person would have to type for this action, or null when it goes out instantly (tapback, poll). */
+function typedText(action: Action): string | null {
+  switch (action.type) {
+    case "say":
+      return action.text;
+    case "link":
+      return action.fallbackText ?? "";
+    default:
+      return null;
+  }
+}
+
+/**
+ * A text that names Atlas and reads like a finished request ("atlas what's our budget?"), as opposed to
+ * a bare "atlas" or "hey atlas" that's usually followed by the actual ask a second later.
+ */
+export function namesAgentComplete(text: string, agentName: string): boolean {
+  const name = agentName.toLowerCase().replace(/[^a-z0-9]/g, "");
+  if (!name) return false;
+  const t = text.toLowerCase();
+  if (!new RegExp(`(^|[^a-z0-9])@?${name}([^a-z0-9]|$)`).test(t)) return false;
+  const rest = t.replace(new RegExp(`@?${name}`, "g"), " ").match(/[a-z0-9']+/g) ?? [];
+  const words = rest.filter((w) => !["hey", "hi", "yo", "ok", "okay"].includes(w));
+  return words.length >= 3 || (words.length >= 1 && /\?\s*$/.test(t));
+}
 
 interface ChatState {
   key: string;
@@ -75,6 +148,12 @@ interface ChatState {
   membersRefreshedAt?: number;
   /** A follow-up was requested; the next turn runs even with no new messages. */
   nudge?: string;
+  /** We last told the platform typing is on (and no bubble has gone out since). */
+  typingOn?: boolean;
+  /** When the current typing stretch started (shortens the first bubble's pause). */
+  typingSince?: number;
+  /** The last typing call in flight; sends wait for it so a late "start" never lands after a bubble. */
+  typingCall?: Promise<void>;
 }
 
 export class Pipeline {
@@ -85,11 +164,15 @@ export class Pipeline {
   private readonly debounceMs: number;
   private readonly maxWaitMs: number;
   private readonly staleAfterMs: number;
+  private readonly addressedDebounceMs: number;
+  private readonly agentName: string;
 
   constructor(private readonly opts: PipelineOptions) {
     this.debounceMs = opts.debounceMs ?? 2_500;
     this.maxWaitMs = opts.maxWaitMs ?? 8_000;
     this.staleAfterMs = (opts.staleAfterSeconds ?? 300) * 1_000;
+    this.addressedDebounceMs = Math.min(opts.addressedDebounceMs ?? 1_500, this.debounceMs);
+    this.agentName = opts.agentName ?? "atlas";
   }
 
   // ---------- inbound ----------
@@ -105,7 +188,7 @@ export class Pipeline {
       }
       const stored = await this.store(event, space);
       if (event.eventId) await markWebhookProcessed(event.eventId);
-      if (stored && st) this.bump(st);
+      if (stored && st) this.bump(st, event.kind === "text" && stored.speakable && namesAgentComplete(event.text, this.agentName));
     } catch (err) {
       this.log.error({ err: (err as Error).message, kind: event.kind }, "failed to store inbound message");
       await recordJobFailure("ingest", null, { event }, err);
@@ -232,7 +315,8 @@ export class Pipeline {
     return st;
   }
 
-  private bump(st: ChatState): void {
+  /** urgent: the newest message names Atlas and reads complete, so wait the shorter quiet window. */
+  private bump(st: ChatState, urgent = false): void {
     if (st.running) {
       if (st.running.cancellable) st.running.abort.abort();
       return; // the running turn reschedules when it ends
@@ -240,7 +324,8 @@ export class Pipeline {
     if (st.timer) clearTimeout(st.timer);
     const t = Date.now();
     st.firstPendingAt ??= t;
-    const delay = Math.max(0, Math.min(this.debounceMs, this.maxWaitMs - (t - st.firstPendingAt)));
+    const quiet = urgent ? this.addressedDebounceMs : this.debounceMs;
+    const delay = Math.max(0, Math.min(quiet, this.maxWaitMs - (t - st.firstPendingAt)));
     st.timer = setTimeout(() => void this.runTurn(st), delay);
   }
 
@@ -251,8 +336,13 @@ export class Pipeline {
     const st = this.state(`${chat.platform}:${chat.provider_chat_id}`);
     st.chatId = chat.id;
     this.byChatId.set(chat.id, st);
-    // A turn already running is talking to the group; never cancel it for a follow-up.
-    if (st.running || st.timer) return;
+    // A turn already running is talking to the group; never cancel it for a follow-up. Keep the
+    // request though: if that turn only replays stale messages (extraction only, never answered,
+    // e.g. right after boot), the follow-up runs once it ends; if it answers something, it's dropped.
+    if (st.running || st.timer) {
+      st.nudge ??= reason;
+      return;
+    }
     st.nudge = reason;
     this.bump(st);
   }
@@ -282,11 +372,13 @@ export class Pipeline {
     const done = new Promise<void>((r) => (resolveDone = r));
     st.running = { turnId, abort, cancellable: true, done };
     const t0 = Date.now();
+    let answers = false;
     try {
       const batch = await claimUnclaimed(chatId, turnId);
-      // New messages win over a follow-up: the turn answers them instead.
+      // New messages win over a follow-up: the turn answers them instead. Stale replays don't count.
+      answers = batch.some((m) => m.speakable);
       const nudge = batch.length === 0 ? st.nudge : undefined;
-      st.nudge = undefined;
+      if (batch.length === 0) st.nudge = undefined;
       if (batch.length === 0 && !nudge) {
         await q(`UPDATE turns SET status='done', route='empty', finished_at=$2 WHERE id=$1`, [turnId, now()]);
         return;
@@ -297,6 +389,9 @@ export class Pipeline {
         batch,
         nudge,
         signal: abort.signal,
+        typing: () => {
+          if (!abort.signal.aborted) void this.setTyping(st, chatId, true);
+        },
         nonCancellable: async () => {
           if (st.running) st.running.cancellable = false;
           await q(`UPDATE turns SET cancellable = false WHERE id = $1`, [turnId]);
@@ -325,9 +420,12 @@ export class Pipeline {
         await q(`UPDATE turns SET status='failed', finished_at=$2 WHERE id=$1`, [turnId, now()]);
       }
     } finally {
+      // Typing still showing with nothing sent after it (a silent, failed or cancelled turn): clear it.
+      if (st.typingOn) await this.setTyping(st, chatId, false);
       st.running = undefined;
       resolveDone();
-      if (await hasUnclaimed(chatId)) this.bump(st);
+      if (answers) st.nudge = undefined;
+      if ((await hasUnclaimed(chatId)) || st.nudge) this.bump(st);
       else this.checkIdle(st);
     }
   }
@@ -366,17 +464,53 @@ export class Pipeline {
     if (!chat) return;
     const space = this.spaces.get(chatId) ?? (await this.opts.resolveSpace(chat));
     this.spaces.set(chatId, space);
+    const st = this.byChatId.get(chatId);
     let sentAny = false;
-    for (const [i, row] of rows.entries()) {
-      if (opts.signal?.aborted && !sentAny && row.turn_id === opts.turnId) throw new Cancelled();
-      const pause = this.opts.pacing?.(row.action.type === "say" ? row.action.text : "", i) ?? 0;
-      if (pause > 0) await new Promise((r) => setTimeout(r, pause));
-      try {
-        const rendered = await render(space, row.action, row.client_guid);
-        if (!sentAny) {
-          sentAny = true;
-          opts.onFirstSend?.();
+    let bubbles = 0;
+    const cancelledBeforeSend = (row: { turn_id: number | null }) => opts.signal?.aborted && !sentAny && row.turn_id === opts.turnId;
+    for (const row of rows) {
+      if (cancelledBeforeSend(row)) throw new Cancelled();
+      const typed = typedText(row.action);
+      if (typed !== null) {
+        let pause = this.opts.pacing?.(typed, bubbles) ?? 0;
+        // The indicator has been up while the brain thought: that already counts as typing time.
+        if (bubbles === 0 && st?.typingSince !== undefined) pause -= Date.now() - st.typingSince;
+        if (pause > 0) {
+          const t0 = Date.now();
+          if (st) await this.setTyping(st, chatId, true);
+          const left = pause - (Date.now() - t0);
+          if (left > 0) await sleep(left);
+          // A newer message may have cancelled the turn, or the row been skipped, while we paused.
+          if (cancelledBeforeSend(row)) throw new Cancelled();
+          const still = await one<{ status: string }>(`SELECT status FROM outbox WHERE id = $1`, [row.id]);
+          if (still?.status !== "pending") continue;
         }
+        bubbles += 1;
+      }
+      // Never let a late typing "start" land after the bubble it was meant to precede.
+      if (st?.typingCall) await settleWithin(st.typingCall, TYPING_TIMEOUT_MS);
+      let rendered: Awaited<ReturnType<typeof render>>;
+      try {
+        rendered = await render(space, row.action, row.client_guid);
+      } catch (err) {
+        const attempts = row.attempts + 1;
+        const failed = attempts >= 5;
+        await q(`UPDATE outbox SET attempts = $2, last_error = $3, status = $4 WHERE id = $1`, [row.id, attempts, (err as Error).message, failed ? "failed" : "pending"]);
+        await recordJobFailure("outbox", row.id, { chatId, action: row.action }, err, chatId);
+        if (!failed) await enqueueJob("outbox.flush", { chatId }, { dueAt: new Date(now().getTime() + 2_000 * 2 ** attempts), singletonKey: `outbox:${chatId}` });
+        return; // keep order: later rows wait for this one
+      }
+      if (!sentAny) {
+        sentAny = true;
+        opts.onFirstSend?.();
+      }
+      // The recipient's typing bubble goes away when a message lands.
+      if (st && rendered.renderedAs !== "skipped") {
+        st.typingOn = false;
+        st.typingSince = undefined;
+      }
+      // The bubble is out. Bookkeeping failures past this point must never re-send it.
+      try {
         await q(`UPDATE outbox SET status = $2, rendered_as = $3, provider_message_id = $4, sent_at = $5, attempts = attempts + 1 WHERE id = $1`, [
           row.id,
           rendered.renderedAs === "skipped" ? "skipped" : "sent",
@@ -386,14 +520,35 @@ export class Pipeline {
         ]);
         if (rendered.renderedAs !== "skipped") await this.logOutbound(chatId, row, rendered);
       } catch (err) {
-        const attempts = row.attempts + 1;
-        const failed = attempts >= 5;
-        await q(`UPDATE outbox SET attempts = $2, last_error = $3, status = $4 WHERE id = $1`, [row.id, attempts, (err as Error).message, failed ? "failed" : "pending"]);
-        await recordJobFailure("outbox", row.id, { chatId, action: row.action }, err, chatId);
-        if (!failed) await enqueueJob("outbox.flush", { chatId }, { dueAt: new Date(now().getTime() + 2_000 * 2 ** attempts), singletonKey: `outbox:${chatId}` });
-        return; // keep order: later rows wait for this one
+        this.log.error({ chatId, outboxId: row.id, err: (err as Error).message }, "sent, but logging the outbound message failed");
+        await recordJobFailure("outbox.log", row.id, { chatId, action: row.action }, err, chatId);
       }
     }
+  }
+
+  /** Show or clear the typing indicator. Never throws, never blocks longer than TYPING_TIMEOUT_MS. */
+  private async setTyping(st: ChatState, chatId: number, on: boolean): Promise<void> {
+    if (this.opts.typing === false) return;
+    if (on === !!st.typingOn) return;
+    st.typingOn = on;
+    st.typingSince = on ? Date.now() : undefined;
+    const call = (async () => {
+      const space = this.spaces.get(chatId) ?? (await this.resolveSpaceFor(chatId));
+      if (!space) return;
+      if (typeof this.opts.typing === "function") await this.opts.typing(space, on);
+      else if (on) await space.startTyping();
+      else await space.stopTyping();
+    })().catch((err) => this.log.debug({ chatId, on, err: (err as Error).message }, "typing indicator failed"));
+    st.typingCall = call;
+    await settleWithin(call, TYPING_TIMEOUT_MS);
+  }
+
+  private async resolveSpaceFor(chatId: number): Promise<Space | undefined> {
+    const chat = await getChat(chatId);
+    if (!chat) return undefined;
+    const space = await this.opts.resolveSpace(chat);
+    this.spaces.set(chatId, space);
+    return space;
   }
 
   private async logOutbound(
@@ -403,11 +558,11 @@ export class Pipeline {
   ): Promise<void> {
     const action = row.action;
     const at = now();
-    await insertMessage({
+    const message = {
       chatId,
       personId: null,
       providerMessageId: rendered.providerMessageIds[0] ?? `out:${row.client_guid}`,
-      direction: "outbound",
+      direction: "outbound" as const,
       kind: action.type === "say" ? "text" : action.type === "react" ? "reaction" : action.type,
       text: rendered.shownText,
       replyToProviderId: action.type === "say" ? (action.replyTo ?? null) : action.type === "react" ? action.targetId : null,
@@ -415,7 +570,16 @@ export class Pipeline {
       sentAt: at,
       receivedAt: at,
       turnId: row.turn_id,
-    });
+    };
+    try {
+      await insertMessage(message);
+    } catch (err) {
+      // The producing turn row is gone (a demo reset or manual cleanup while the row waited to be
+      // sent): keep the history line, just without the turn link.
+      if ((err as { code?: string }).code !== "23503" || row.turn_id === null) throw err;
+      this.log.warn({ chatId, turnId: row.turn_id }, "outbound message's turn no longer exists; logging it without one");
+      await insertMessage({ ...message, turnId: null });
+    }
     if (action.type === "poll" && action.pollId) {
       const [first, ...optionIds] = rendered.providerMessageIds;
       await q(`UPDATE polls SET provider_poll_id = $2, rendered_as = $3, option_message_ids = $4 WHERE id = $1`, [

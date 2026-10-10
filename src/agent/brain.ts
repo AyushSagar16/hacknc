@@ -18,6 +18,8 @@ import { parseCommand, type Command } from "./commands.ts";
 import type { Feature, TurnCtx } from "./feature.ts";
 import { Figures } from "./figures.ts";
 import type { Llm } from "./llm.ts";
+import { nameList } from "./features/planning.ts";
+import { warmMemory } from "./features/memory.ts";
 import { describeSituation } from "./situation.ts";
 import { isSmallTalk } from "./smallTalk.ts";
 import { RECENT_MESSAGE_COUNT, speakGate } from "./speakGate.ts";
@@ -34,8 +36,8 @@ export const UNPROMPTED_PER_HOUR = 12;
 export function introLines(agentName: string): string[] {
   const n = agentName.toLowerCase();
   return [
-    `hi, i'm ${n}, your trip and financial planner. i'll listen in, keep track of what everyone wants and what everyone can spend, and help us actually book this thing. you can tell me to stay quiet any time`,
-    `i read along and jump in to keep the plan moving. tag me ("${n}") whenever. budgets i suggest come from demo spending profiles (sandbox data, not your real bank), and "keep my budget private" means i only ever use yours pooled`,
+    `hi, i'm ${n}, your trip and financial planner 👋 i'll keep track of what everyone wants and can spend, and help you all actually book this thing`,
+    `i read along and jump in when it helps the plan. tag me ("${n}") anytime, or tell me to stay quiet.\nbudgets i suggest come from demo spending profiles (sandbox data, not your real bank), and "keep my budget private" means i only ever use yours pooled`,
     `so where are we thinking, and when?`,
   ];
 }
@@ -58,15 +60,14 @@ export function createBrain(deps: BrainDeps): TurnHandler {
     const { chat } = input;
     const now = clockNow();
     const today = isoDate(now, chat.timezone);
-    let trip = await tripFor(chat.id);
-    trip = await advanceTripStatus(trip, today);
-    const members = await activeMembers(chat.id);
-    const history = await recentMessages(chat.id, 40);
+    const [tripRow, members, history] = await Promise.all([tripFor(chat.id), activeMembers(chat.id), recentMessages(chat.id, 40)]);
+    let trip = await advanceTripStatus(tripRow, today);
     const byId = new Map<number, MemberRow>(members.map((m) => [m.id, m]));
     const label = (id: number | null) => (id === null ? agentName.toLowerCase() : labelOf(byId.get(id) ?? { display_name: null, handle: null }));
     const firstNames = new Map<number, string>(members.map((m) => [m.id, label(m.id).toLowerCase().split(/\s+/)[0] ?? ""]));
 
-    let profilesCache: Awaited<ReturnType<typeof profilesFor>> | undefined;
+    // A promise, so callers racing in parallel (situation, hints) share one query.
+    let profilesCache: ReturnType<typeof profilesFor> | undefined;
     const figures = new Figures();
     const tc: TurnCtx = {
       cfg,
@@ -94,7 +95,7 @@ export function createBrain(deps: BrainDeps): TurnHandler {
       history,
       consumed: new Set(),
       features,
-      profiles: async () => (profilesCache ??= await profilesFor(members.map((m) => m.id))),
+      profiles: () => (profilesCache ??= profilesFor(members.map((m) => m.id))),
       view: async () => {
         const profiles = await tc.profiles();
         return groupView(
@@ -107,7 +108,7 @@ export function createBrain(deps: BrainDeps): TurnHandler {
     const refreshTrip = async () => {
       tc.trip = await tripFor(chat.id);
     };
-    for (const f of features) if (f.figures) figures.addAll(await f.figures(tc));
+    for (const figs of await Promise.all(features.map((f) => (f.figures ? f.figures(tc) : [])))) figures.addAll(figs);
 
     // ---------- private chats ----------
     if (!chat.is_group) {
@@ -123,7 +124,7 @@ export function createBrain(deps: BrainDeps): TurnHandler {
             tc,
             firstTime
               ? `hey! i'm ${agentName.toLowerCase()}, a trip + money planner for group chats. add this number to your friends' group chat and i'll take it from there`
-              : `i work inside group chats. add me to yours and say hi. in here i can show you your own budget breakdown, just ask "what's my budget"`,
+              : `i do my planning inside group chats, so add me to yours and say hi.\nin here i can walk you through your own budget, just ask "what's my budget"`,
           );
         }
       }
@@ -151,7 +152,11 @@ export function createBrain(deps: BrainDeps): TurnHandler {
       tc.sourceMessageId = msg.id;
       if (msg.kind === "membership") {
         if (msg.meta?.change === "added" && route !== "intro" && chat.intro_sent_at) {
-          say(tc, `welcome! i'm ${agentName.toLowerCase()}, the group's trip + money planner. catch up with "${agentName.toLowerCase()} summarize"`);
+          // The message's person is whoever did the adding; the newcomers are in meta.handles.
+          const handles = (msg.meta?.handles as string[] | undefined) ?? [];
+          const added = members.filter((m) => m.handle && handles.includes(m.handle)).map((m) => firstNames.get(m.id) ?? "").filter((n) => /^[a-z]/.test(n));
+          const who = added.length && added.length <= 3 ? ` ${nameList(added)}` : "";
+          say(tc, `welcome${who}! i'm ${agentName.toLowerCase()}, i keep the trip + money side organized.\nsay "${agentName.toLowerCase()} summarize" and i'll catch you up`);
           route = "welcome";
         }
         tc.consumed.add(msg.id);
@@ -193,10 +198,14 @@ export function createBrain(deps: BrainDeps): TurnHandler {
     const addressedMsgs = remaining.filter((m) => reasons.get(m.id) !== null);
     const explicitlyAddressed = remaining.some((m) => reasons.get(m.id) === "named" || reasons.get(m.id) === "reply_to_atlas");
     const addressed = addressedMsgs.length > 0;
+    if (addressed) {
+      // Addressed always speaks: show typing now and overlap the memory recall with extraction.
+      input.typing?.();
+      warmMemory(tc);
+    }
     const quiet = chat.quiet_mode;
-    const hints: string[] = [];
-    for (const f of features) if (f.hints) hints.push(...(await f.hints(tc)));
-    const unprompted = await unpromptedLastHour(chat.id, now);
+    const [hintLists, unprompted] = await Promise.all([Promise.all(features.map((f) => (f.hints ? f.hints(tc) : []))), unpromptedLastHour(chat.id, now)]);
+    const hints: string[] = hintLists.flat();
 
     let gate: { decision: string; reason: string } | undefined;
     let speak = addressed;
@@ -239,15 +248,17 @@ export function createBrain(deps: BrainDeps): TurnHandler {
       if (speak) gate = { decision: "SPEAK", reason: "deterministic trigger" };
     }
     if (!speak) return { actions, route: route === "silent" ? "gate_silent" : route, addressed, gate };
+    input.typing?.();
 
     // ---------- the agent ----------
     const lead = remaining[remaining.length - 1]!;
     tc.senderId = (addressedMsgs[addressedMsgs.length - 1] ?? lead).person_id;
     tc.sourceMessageId = (addressedMsgs[addressedMsgs.length - 1] ?? lead).id;
     await refreshTrip();
-    const situation = await describeSituation(tc, { remaining, reasons, hints, tensions: extracted.tensions, features, agentName });
+    const speakingBecause = addressed ? undefined : gate?.reason === "deterministic trigger" ? "something just changed the plan (see heads up)" : gate?.reason;
+    const situation = await describeSituation(tc, { remaining, reasons, hints, tensions: extracted.tensions, features, agentName, speakingBecause });
     const toolStart = actions.length;
-    const out = await runAgent({ llm, model: cfg.GEMINI_MODEL_AGENT, situation, tools, ctx: tc, signal: input.signal, agentName });
+    const out = await runAgent({ llm, model: cfg.GEMINI_MODEL_AGENT, situation, tools, ctx: tc, signal: input.signal, agentName, mustAnswer: explicitlyAddressed });
     if (out.failed) {
       if (explicitlyAddressed) say(tc, out.failed === "no_key" ? "my language brain isn't connected right now (no gemini key) — commands like \"summarize\", \"what's our budget\" and \"settle up\" still work" : "sorry, my brain glitched for a sec — say that again?");
       return { actions, route: "agent_failed", addressed, gate };
@@ -266,6 +277,11 @@ export function createBrain(deps: BrainDeps): TurnHandler {
       ]);
       bubbles = guarded.bubbles;
       if (bubbles.length === 0 && actions.length === toolStart && explicitlyAddressed) bubbles = [`i don't want to guess at numbers. ask me "what's our budget" or "who owes who" and i'll pull them exactly`];
+    }
+    // Named directly and the model still came back empty: a plain next step beats silence.
+    if (out.empty && explicitlyAddressed && actions.length === toolStart) {
+      log.warn({ retried: out.retried }, "agent stayed empty when addressed; sending the deterministic next step");
+      bubbles = [await nextStepLine(tc, features)];
     }
     // The model's words go first, then whatever its tools posted.
     const toolPosts = actions.splice(toolStart);
@@ -302,23 +318,23 @@ async function runCommand(cmd: Command, msg: MessageRow, tc: TurnCtx, features: 
     case "quiet":
       await setQuiet(tc.chat.id, true);
       tc.chat.quiet_mode = true;
-      say(tc, `got it, i'll stay quiet unless someone tags me. "${n} you can talk again" turns me back on`);
+      say(tc, `got it, i'll stay quiet unless someone tags me 🤐\n"${n} you can talk again" brings me back`);
       return;
     case "unquiet":
       await setQuiet(tc.chat.id, false);
       tc.chat.quiet_mode = false;
-      say(tc, "i'm back. i'll jump in when it helps");
+      say(tc, "i'm back! i'll jump in when it helps the plan");
       return;
     case "help":
       say(
         tc,
-        `i plan trips and the money side: options with prices, polls, budgets from demo spending profiles, payment plans, splitting expenses and settling up. try "${n} summarize", "what's our budget", "keep my budget private", "i paid 64 for dinner", "settle up", or "${n} stay quiet"`,
+        `i handle the trip and the money side:\n- options with prices, then a poll\n- budgets from demo spending profiles\n- payment plans, splitting expenses, settling up\ntry "${n} summarize", "what's our budget", "i paid 64 for dinner" or "settle up". "${n} stay quiet" if i'm too chatty`,
       );
       return;
     case "summarize": {
       const lines: string[] = [];
       for (const f of features) if (f.summary) lines.push(...(await f.summary(tc)));
-      say(tc, lines.length ? `here's where we are:\n${lines.join("\n")}` : "nothing planned yet. where are we thinking, and when?");
+      say(tc, lines.length ? `here's where we are:\n${lines.map((l) => `- ${l}`).join("\n")}` : "nothing planned yet! where are we thinking, and when?");
       return;
     }
     default:
@@ -331,6 +347,14 @@ async function runCommand(cmd: Command, msg: MessageRow, tc: TurnCtx, features: 
       }
       say(tc, "i can't do that one yet");
   }
+}
+
+/** What to say when Atlas was named but the model produced nothing: where things stand and who's next. */
+export async function nextStepLine(tc: TurnCtx, features: Feature[]): Promise<string> {
+  const lines: string[] = [];
+  for (const f of features) if (f.summary) lines.push(...(await f.summary(tc).catch(() => [] as string[])));
+  if (lines.length === 0) return "i'm here! where are we thinking, and when?";
+  return `i'm here. where things stand:\n${lines.map((l) => `- ${l}`).join("\n")}`;
 }
 
 async function runExtraction(tc: TurnCtx, llm: Llm, cfg: Config, agentName: string): Promise<{ tensions: Tension[]; newConstraints: boolean }> {

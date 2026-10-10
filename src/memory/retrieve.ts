@@ -79,12 +79,47 @@ const SCOPE = `embedding IS NOT NULL
   AND ((kind IN ('message', 'decision') AND chat_id = $1) OR (kind = 'fact' AND person_id = ANY($2::bigint[])))
   AND (visibility = 'public' OR (NOT $3::boolean AND person_id = $4::bigint))`;
 
+/** A recall started early (warmRecall) that the matching recall() call picks up instead of re-running. */
+const WARM_TTL_MS = 15_000;
+const warm = new Map<string, { at: number; llm: Llm; hits: Promise<MemoryHit[]> }>();
+
+const warmKey = (input: RecallInput): string =>
+  JSON.stringify([input.chatId, [...input.memberIds].sort((a, b) => a - b), input.query.trim().slice(0, 2_000), input.isGroup, input.viewerId ?? null, [...(input.excludeMessageIds ?? [])].sort((a, b) => a - b), input.limit ?? DEFAULT_LIMIT]);
+
+/**
+ * Start a recall now (e.g. while extraction runs on an addressed turn) so the embedding round trip
+ * overlaps other work. The next recall() with the same input takes the result once; errors are
+ * left for that call to see. Unused warm-ups expire after 15 s.
+ */
+export function warmRecall(input: RecallInput): void {
+  const t = Date.now();
+  for (const [k, w] of warm) if (t - w.at > WARM_TTL_MS) warm.delete(k);
+  const key = warmKey(input);
+  if (warm.has(key)) return;
+  const hits = recallNow(input);
+  hits.catch(() => {}); // observed by the recall() that consumes it
+  warm.set(key, { at: t, llm: input.llm, hits });
+}
+
 export async function recall(input: RecallInput): Promise<MemoryHit[]> {
+  const key = warmKey(input);
+  const w = warm.get(key);
+  if (w) {
+    warm.delete(key);
+    if (w.llm === input.llm && Date.now() - w.at <= WARM_TTL_MS) return w.hits;
+  }
+  return recallNow(input);
+}
+
+async function recallNow(input: RecallInput): Promise<MemoryHit[]> {
   const query = input.query.trim().slice(0, 2_000);
   if (!query) return [];
   const scope = [input.chatId, input.memberIds, input.isGroup, input.viewerId ?? null];
-  // Nothing in scope yet (a brand-new chat): skip the embedding call entirely.
-  if (!(await one(`SELECT 1 FROM memory_chunks WHERE ${SCOPE} LIMIT 1`, scope))) return [];
+  const exclude = input.excludeMessageIds ?? [];
+  // Nothing recallable (a brand-new chat, or every chunk is made of messages the agent already sees,
+  // as in any chat younger than the fresh window): skip the embedding call, ~200–500 ms and a request
+  // from the free-tier embed bucket on every agent turn. Same filter as the query below, minus ranking.
+  if (!(await one(`SELECT 1 FROM memory_chunks WHERE ${SCOPE} AND NOT (cardinality(source_ids) > 0 AND source_ids <@ $5::bigint[]) LIMIT 1`, [...scope, exclude]))) return [];
   const [vector] = await input.llm.embed([query], "query");
   if (!vector || !vector.some((x) => x !== 0)) return [];
   const rows = await tx(async (client) => {
@@ -103,7 +138,7 @@ export async function recall(input: RecallInput): Promise<MemoryHit[]> {
          AND NOT (cardinality(source_ids) > 0 AND source_ids <@ $6::bigint[])
        ORDER BY embedding <=> $5::vector
        LIMIT $7`,
-      [...scope, vectorLiteral(vector), input.excludeMessageIds ?? [], CANDIDATES],
+      [...scope, vectorLiteral(vector), exclude, CANDIDATES],
       client,
     );
   });

@@ -16,7 +16,7 @@ import { inboundExtrasSchema } from "../extras.ts";
 import { currentClientGuid } from "../sendContext.ts";
 import { tapbackNamed } from "../tapbacks.ts";
 import type { EventQueue } from "../queue.ts";
-import { LinqApiError, type LinqApi } from "./api.ts";
+import { LinqApiError, optionIdOf, type LinqApi, type LinqPoll } from "./api.ts";
 import { isSkip, readLinqEvent, readParts, type PollInfo } from "./events.ts";
 import type { WebhookEvent } from "./webhook.ts";
 
@@ -39,6 +39,26 @@ const sentEventSchema = z
   .object({ id: z.string().optional(), message: z.object({ id: z.string() }).passthrough().optional(), chat: z.object({ id: z.string() }).passthrough().optional(), chat_id: z.string().optional() })
   .passthrough();
 
+/**
+ * The provider's authoritative voter list for a native poll, in the shape the proposals feature
+ * reconciles from (`setPollSource(linqPollSource(api))`). Throws if Linq can't be reached.
+ */
+export function linqPollSource(api: Pick<LinqApi, "getPoll">) {
+  return async (providerPollId: string): Promise<{ options: { id: string; text: string; voters: { handle: string; votedAt?: Date }[] }[] }> => {
+    const poll = await api.getPoll(providerPollId);
+    return {
+      options: poll.options.map((o) => ({
+        id: optionIdOf(o),
+        text: o.text,
+        voters: (o.voters ?? []).map((v) => {
+          const t = v.voted_at ? Date.parse(v.voted_at) : Number.NaN;
+          return { handle: v.handle, votedAt: Number.isFinite(t) ? new Date(t) : undefined };
+        }),
+      })),
+    };
+  };
+}
+
 export function linqPlatform(deps: LinqPlatformDeps) {
   const log = childLog({ component: "linq.platform" });
   const { api } = deps;
@@ -47,18 +67,33 @@ export function linqPlatform(deps: LinqPlatformDeps) {
   const polls = new LRUCache<string, PollInfo>({ max: 500 });
   const pollTitles = new Map<string, string>();
 
-  const pollInfo = async (messageId: string): Promise<PollInfo | undefined> => {
+  const toInfo = (messageId: string, poll: Pick<LinqPoll, "options">, title?: string): PollInfo => ({
+    title: pollTitles.get(messageId) ?? title ?? "poll",
+    options: poll.options.map((o) => ({ id: optionIdOf(o), text: o.text, voters: (o.voters ?? []).map((v) => v.handle) })),
+  });
+
+  const pollInfo = async (messageId: string, opts: { fresh?: boolean } = {}): Promise<PollInfo | undefined> => {
     const cached = polls.get(messageId);
-    if (cached && cached.options.every((o) => o.id)) return cached;
+    if (!opts.fresh && cached && cached.options.length > 0 && cached.options.every((o) => o.id)) return cached;
     try {
       const poll = await api.getPoll(messageId);
-      const info = { title: pollTitles.get(messageId) ?? cached?.title ?? "poll", options: poll.options.map((o) => ({ id: o.id, text: o.text })) };
+      if (poll.options.length === 0) return cached;
+      const info = toInfo(messageId, poll, cached?.title);
       polls.set(messageId, info);
       return info;
     } catch (err) {
       log.warn({ err: (err as Error).message, messageId }, "could not read poll");
       return cached;
     }
+  };
+
+  /** Creation is async on Linq's side: read the poll back once it exists so the first vote needs no lookup. */
+  const warmPoll = (messageId: string, attempt = 0) => {
+    setTimeout(() => {
+      void pollInfo(messageId, { fresh: true }).then((info) => {
+        if ((!info || !info.options.every((o) => o.id)) && attempt < 3) warmPoll(messageId, attempt + 1);
+      });
+    }, 1_500 * (attempt + 1)).unref();
   };
 
   const download = async (url: string): Promise<Buffer> => {
@@ -180,13 +215,20 @@ export function linqPlatform(deps: LinqPlatformDeps) {
           // Linq polls carry no question, so the question goes first as its own bubble.
           const question = await api.sendMessage(chatId, [{ type: "text", value: content.title }], { idempotencyKey: guid ? `${guid}:q` : undefined });
           ownMessageIds.set(question.id, true); // ours, so its message.sent echo isn't taken for a rival
-          const { messageId } = await api.createPoll(
+          const created = await api.createPoll(
             chatId,
             content.options.map((o) => o.title),
             guid,
           );
+          const { messageId } = created;
           pollTitles.set(messageId, content.title);
-          polls.set(messageId, { title: content.title, options: content.options.map((o) => ({ id: "", text: o.title })) });
+          if (created.options) {
+            polls.set(messageId, toInfo(messageId, { options: created.options }, content.title));
+          } else {
+            // Titles now (ids unknown until Linq has made the poll), real option ids shortly after.
+            polls.set(messageId, { title: content.title, options: content.options.map((o) => ({ id: "", text: o.title })) });
+            warmPoll(messageId);
+          }
           return record(messageId, content, chatId);
         }
         case "richlink": {

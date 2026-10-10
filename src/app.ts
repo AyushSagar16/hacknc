@@ -7,14 +7,16 @@ import { createBrain } from "./agent/brain.ts";
 import type { AppServices, Feature } from "./agent/feature.ts";
 import { planningFeature } from "./agent/features/planning.ts";
 import { budgetsFeature } from "./agent/features/budgets.ts";
-import { proposalsFeature } from "./agent/features/proposals.ts";
+import { proposalsFeature, reconcileOpenNativePolls, setPollSource } from "./agent/features/proposals.ts";
+import { linqPollSource } from "./transport/linq/platform.ts";
 import { moneyFeature } from "./agent/features/money.ts";
 import { weatherFeature } from "./agent/features/weather.ts";
 import { memoryFeature } from "./agent/features/memory.ts";
 import { presenceFeature, scheduleOnlineNudges } from "./agent/features/presence.ts";
+import { searchFeature } from "./agent/features/search.ts";
 import { createLlm, type Llm } from "./agent/llm.ts";
 import { JobRunner, pruneOld } from "./pipeline/jobs.ts";
-import { Pipeline } from "./pipeline/pipeline.ts";
+import { Pipeline, pacingFromConfig } from "./pipeline/pipeline.ts";
 import { createTransport, type Transport } from "./transport/modes.ts";
 import type { SimWorld } from "./transport/sim/platform.ts";
 
@@ -52,9 +54,10 @@ export async function startAtlas(opts: AppOptions): Promise<AtlasApp> {
   await migrate();
   const llm = opts.llm ?? createLlm({ mode: cfg.LLM_MODE, apiKey: cfg.GEMINI_API_KEY, embedModel: cfg.GEMINI_EMBED_MODEL, fallbacks: cfg.GEMINI_FALLBACK_MODELS });
   const jobs = new JobRunner();
-  const features: Feature[] = [planningFeature, budgetsFeature, proposalsFeature, moneyFeature, weatherFeature, memoryFeature, presenceFeature, ...(opts.extraFeatures ?? [])];
+  const features: Feature[] = [planningFeature, budgetsFeature, proposalsFeature, moneyFeature, weatherFeature, memoryFeature, presenceFeature, searchFeature, ...(opts.extraFeatures ?? [])];
 
   const transport = await createTransport(cfg, { world: opts.world });
+  if (transport.linq) setPollSource(linqPollSource(transport.linq.api));
   let pipeline!: Pipeline;
   const brain = createBrain({ cfg, llm, features });
   pipeline = new Pipeline({
@@ -62,7 +65,9 @@ export async function startAtlas(opts: AppOptions): Promise<AtlasApp> {
     resolveSpace: (chat) => transport.resolveSpace(chat),
     debounceMs: opts.debounceMs,
     maxWaitMs: opts.maxWaitMs,
-    pacing: opts.pacing ?? defaultPacing,
+    pacing: opts.pacing ?? pacingFromConfig(cfg),
+    agentName: cfg.AGENT_NAME,
+    addressedDebounceMs: cfg.ADDRESSED_DEBOUNCE_MS,
     names: opts.names,
     onNewMember: async (chatId, personId) => {
       for (const f of features) if (f.onNewMember) await f.onNewMember(chatId, personId, services).catch((err) => log.warn({ err: (err as Error).message, feature: f.name }, "onNewMember failed"));
@@ -110,6 +115,9 @@ export async function startAtlas(opts: AppOptions): Promise<AtlasApp> {
   if (warm) void warm.call(llm, [cfg.GEMINI_MODEL_AGENT, cfg.GEMINI_MODEL_GATE, cfg.GEMINI_MODEL_EXTRACT]).then((r) => log.info({ models: r }, "gemini warm-up"));
 
   await pipeline.recover();
+  // Votes cast while Atlas was offline (or dropped) are synced from the provider's voter list.
+  const synced = await reconcileOpenNativePolls(services).catch((err) => (log.warn({ err: (err as Error).message }, "poll reconcile failed"), 0));
+  if (synced) log.info({ polls: synced }, "synced open polls");
   // Coming online: follow up in groups that were mid-conversation when Atlas was last running.
   const followUps = await scheduleOnlineNudges(cfg).catch((err) => (log.warn({ err: (err as Error).message }, "online follow-ups not scheduled"), 0));
   if (followUps) log.info({ chats: followUps }, "following up in groups with an unanswered message");
@@ -134,10 +142,4 @@ export async function startAtlas(opts: AppOptions): Promise<AtlasApp> {
       await done;
     },
   };
-}
-
-/** A person types: ~25 ms per character, between 0.6 and 2.5 s, none before the first bubble. */
-export function defaultPacing(text: string, index: number): number {
-  if (index === 0) return 0;
-  return Math.max(600, Math.min(2_500, text.length * 25));
 }
