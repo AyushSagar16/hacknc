@@ -7,7 +7,7 @@ import { ADMIN_URL, TEMPLATE } from "./global-setup.ts";
 export const dbAvailable = process.env.ATLAS_TEST_DB === "ready";
 
 export async function freshDb(): Promise<{ pool: pg.Pool; drop: () => Promise<void> }> {
-  const name = `atlas_test_${randomBytes(4).toString("hex")}`;
+  const name = `atlas_t_${randomBytes(5).toString("hex")}`;
   const admin = new pg.Client({ connectionString: ADMIN_URL });
   await admin.connect();
   await admin.query(`CREATE DATABASE ${name} TEMPLATE ${TEMPLATE}`);

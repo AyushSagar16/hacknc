@@ -58,8 +58,8 @@ describeDb("pipeline on the simulator", () => {
     h.world.queue.push({ id: chat.transcript[0]!.id, content: { type: "text", text: "hello" }, direction: "inbound", sender: { id: chat.members[0]!.handle }, space: { id: "c3" }, timestamp: new Date() });
     await h.world.waitIdle("c3");
     expect(turns).toBe(1);
-    const [{ count }] = await q<{ count: number }>(`SELECT count(*)::int AS count FROM messages WHERE direction='inbound'`);
-    expect(count).toBe(1);
+    const rows = await q<{ count: number }>(`SELECT count(*)::int AS count FROM messages WHERE direction='inbound'`);
+    expect(rows[0]?.count).toBe(1);
   });
 
   it("cancels an in-flight turn when a new message lands and carries its messages forward", async () => {
@@ -154,7 +154,7 @@ describeDb("pipeline on the simulator", () => {
     const replies = await chat.addAtlas("maya");
     expect(kinds).toEqual(["membership"]);
     expect(replies.map((r) => r.text)).toEqual(["hi, i'm atlas"]);
-    const [{ count }] = await q<{ count: number }>(`SELECT count(*)::int AS count FROM chat_members WHERE active`);
-    expect(count).toBe(3);
+    const rows = await q<{ count: number }>(`SELECT count(*)::int AS count FROM chat_members WHERE active`);
+    expect(rows[0]?.count).toBe(3);
   });
 });
