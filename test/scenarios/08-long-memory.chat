@@ -1,0 +1,30 @@
+# Long-term memory (Tiger Data pgvector): Leo mentions Lisbon, a background job embeds the turn,
+# and three weeks later Maya asks Atlas about it. Recall finds Leo's line by meaning, the agent's
+# situation carries it with its date, and the judge console gets a 'memory' trace row.
+today 2026-10-10 14:00
+members maya leo priya
+atlas joins
+~agent text: NO_REPLY
+maya: ok
+~agent text: NO_REPLY
+leo: ok
+~agent text: NO_REPLY
+priya: ok
+leo: i went to lisbon last year and the food was unreal
+expect atlas quiet
+# Embedding happens after the turn, in the job queue: the intro and Leo's line become chunks; the
+# bare "ok"s carry nothing worth recalling and are skipped.
+jobs
+expect sql SELECT count(*)::int AS n FROM memory_chunks WHERE kind = 'message' AND content ILIKE '%lisbon%' = [{"n":1}]
+expect sql SELECT content FROM memory_chunks WHERE kind = 'message' AND content ILIKE '%lisbon%' = [{"content":"[Leo] i went to lisbon last year and the food was unreal"}]
+expect sql SELECT count(*)::int AS n FROM memory_chunks WHERE content ILIKE '%] ok' = [{"n":0}]
+clock +21d
+~agent text: he said he went last year and the food was unreal
+maya: atlas what did leo say about lisbon?
+expect atlas ~ "the food was unreal"
+expect sql SELECT decision FROM llm_traces WHERE role = 'memory' ORDER BY id DESC LIMIT 1 = [{"decision":"1"}]
+expect sql SELECT reason FROM llm_traces WHERE role = 'memory' ORDER BY id DESC LIMIT 1 ~ "message: [leo] i went to lisbon last year"
+# Maya's question and Atlas's answer become memory too, as one window.
+jobs
+expect sql SELECT count(*)::int AS n FROM memory_chunks WHERE kind = 'message' AND content ILIKE '%lisbon%' = [{"n":2}]
+expect sql SELECT content FROM memory_chunks WHERE kind = 'message' ORDER BY id DESC LIMIT 1 = [{"content":"[Maya] atlas what did leo say about lisbon?\n[atlas] he said he went last year and the food was unreal"}]
