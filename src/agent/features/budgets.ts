@@ -5,7 +5,8 @@
 import { now } from "../../clock.ts";
 import { formatUsd } from "../../money/cents.ts";
 import { one, q } from "../../db/pool.ts";
-import { activeMembers, getChat, labelOf, type MessageRow } from "../../db/repos/core.ts";
+import { activeMembers, getChat, getPerson, labelOf, type MessageRow } from "../../db/repos/core.ts";
+import { rosterPersona } from "../../roster.ts";
 import { enqueueJob } from "../../pipeline/jobs.ts";
 import { budgetRows, effectiveCents, ensureBudgets, markAnnounced, pool, setAdjusted, setVisibility, type BudgetRow } from "../../nessie/budgets.ts";
 import { ensureLink, linkFor, seedPerson } from "../../nessie/seed.ts";
@@ -131,7 +132,8 @@ export const budgetsFeature: Feature = {
   tools: [showBudgets, setMyBudget],
 
   async onNewMember(_chatId, personId) {
-    const link = await ensureLink(personId);
+    const person = await getPerson(personId);
+    const link = await ensureLink(personId, { persona: person ? rosterPersona(person.handle) : undefined });
     if (link.seed_status !== "ready") await enqueueJob("nessie.link", { personId }, { singletonKey: `nessie:${personId}` });
   },
 
