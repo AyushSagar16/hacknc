@@ -180,7 +180,7 @@ export class SimChat {
       ...(sender ? { sender: { id: sender.handle } } : {}),
       space: { id: this.id },
       timestamp: now(),
-      ...safeExtras({ ...extras, receivedAt: now(), eventId: entry.id }),
+      ...safeExtras({ ...extras, isGroup: this.members.length > 1, receivedAt: now(), eventId: entry.id }),
     });
     if (!wait) return [];
     await this.world.waitIdle(this.id);

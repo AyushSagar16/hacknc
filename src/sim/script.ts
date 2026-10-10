@@ -58,6 +58,7 @@ export function parseScript(source: string): Step[] {
 
 export class ScenarioRunner {
   chat: SimChat | undefined;
+  private group: SimChat | undefined;
   private last: SimEntry[] = [];
 
   constructor(
@@ -90,6 +91,18 @@ export class ScenarioRunner {
 
     if ((m = /^today\s+(\d{4}-\d{2}-\d{2})(?:\s+(\d{1,2}:\d{2}))?$/.exec(text))) {
       session.clock.set(new Date(`${m[1]}T${(m[2] ?? "15:00").padStart(5, "0")}:00-04:00`));
+      return;
+    }
+    if ((m = /^dm\s+(\w+)$/.exec(text))) {
+      // Switch to a private 1:1 chat with that person (same handle as in the group).
+      const group = this.need();
+      const member = group.member(m[1]!);
+      this.group ??= group;
+      this.chat = session.world.chat(`dm-${member.name}`, [member], LINQ_LIKE);
+      return;
+    }
+    if (text === "group") {
+      if (this.group) this.chat = this.group;
       return;
     }
     if ((m = /^members\s+(.+)$/.exec(text))) {
