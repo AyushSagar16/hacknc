@@ -45,12 +45,19 @@ const schema = z.object({
   GEMINI_EMBED_MODEL: optionalString.transform((v) => v ?? "gemini-embedding-2"),
   /** Tried in order when a model is overloaded or times out. */
   GEMINI_FALLBACK_MODELS: csv.transform((v) => (v.length ? v : ["gemini-3.1-flash-lite", "gemini-3.5-flash-lite", "gemini-3-flash-preview", "gemini-3.8-flash"])),
+  /** Grounded web research (Google Search); defaults to the agent model. */
+  GEMINI_MODEL_RESEARCH: optionalString,
   LLM_MODE: optionalString.transform((v) => v ?? "live").pipe(z.enum(["live", "replay", "record", "fake"])),
 
   NESSIE_API_KEY: optionalString,
   NESSIE_BASE_URL: optionalString.transform((v) => v ?? "https://api.nessieisreal.com"),
 
   SERPAPI_API_KEY: optionalString,
+
+  /** Trip pages: Atlas publishes each trip to Supabase and links SITE_BASE_URL/t/<uuid> in the chat. */
+  SUPABASE_URL: optionalString,
+  SUPABASE_SERVICE_ROLE_KEY: optionalString,
+  SITE_BASE_URL: optionalString.transform((v) => v?.replace(/\/+$/, "")),
 
   /**
    * When a group goes quiet after a human message Atlas didn't answer, follow up after this many

@@ -16,6 +16,7 @@
 //   maya leaves | sam joins
 //   clock +3d | jobs | wait
 //   ~gate SPEAK reason | ~extract [{...}] | ~agent text: words | ~agent call tool {"json":1}
+//   ~research text: SUMMARY: ...\n\nnote (one grounded research answer)
 //   expect atlas ~ "words" | !~ "words" | quiet | says 2 | reacted like
 //   expect poll ~ "lisbon" | expect thread ~ "words"
 //   expect sql SELECT ... = <json> | expect sql SELECT ... ~ "words"
@@ -114,7 +115,7 @@ export class ScenarioRunner {
       this.need().capabilities = m[1] === "local" ? LOCAL_LIKE : LINQ_LIKE;
       return;
     }
-    if ((m = /^~(gate|extract|agent|summary)\s+(.+)$/.exec(text))) {
+    if ((m = /^~(gate|extract|agent|summary|research)\s+(.+)$/.exec(text))) {
       if (!this.opts.live) session.llm.push(m[1] as LlmRole, parseScripted(m[1] as LlmRole, m[2]!));
       return;
     }

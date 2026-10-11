@@ -10,7 +10,7 @@ import { now } from "../clock.ts";
 import { childLog } from "../log.ts";
 import { q } from "../db/pool.ts";
 
-export type LlmRole = "gate" | "agent" | "extract" | "summary";
+export type LlmRole = "gate" | "agent" | "extract" | "summary" | "research";
 
 export type LlmPart =
   | { text: string; thought?: boolean; thoughtSignature?: string }
@@ -39,7 +39,14 @@ export interface GenerateRequest {
   timeoutMs: number;
   maxOutputTokens?: number;
   thinking?: "minimal" | "low" | "medium";
+  /** Ground the answer in Google Search (instead of tools; the two aren't sent together). */
+  grounding?: "google_search";
   trace?: { chatId?: number; turnId?: number };
+}
+
+export interface Source {
+  title: string;
+  url: string;
 }
 
 export interface GenerateResult {
@@ -49,6 +56,8 @@ export interface GenerateResult {
   functionCalls: { name: string; args: Record<string, unknown>; id?: string }[];
   /** The model's parts exactly as returned (thought signatures included) to append to history. */
   parts: LlmPart[];
+  /** Web pages a grounded answer drew on. */
+  sources?: Source[];
 }
 
 export interface Llm {
@@ -167,9 +176,11 @@ export class GeminiLlm implements Llm {
           temperature: req.temperature,
           maxOutputTokens: req.maxOutputTokens,
           abortSignal: signal,
-          ...(req.tools?.length
-            ? { tools: [{ functionDeclarations: req.tools.map((t) => ({ name: t.name, description: t.description, parametersJsonSchema: t.parameters })) }] }
-            : {}),
+          ...(req.grounding
+            ? { tools: [{ googleSearch: {} }] }
+            : req.tools?.length
+              ? { tools: [{ functionDeclarations: req.tools.map((t) => ({ name: t.name, description: t.description, parametersJsonSchema: t.parameters })) }] }
+              : {}),
           ...(req.jsonSchema ? { responseMimeType: "application/json", responseJsonSchema: req.jsonSchema } : {}),
           ...(req.thinking && withThinking ? { thinkingConfig: { thinkingLevel: THINKING[req.thinking] } } : {}),
         },
@@ -180,7 +191,8 @@ export class GeminiLlm implements Llm {
         const reason = candidate?.finishReason ?? response.promptFeedback?.blockReason ?? "no candidates";
         throw new LlmError(`gemini returned nothing (${reason})`, String(reason).includes("SAFETY") ? "refused" : "empty");
       }
-      return { ...toResult(parts), model };
+      const sources = req.grounding ? groundingSources(candidate.groundingMetadata?.groundingChunks) : undefined;
+      return { ...toResult(parts), model, ...(sources ? { sources } : {}) };
     } catch (err) {
       if (err instanceof LlmError) throw err;
       if (signal.aborted) throw new LlmError(`gemini ${model} ${req.role} call timed out after ${req.timeoutMs}ms`, "timeout");
@@ -240,6 +252,22 @@ function toResult(parts: LlmPart[]): GenerateResult {
     .trim();
   const functionCalls = parts.filter((p): p is Extract<LlmPart, { functionCall: unknown }> => "functionCall" in p).map((p) => p.functionCall);
   return { text, functionCalls, parts };
+}
+
+/** Web sources from a grounded answer, deduplicated, in the order the model used them. */
+export function groundingSources(chunks: { web?: { uri?: string; title?: string } }[] | undefined): Source[] {
+  const out: Source[] = [];
+  const seen = new Set<string>();
+  for (const c of chunks ?? []) {
+    const url = c.web?.uri;
+    if (!url || !/^https?:\/\//.test(url)) continue;
+    const title = (c.web?.title || new URL(url).hostname).trim();
+    const key = `${title}|${url}`;
+    if (seen.has(key)) continue;
+    seen.add(key);
+    out.push({ title, url });
+  }
+  return out;
 }
 
 export function normalize(v: number[]): number[] {

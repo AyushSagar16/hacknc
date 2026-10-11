@@ -66,7 +66,8 @@ export function createBrain(deps: BrainDeps): TurnHandler {
     const label = (id: number | null) => (id === null ? agentName.toLowerCase() : labelOf(byId.get(id) ?? { display_name: null, handle: null }));
     const firstNames = new Map<number, string>(members.map((m) => [m.id, label(m.id).toLowerCase().split(/\s+/)[0] ?? ""]));
 
-    let profilesCache: Awaited<ReturnType<typeof profilesFor>> | undefined;
+    // Keyed by trip: a tool that starts or switches trips mid-turn changes which facts count.
+    let profilesCache: { tripId: number; map: Awaited<ReturnType<typeof profilesFor>> } | undefined;
     const figures = new Figures();
     const tc: TurnCtx = {
       cfg,
@@ -94,7 +95,10 @@ export function createBrain(deps: BrainDeps): TurnHandler {
       history,
       consumed: new Set(),
       features,
-      profiles: async () => (profilesCache ??= await profilesFor(members.map((m) => m.id))),
+      profiles: async () => {
+        if (profilesCache?.tripId !== tc.trip.id) profilesCache = { tripId: tc.trip.id, map: await profilesFor(members.map((m) => m.id), { tripId: tc.trip.id }) };
+        return profilesCache.map;
+      },
       view: async () => {
         const profiles = await tc.profiles();
         return groupView(

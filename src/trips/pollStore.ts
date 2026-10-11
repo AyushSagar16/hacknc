@@ -30,8 +30,8 @@ export async function createPoll(
   p: { tripId: number; chatId: number; kind: string; title: string; options: PollOptionRow[]; proposalId?: number | null; at: Date },
   on: Queryable = db(),
 ): Promise<PollRow> {
-  // One open poll per kind per chat: a new one replaces the old.
-  await q(`UPDATE polls SET status = 'closed', closed_at = $3 WHERE chat_id = $1 AND kind = $2 AND status = 'open'`, [p.chatId, p.kind, p.at], on);
+  // One open poll per kind per trip: a new one replaces the old.
+  await q(`UPDATE polls SET status = 'closed', closed_at = $3 WHERE trip_id = $1 AND kind = $2 AND status = 'open'`, [p.tripId, p.kind, p.at], on);
   const row = await one<PollRow>(
     `INSERT INTO polls (trip_id, chat_id, kind, title, options, proposal_id, created_at) VALUES ($1,$2,$3,$4,$5,$6,$7) RETURNING *`,
     [p.tripId, p.chatId, p.kind, p.title, JSON.stringify(p.options), p.proposalId ?? null, p.at],
@@ -40,8 +40,9 @@ export async function createPoll(
   return row!;
 }
 
-export async function openPolls(chatId: number): Promise<PollRow[]> {
-  return q<PollRow>(`SELECT * FROM polls WHERE chat_id = $1 AND status = 'open' ORDER BY id`, [chatId]);
+/** Open polls in a chat; with `tripId`, only that trip's (a chat can have several trips voting). */
+export async function openPolls(chatId: number, tripId?: number): Promise<PollRow[]> {
+  return q<PollRow>(`SELECT * FROM polls WHERE chat_id = $1 AND status = 'open' AND ($2::bigint IS NULL OR trip_id = $2) ORDER BY id`, [chatId, tripId ?? null]);
 }
 
 export async function pollById(id: number): Promise<PollRow | undefined> {

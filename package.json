@@ -17,11 +17,14 @@
     "test:watch": "vitest",
     "test:scenarios": "tsx scripts/e2e.ts",
     "typecheck": "tsc --noEmit",
-    "db:up": "docker compose up -d --wait"
+    "db:up": "docker compose up -d --wait",
+    "site:seed": "tsx --env-file-if-exists=.env scripts/site-seed.ts",
+    "web:dev": "npm --prefix web run dev"
   },
   "dependencies": {
     "@google/genai": "^2.28.0",
     "@spectrum-ts/imessage-local": "^12.10.1",
+    "@supabase/supabase-js": "^2.117.2",
     "lru-cache": "^11.5.3",
     "pg": "^8.23.1",
     "pino": "^10.4.0",

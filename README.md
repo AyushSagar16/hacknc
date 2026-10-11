@@ -77,6 +77,8 @@ judge console is at http://127.0.0.1:8790. Without a Gemini key, deterministic f
 | `GEMINI_MODEL_AGENT` / `_GATE` / `_EXTRACT` / `GEMINI_EMBED_MODEL` | Model overrides |
 | `NESSIE_API_KEY`, `NESSIE_BASE_URL` | Capital One Nessie sandbox |
 | `SERPAPI_API_KEY` | Live Google Flights / Hotels prices (optional; otherwise labeled estimates) |
+| `GEMINI_MODEL_RESEARCH` | Model for Google-Search-grounded trip research (default: the agent model) |
+| `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`, `SITE_BASE_URL` | Trip pages: where Atlas publishes each trip, and where `web/` is deployed. Leave empty to turn trip pages off |
 | `NUDGE_IDLE_SECONDS` | How long a group must be quiet after an unanswered message before Atlas follows up (default 150 on a real line, off in the simulator; 0 = off) |
 | `ALLOWED_CHATS`, `OPERATOR_HANDLES`, `CONSOLE_PORT`, `DEFAULT_TIMEZONE`, `LOG_LEVEL`, `LOG_FILE` | Operations |
 
@@ -116,6 +118,28 @@ name a payee). Nessie data is publicly visible, so Atlas only ever sends fiction
 6. Create a group with your friends and the Atlas number. Atlas introduces itself when Linq
    reports the new chat. To add Atlas to an existing group, Apple may require it to already have
    3 other members.
+
+### Trip pages (web/)
+
+Every trip gets its own page at an unguessable URL (`/t/<uuid>`) with the plan, the day-by-day
+itinerary, sourced research and the trip's group chat. Atlas writes the page itself: the agent
+sends the itinerary and summary as structured JSON (`update_itinerary`, `set_trip_summary`),
+validated before it's saved. It posts the link, deep-linked to the section that changed, when a
+trip starts, gets a plan, gets a weather swap or finishes research.
+iMessage builds each section's preview card from that page's tags and image. A chat can plan
+several trips; `/g/<uuid>` lists them.
+
+1. Create a Supabase project and apply `supabase/migrations` (`supabase link` then
+   `supabase db push`, or paste the SQL into the SQL editor). RLS is on with no policies, so only
+   the service-role key can read or write.
+2. Deploy `web/` to Vercel (project root `web`) with `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY` and
+   `NEXT_PUBLIC_SITE_URL` (see `web/.env.example`).
+3. Set `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY` and `SITE_BASE_URL` in `.env`. `npm run doctor`
+   checks them.
+
+Locally: `supabase start`, put the local keys in `web/.env.local`, then run `npm run web:dev` and
+`npm run site:seed` (it publishes a made-up trip and prints its URLs). Pages show first names only,
+never phone numbers, and nothing about budgets or balances. Private chats are never published.
 
 `npm run ops` has operator commands for a live demo: `failures`, `turns`, `mute`, `weather` (inject
 a forecast), and `say` (send as Atlas).
@@ -201,7 +225,10 @@ src/money       cents, splits, settle-up (exact minimum transfers), budget engin
 src/nessie      client (cache, audit, circuit breaker), personas, seeding, ledger, budgets
 src/trips       catalog, constraints, filter, scoring, live pricing, polls, ledger, itinerary
 src/weather     Open-Meteo client, classification, change detection, cadence, swaps
+src/site        trip pages: snapshot (the privacy boundary), Supabase store, publish + links
 src/console     the judge console
+web             the trip-page site (Next.js on Vercel, reads Supabase server-side)
+supabase        the site's Supabase schema
 scripts         sim, e2e, live, doctor, demo, ops, nessie-probe, migrate
 ```
 

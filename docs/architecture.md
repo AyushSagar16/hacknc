@@ -11,7 +11,7 @@ schedules are deterministic code.
 | Transport | `src/transport/*` | Spectrum app per `IMESSAGE_MODE`. The custom Linq platform (webhook server, signature check, durable event log, ordered queue, send dispatcher incl. native polls). The simulator platform. Normalized inbound events. The outbound action model with text fallbacks |
 | Pipeline | `src/pipeline/*` | Inbox (dedupe per chat); per-chat debounce (2.5 s quiet window, 8 s cap); in-flight cancellation and carry-forward; outbox with stable client GUIDs and resume; Postgres job runner on the app clock; `job_failures` |
 | Brain | `src/agent/brain.ts` | One turn in a fixed order (below). Composes feature modules |
-| Features | `src/agent/features/*` | planning, budgets, proposals, money, weather, memory: each adds tools, fast paths, commands, hints, situation sections, money-guard figures, jobs and lifecycle hooks |
+| Features | `src/agent/features/*` | trips, planning, budgets, proposals, money, weather, memory, research, site: each adds tools, fast paths, commands, hints, situation sections, money-guard figures, jobs and lifecycle hooks |
 | Profile | `src/profile/*` | Fact schema, Gemini extraction (validated), deterministic aggregation, group view |
 | Money | `src/money/*`, `src/trips/ledger.ts` | Cents, splits, exact minimum settle-up, budget engine, paycheck cadence and payment plans, trip ledger |
 | Nessie | `src/nessie/*` | Client (https, audit, last-good cache, circuit breaker), probe-driven capabilities, personas, resumable seeding, ledger replay, budgets |
@@ -19,6 +19,7 @@ schedules are deterministic code.
 | Weather | `src/weather/*`, `features/weather.ts` | Open-Meteo, classification, change detection, cadence, cooldown, swaps |
 | Memory | `src/memory/*`, `features/memory.ts` | Embedding writer, scoped and privacy-filtered recall with recency rerank |
 | Console | `src/console/server.ts` | Localhost judge view of all of the above |
+| Trip pages | `src/site/*`, `features/site.ts`, `web/`, `supabase/` | Per-trip snapshot (first names only, no money), Supabase store, publish-then-link; the Next.js site that renders each section and its iMessage preview |
 
 ## Data model (Postgres)
 
@@ -28,7 +29,11 @@ schedules are deterministic code.
   `job_failures` (30-day retention), `llm_traces`.
 - **Memory per person:** `facts` (each with quote, source message, confidence, visibility,
   `superseded_by`), `asks` (ask-once).
-- **Trip:** `trips`, `proposals`, `polls`, `votes`, `confirmations`.
+- **Trip:** `trips` (several per chat; `chats.focus_trip_id` is the one being planned, `public_id`
+  is the page URL), `proposals`, `polls` (one open per kind per trip), `votes`, `confirmations`,
+  `trip_research` (one grounded note per topic, with sources). `messages.trip_id` and trip-scoped
+  `facts.trip_id` (destination, date window, trip length, budget talk) record which trip they were
+  about; facts about the person carry across trips.
 - **Money:** `budgets` (formula inputs + Nessie ids + visibility), `installments` (Nessie bill ids),
   `expenses` (exact cents, idempotency key, Nessie purchase id), `settlements` (Nessie transfer and
   deposit ids).
@@ -93,6 +98,34 @@ follow-up (no new messages): after a human message Atlas didn't answer, a `chat.
 
 The gate prompt is in `src/agent/prompts/speak-gate.md`, the agent's in `src/agent/prompts/system.md`
 and extraction's in `src/agent/prompts/extract.md`.
+
+## Trip pages
+
+Atlas's Postgres is the source of truth; Supabase holds a published copy that the `web/` site reads
+server-side with the service-role key (RLS on, no policies: the anon key reads nothing, and pages
+are reachable only by UUID).
+
+- **Atlas writes the content.** The agent authors the page as structured JSON through tools:
+  `update_itinerary` (days → items with time, setting and a note; each given day replaces that day)
+  and `set_trip_summary` (2–3 sentences, optional rename). `src/site/content.ts` validates it with
+  zod: dates inside the trip, length limits, and no dollar figures (costs come from the catalog
+  when an item names a catalog activity). Locking in no longer drafts a plan in code: the lock tool
+  tells the agent to write it in the same turn, and a lock decided by a vote queues
+  `site.itinerary_nudge`, a follow-up turn that asks Atlas to write it.
+- **Publish, then link.** iMessage fetches a link's preview when it lands, so the page is written
+  first. On a meaningful change (`start_trip`/`switch_trip`, `update_itinerary`, a weather swap) the turn
+  publishes and appends a `link` action after its own replies; research publishes from its job. If
+  Supabase is down, a `site.announce` job retries and posts the link later.
+- **Silent sync.** After every group turn a debounced `site.sync` job copies new chat lines
+  (`messages.id` > `trips.site_message_cursor`) and the current state, without posting.
+- **Previews.** Each section (`/t/<id>`, `/itinerary`, `/research`, `/chat`) has its own
+  `og:title`/`og:description` and a text-only 1200×630 `opengraph-image`. Links carry
+  `?v=<site_version>` because iMessage caches previews by URL.
+- **Research.** `research_trip` (and every lock-in, for five default topics) queues `research.run`:
+  one Gemini call per topic with Google Search grounding, sources from `groundingMetadata`, saved to
+  `trip_research`, then a one-line-per-topic summary and the research link in the chat.
+- **Privacy.** `src/site/snapshot.ts` is the boundary: first names only (no handles), no budgets,
+  balances or payment plans, and DMs are never published.
 
 ## Memory design
 
