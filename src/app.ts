@@ -7,7 +7,8 @@ import { createBrain } from "./agent/brain.ts";
 import type { AppServices, Feature } from "./agent/feature.ts";
 import { planningFeature } from "./agent/features/planning.ts";
 import { budgetsFeature } from "./agent/features/budgets.ts";
-import { CONNECT_CALLBACK_PATH, connectFeature, handleConnectCallback } from "./agent/features/connect.ts";
+import { CONNECT_CALLBACK_PATH, connectFeature, handleConnectCallback, loadInstanceId } from "./agent/features/connect.ts";
+import { startConnectInbox } from "./connect/inbox.ts";
 import { SIGNATURE_HEADER } from "./connect/token.ts";
 import { proposalsFeature, reconcileOpenNativePolls, setPollSource } from "./agent/features/proposals.ts";
 import { linqPollSource } from "./transport/linq/platform.ts";
@@ -61,6 +62,7 @@ export async function startAtlas(opts: AppOptions): Promise<AtlasApp> {
   const { cfg } = opts;
   const log = childLog({ component: "app" });
   await migrate();
+  const instanceId = await loadInstanceId();
   const llm = opts.llm ?? createLlm({ mode: cfg.LLM_MODE, apiKey: cfg.GEMINI_API_KEY, embedModel: cfg.GEMINI_EMBED_MODEL, fallbacks: cfg.GEMINI_FALLBACK_MODELS });
   const jobs = new JobRunner();
   const features: Feature[] = [
@@ -127,6 +129,8 @@ export async function startAtlas(opts: AppOptions): Promise<AtlasApp> {
   });
   jobs.register("maintenance.prune", async () => pruneOld());
   if (opts.startJobs !== false) jobs.start(1_000);
+  // Approvals the trip site filed in Supabase for this instance (no tunnel needed). Not in the simulator.
+  const connectInbox = opts.startJobs !== false && cfg.IMESSAGE_MODE !== "sim" ? startConnectInbox(cfg, instanceId) : undefined;
 
   let consoleServer: import("node:http").Server | undefined;
   if (opts.console) {
@@ -167,6 +171,7 @@ export async function startAtlas(opts: AppOptions): Promise<AtlasApp> {
     done,
     async stop() {
       jobs.stop();
+      connectInbox?.stop();
       consoleServer?.close();
       await transport.stop();
       await done;

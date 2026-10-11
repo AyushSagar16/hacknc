@@ -1,9 +1,10 @@
 // Bank-connect link tokens, verified server-side. A copy of the logic in Atlas's
 // src/connect/token.ts (keep the two in step):
 //   token = base64url(json) "." base64url(HMAC-SHA256(CONNECT_SECRET, json))
-//   payload { v: 1, p: personId, c: chatId, n: firstName, cb: atlasPublicBaseUrl, exp: epochSeconds }
-// The callback to Atlas is POST `${cb}/connect-callback` with body {"token": ...} and
-// `x-atlas-signature` = base64url(HMAC-SHA256(CONNECT_SECRET, body)).
+//   payload { v: 1, p: personId, c: chatId, n: firstName, cb: atlasPublicBaseUrl, i?: instanceId, exp: epochSeconds }
+// The approval is the body {"token": ...} with `x-atlas-signature` = base64url(HMAC-SHA256(CONNECT_SECRET,
+// body)): filed in Supabase's connect_events under `i` for that Atlas to pick up, or (older links
+// without `i`) POSTed to `${cb}/connect-callback`.
 import "server-only";
 import { createHmac, timingSafeEqual } from "node:crypto";
 
@@ -13,6 +14,7 @@ export interface ConnectPayload {
   c: number;
   n: string;
   cb: string;
+  i?: string;
   exp: number;
 }
 

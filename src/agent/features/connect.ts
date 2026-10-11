@@ -1,6 +1,7 @@
 // Bank-connect onboarding (docs/plan-trip-stages.md §2). The intro (and a late joiner's welcome)
 // asks each person to connect their bank; "yes" gets them a signed link to the consent page on the
-// trip site (web/app/connect/[token]); the page calls back POST /connect-callback, and only then is
+// trip site (web/app/connect/[token]); the page files the approval in Supabase (src/connect/inbox.ts
+// picks it up) or calls back POST /connect-callback, and only then is
 // a Nessie customer linked and seeded for them (the chat calls it "your capital one"). Anyone who
 // says no is asked for a rough budget instead, and anyone who has done neither after a day gets one
 // nudge. Everything here is deterministic; the agent only gets `send_connect_link` for fuzzy asks.
@@ -70,8 +71,16 @@ export function atlasBase(cfg: Pick<Config, "PUBLIC_BASE_URL" | "LINQ_WEBHOOK_PO
   return cfg.PUBLIC_BASE_URL ?? `http://127.0.0.1:${cfg.LINQ_WEBHOOK_PORT}`;
 }
 
+let instanceId: string | undefined;
+
+/** This database's Atlas instance id (migration 014). Links carry it so the site can file approvals in Supabase. */
+export async function loadInstanceId(): Promise<string | undefined> {
+  instanceId = (await one<{ value: string }>(`SELECT value FROM app_meta WHERE key = 'instance_id'`))?.value;
+  return instanceId;
+}
+
 export function connectUrl(cfg: Config, personId: number, chatId: number, firstName: string, at: Date): string {
-  const token = signToken({ p: personId, c: chatId, n: firstName, cb: atlasBase(cfg) }, connectSecret(cfg), at.getTime());
+  const token = signToken({ p: personId, c: chatId, n: firstName, cb: atlasBase(cfg), i: instanceId }, connectSecret(cfg), at.getTime());
   return `${siteBase(cfg)}/connect/${token}`;
 }
 

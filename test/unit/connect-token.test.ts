@@ -16,6 +16,13 @@ describe("connect token", () => {
     expect(verifyToken(token, SECRET, NOW + 48 * 3_600_000)).toEqual({ ok: false, reason: "expired" });
   });
 
+  it("carries the instance id only when there is one", () => {
+    const v = verifyToken(signToken({ ...base, i: "inst-1" }, SECRET, NOW), SECRET, NOW);
+    expect(v.ok && v.payload.i).toBe("inst-1");
+    const plain = verifyToken(signToken({ ...base, i: undefined }, SECRET, NOW), SECRET, NOW);
+    expect(plain.ok && "i" in plain.payload).toBe(false);
+  });
+
   it("is base64url(json).base64url(hmac) and url-safe", () => {
     const token = signToken(base, SECRET, NOW);
     expect(token).toMatch(/^[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+$/);

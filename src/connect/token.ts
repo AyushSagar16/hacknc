@@ -1,9 +1,11 @@
 // Signed bank-connect links and callbacks (docs/plan-trip-stages.md §2).
 //   token  = base64url(json) "." base64url(HMAC-SHA256(CONNECT_SECRET, json))
-//   payload  { v: 1, p: personId, c: chatId, n: firstName, cb: atlasPublicBaseUrl, exp: epochSeconds }
+//   payload  { v: 1, p: personId, c: chatId, n: firstName, cb: atlasPublicBaseUrl, i?: instanceId, exp: epochSeconds }
 // The web consent page (web/lib/connectToken.ts is a copy of this file's logic) verifies the
-// token, then POSTs {"token": ...} to `${cb}/connect-callback` with `x-atlas-signature` =
-// base64url(HMAC-SHA256(CONNECT_SECRET, rawBody)). Atlas checks both before marking anyone connected.
+// token and signs the body {"token": ...}: `x-atlas-signature` = base64url(HMAC-SHA256(CONNECT_SECRET,
+// rawBody)). With `i` it files {token, signature} in Supabase's connect_events for that Atlas to
+// pick up (src/connect/inbox.ts); without it, it POSTs to `${cb}/connect-callback`. Atlas checks
+// both signatures before marking anyone connected.
 import { createHmac, timingSafeEqual } from "node:crypto";
 
 export const CONNECT_TOKEN_TTL_SECONDS = 48 * 3_600;
@@ -20,6 +22,8 @@ export interface ConnectPayload {
   n: string;
   /** Atlas's public base URL; the consent page calls back `${cb}/connect-callback`. */
   cb: string;
+  /** Atlas instance id (app_meta): the site files the approval in connect_events under it. */
+  i?: string;
   /** Expiry, epoch seconds. */
   exp: number;
 }
@@ -34,7 +38,7 @@ function safeEqual(a: Buffer, b: Buffer): boolean {
 }
 
 export function signToken(payload: Omit<ConnectPayload, "v" | "exp"> & { exp?: number }, secret: string, nowMs: number): string {
-  const full: ConnectPayload = { v: 1, p: payload.p, c: payload.c, n: payload.n, cb: payload.cb, exp: payload.exp ?? Math.floor(nowMs / 1000) + CONNECT_TOKEN_TTL_SECONDS };
+  const full: ConnectPayload = { v: 1, p: payload.p, c: payload.c, n: payload.n, cb: payload.cb, ...(payload.i ? { i: payload.i } : {}), exp: payload.exp ?? Math.floor(nowMs / 1000) + CONNECT_TOKEN_TTL_SECONDS };
   const json = JSON.stringify(full);
   return `${b64url(json)}.${b64url(hmac(secret, json))}`;
 }
