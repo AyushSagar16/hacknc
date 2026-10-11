@@ -176,13 +176,16 @@ your capital one so i can plan around real budgets?" (late joiners are asked in 
 
 1. "yes" (or "connect me", anytime) → Atlas posts "here's yours maya 🔒" and a link to
    `SITE_BASE_URL/connect/<token>`. The token is `base64url(json).base64url(HMAC-SHA256(CONNECT_SECRET, json))`
-   over `{v, p: person, c: chat, n: first name, cb: Atlas's public URL, exp}`, valid 48 hours. Fuzzier
-   asks go through the agent's `send_connect_link` tool.
+   over `{v, p: person, c: chat, n: first name, cb: Atlas's public URL, i: instance id, exp}`, valid
+   48 hours. Fuzzier asks go through the agent's `send_connect_link` tool.
 2. The consent page (`web/app/connect/[token]`, styled as a Capital One screen: read-only balances and
-   the last 3 months of transactions) verifies the token, and Connect POSTs `{"token"}` to
-   `${cb}/connect-callback` with `x-atlas-signature` = HMAC of the body.
-3. Atlas's webhook server (`LINQ_WEBHOOK_PORT`, same as `/linq-events`) checks both signatures and the
-   expiry, marks the person connected (idempotent), and a `connect.complete` job links and seeds their
+   the last 3 months of transactions) verifies the token, and Connect files `{token, signature}` in
+   Supabase's `connect_events` under the link's instance id (`signature` = HMAC of `{"token"}`). Links
+   without an instance id POST to `${cb}/connect-callback` instead.
+3. Atlas polls `connect_events` for its own instance id (`src/connect/inbox.ts`, every 3 s), so nothing
+   has to reach it from the internet: bank connect works behind the linq relay with no tunnel. The
+   instance id is per database (`app_meta`), so several Atlases can share one Supabase project. Each
+   approval (or a direct `/connect-callback`) gets the same check: both signatures and the expiry, marks the person connected (idempotent), and a `connect.complete` job links and seeds their
    Nessie customer, computes their budget and says "maya's connected ✓" in the group. No figure:
    budgets stay private.
 4. "no"/"nah" → Atlas asks for a rough number instead ("like 600" sets it). Whoever has neither

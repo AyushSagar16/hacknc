@@ -54,7 +54,8 @@ schedules are deterministic code.
    the inbox. That runs a turn and sends the **intro** once. Members Atlas hasn't heard from are
    learned with `GET /chats/{id}`. The intro (and each late joiner's welcome) asks everyone to
    **connect their capital one**: "yes" gets a signed link to the consent page on the trip site, whose
-   callback (`POST /connect-callback`) links and seeds that person's Nessie customer
+   approval (filed in Supabase's `connect_events` and polled by `src/connect/inbox.ts`, so no tunnel is
+   needed; `POST /connect-callback` for older links) links and seeds that person's Nessie customer
    (a persona-varied profile) and computes their budget. "no" gets asked for a rough number; one
    nudge after a day (`bank_connections`, `features/connect.ts`). The chat calls it their connected Capital One account and never says Nessie,
    sandbox or demo.
