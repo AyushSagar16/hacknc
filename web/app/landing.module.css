@@ -19,8 +19,12 @@
   --imessage: #0a7cff;
   --imessage-top: #3a9bff;
   --ease: cubic-bezier(0.16, 1, 0.3, 1);
+  --nav-h: 56px;
+  --nav-gap: 12px;
 
   position: relative;
+  /* Keeps the nav's top margin inside, so the sky starts at the very top of the page. */
+  display: flow-root;
   overflow-x: clip;
   color: var(--text);
   color-scheme: light;
@@ -42,13 +46,14 @@
 /* ---------- Nav ---------- */
 .nav {
   position: sticky;
-  top: 12px;
+  top: var(--nav-gap);
   z-index: 20;
   display: flex;
   align-items: center;
   gap: 16px;
   max-width: 1080px;
-  margin: 12px auto 0;
+  height: var(--nav-h);
+  margin: var(--nav-gap) auto 0;
   width: calc(100% - 32px);
   padding: 8px 8px 8px 16px;
   border-radius: 999px;
@@ -105,15 +110,16 @@
 .hero {
   position: relative;
   isolation: isolate;
-  min-height: min(calc(100svh - 70px), 940px);
+  min-height: min(100svh, 1010px);
   display: flex;
   flex-direction: column;
   align-items: center;
   justify-content: center;
   text-align: center;
   padding: 72px 16px 120px;
-  margin-top: -70px;
-  padding-top: 142px;
+  /* Slides up under the nav so its sky runs to the top edge. */
+  margin-top: calc(-1 * (var(--nav-h) + var(--nav-gap)));
+  padding-top: calc(var(--nav-h) + var(--nav-gap) + 72px);
 }
 .sky {
   position: absolute;
