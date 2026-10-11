@@ -24,6 +24,10 @@ For each fact give:
   - blackout: start/end YYYY-MM-DD they can't travel ("i'm busy the weekend of the 21st").
   - trip_length: min_nights / max_nights ("only a long weekend" → max 3).
   - dietary: need (vegetarian, vegan, halal, kosher, gluten_free, dairy_free, nut_allergy, pescatarian).
+  - cuisine: a kind of food they want to eat on the trip, lowercase, one per fact ("i'm craving thai and
+    sushi" → cuisine thai, cuisine sushi; "bbq for sure" → bbq; "seafood since we're on the coast" →
+    seafood). positive = wants it, negative = doesn't ("not a fan of seafood"). "i'll eat anything" /
+    "no preference" → cuisine "anything" positive. A diet is dietary, not cuisine ("i'm vegan").
   - activity: tag (beach, food, nightlife, culture, outdoors, hiking, mountains, city, music, relaxing, adventure,
     shopping, history, snow, walkable, budget_friendly, luxury, holiday). holiday = christmas markets, holiday
     lights, festive season stuff. positive = wants it, negative = doesn't.

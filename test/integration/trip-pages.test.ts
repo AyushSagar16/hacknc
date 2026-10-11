@@ -1,5 +1,6 @@
 // Trip pages end to end on the simulator: several trips per chat, publishing to the site store
-// before linking, silent chat sync, and background research.
+// before linking, silent chat sync, background research (saved, never posted), and the
+// day-by-day plan only once the stay is picked.
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { q } from "../../src/db/pool.ts";
 import { callResult, textResult, type GenerateRequest, type GenerateResult } from "../../src/agent/llm.ts";
@@ -69,6 +70,7 @@ describeDb("trip pages", () => {
     setResearchLookup(undefined);
   });
 
+  /** Lock asheville (no plan yet), book a stay, then have Atlas write the plan. */
   async function lockedTrip() {
     const llm = quietFake();
     t = await testAtlas({ llm });
@@ -79,20 +81,37 @@ describeDb("trip pages", () => {
     llm.set("agent", scripted([
       { name: "set_trip_dates", args: { start, end } },
       { name: "lock_destination", args: { destination: "asheville" } },
-      { name: "update_itinerary", args: planFor(start) },
     ]));
     await chat.say("maya", "atlas we're all good with asheville, lock it in");
-    return { llm, chat, before, start, end };
+    const locked = chat.atlasSince(before);
+    await bookStay();
+    const planned = chat.lastEntry();
+    llm.set("agent", scripted([{ name: "update_itinerary", args: planFor(start) }]));
+    await chat.say("maya", "atlas ok write up the plan");
+    return { llm, chat, before, locked, planned, start, end };
   }
 
-  it("puts the plan Atlas writes on the page, links it after the lock-in, then researches", async () => {
-    const { llm, chat, before, start } = await lockedTrip();
+  /** The stay stage's outcome, without its search: a booked hotel and the stage decided. */
+  async function bookStay() {
+    const { updateTrip, tripFor } = await import("../../src/trips/state.ts");
+    const { setStage } = await import("../../src/trips/stages.ts");
+    const [row] = await q<{ id: number }>(`SELECT id FROM chats WHERE provider_chat_id = 'p1'`);
+    const trip = await tripFor(Number(row!.id));
+    await updateTrip(trip.id, { stay: { name: "Aloft Asheville Downtown", kind: "hotel", lat: 35.5935, lon: -82.5536, check_in: trip.start_date, check_out: trip.end_date, booked_at: new Date().toISOString() } });
+    await setStage(trip.id, "stay", "decided");
+  }
+
+  it("puts the plan Atlas writes on the page once the stay is picked, links it, and researches quietly", async () => {
+    const { llm, chat, locked, planned, start } = await lockedTrip();
     const [trip] = await q<{ public_id: string; site_version: number }>(`SELECT public_id, site_version FROM trips`);
-    const sent = chat.atlasSince(before);
+    // The lock-in itself writes no plan and posts no itinerary link.
+    expect(locked.some((e) => /asheville it is!\nlocked in for/.test(e.text))).toBe(true);
+    expect(locked.some((e) => e.kind === "link")).toBe(false);
+    const sent = chat.atlasSince(planned);
     const link = sent.at(-1)!;
     expect(link.kind).toBe("link");
     expect(link.text).toBe(`${BASE}/t/${trip!.public_id}/itinerary?v=${trip!.site_version}`);
-    expect(sent.slice(0, -1).some((e) => /asheville it is!\nlocked in for/.test(e.text))).toBe(true);
+    expect(sent.filter((e) => e.kind === "link")).toHaveLength(1);
     expect(sent.some((e) => /rough plan/.test(e.text))).toBe(false);
 
     const page = store.trips.get(trip!.public_id)!;
@@ -113,35 +132,36 @@ describeDb("trip pages", () => {
     expect(page.travelers).toEqual(["Maya", "Leo", "Priya"]);
     expect(page.overview.booking.map((b) => b.label)).toContain("stays");
 
-    // Locking queued the default research; the job posts a summary and the research link.
+    // Locking queued the default research; the job saves its notes and posts nothing.
     const mark = chat.lastEntry();
     await t!.app.jobs.runDue();
     await t!.world.waitIdle("p1");
     expect(lookups.map((l) => l.purpose)).toEqual(["things_to_do", "food", "events"]);
     expect(lookups[2]!.window).toEqual({ start, end: expect.any(String) });
     void llm;
+    clock.advance(4_500);
+    await t!.app.jobs.runDue();
+    await t!.world.waitIdle("p1");
     const after = chat.atlasSince(mark);
-    expect(after[0]!.text).toBe(
-      "did some digging on asheville for the trip page:\nthings to do: top picks: biltmore estate, white duck tacos\nfood: top picks: biltmore estate, white duck tacos\nevents during the trip: top picks: winter lights, craft fair",
-    );
-    expect(after.at(-1)!.text).toMatch(new RegExp(`^${BASE}/t/${trip!.public_id}/research\\?v=\\d+$`));
+    expect(after.some((e) => /did some digging/.test(e.text))).toBe(false);
+    expect(after.some((e) => /\/research/.test(e.text))).toBe(false);
     const notes = [...store.research.get(trip!.public_id)!.values()];
     expect(notes.map((n) => n.topic)).toEqual(["Things to do", "Food", "Events during the trip"]);
     expect(notes[0]!.sources).toEqual([{ title: "example.org", url: "https://example.org/guide" }]);
   });
 
-  it("asks Atlas to write the plan when a vote locked the trip, and keeps the summary it sets", async () => {
+  it("asks Atlas to write the plan once the group has picked its food & things to do, and keeps the summary it sets", async () => {
     const { llm, chat } = await lockedTrip();
     const [trip] = await q<{ id: number; start_date: string; public_id: string }>(`SELECT id, start_date, public_id FROM trips`);
-    // As if the poll had locked it: no plan yet and no agent in that turn.
+    // As if the picks had just been settled: no plan yet and no agent in that turn.
     const { updateTrip, tripById } = await import("../../src/trips/state.ts");
-    const { siteFeature } = await import("../../src/agent/features/site.ts");
-    await updateTrip(trip!.id, { itinerary: [] });
-    await siteFeature.onTripLocked!((await tripById(trip!.id))!, { notes: new Map() } as never);
+    const { requestItinerary } = await import("../../src/agent/features/site.ts");
+    await updateTrip(trip!.id, { itinerary: [], plan_written_at: null });
+    await requestItinerary((await tripById(trip!.id))!, "picked");
 
     const before = chat.lastEntry();
     llm.set("agent", (req) =>
-      JSON.stringify(req.contents).includes("locked in by the vote")
+      JSON.stringify(req.contents).includes("picked its food & things to do")
         ? scripted([
             { name: "update_itinerary", args: planFor(trip!.start_date) },
             { name: "set_trip_summary", args: { summary: "Asheville is locked in. Next up: book the Biltmore." } },
@@ -179,6 +199,31 @@ describeDb("trip pages", () => {
     expect([...errors]).toEqual([expect.stringMatching(/leave prices out/), expect.stringMatching(/outside the trip/)]);
     const [saved] = await q<{ itinerary: { items: { name: string }[] }[] }>(`SELECT itinerary FROM trips`);
     expect(saved!.itinerary.flatMap((d) => d.items.map((i) => i.name))).not.toContain("Boat tour ($40)");
+  });
+
+  it("won't write the day-by-day plan before the stay is picked", async () => {
+    const llm = quietFake();
+    t = await testAtlas({ llm });
+    const chat = t.chat("p1", ["maya", "leo", "priya"]);
+    await pastIntro(chat);
+    const [start, end] = [plusDays(40), plusDays(43)];
+    const results: { ok: boolean; error?: string }[] = [];
+    llm.set("agent", (req) => {
+      const responses = req.contents.flatMap((c) => c.parts).filter((p) => "functionResponse" in p);
+      results.push(...responses.map((p) => (p as { functionResponse: { response: unknown } }).functionResponse.response as { ok: boolean; error?: string }));
+      return scripted([
+        { name: "set_trip_dates", args: { start, end } },
+        { name: "lock_destination", args: { destination: "asheville" } },
+        { name: "update_itinerary", args: planFor(start) },
+      ])(req);
+    });
+    await chat.say("maya", "atlas lock asheville and give us the itinerary");
+    expect(results.at(-1)).toEqual(expect.objectContaining({ ok: false, error: expect.stringMatching(/stay isn't picked yet/) }));
+    const [saved] = await q<{ itinerary: { items: unknown[] }[]; plan_written_at: Date | null }>(`SELECT itinerary, plan_written_at FROM trips`);
+    expect(saved!.itinerary.flatMap((d) => d.items)).toEqual([]);
+    expect(saved!.plan_written_at).toBeNull();
+    // Locking no longer asks Atlas for a plan either.
+    expect((await q(`SELECT 1 FROM jobs WHERE kind = 'site.itinerary_nudge'`)).length).toBe(0);
   });
 
   it("syncs the chat to the page with first names only", async () => {

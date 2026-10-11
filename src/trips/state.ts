@@ -40,6 +40,8 @@ export interface TripRow {
   deposit_deadline: string | null;
   split_mode: "by_cost" | "even";
   itinerary: ItineraryDay[];
+  /** When the day-by-day plan was written (update_itinerary, or the catalog fallback). */
+  plan_written_at?: Date | null;
   locked_at: Date | null;
   site_version: number;
   booking: { label: string; url: string }[];

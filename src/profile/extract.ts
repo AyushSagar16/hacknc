@@ -275,7 +275,7 @@ export function noiseReason(key: FactKey, value: Record<string, unknown>, text: 
   }
   // "can we do somewhere with beaches?" is a wish for the group; "any veggie spots?" isn't a diet.
   const speaksForSelf = FIRST_PERSON.test(t) || (key === "activity" && /\b(we|us|our|let'?s)\b/i.test(t));
-  if (aboutSender && (key === "dietary" || key === "activity") && QUESTION.test(t) && !speaksForSelf) return "question, not a preference";
+  if (aboutSender && (key === "dietary" || key === "activity" || key === "cuisine") && QUESTION.test(t) && !speaksForSelf) return "question, not a preference";
   return null;
 }
 

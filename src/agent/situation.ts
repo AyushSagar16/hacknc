@@ -160,6 +160,8 @@ function describeProfile(p: PersonProfile): string {
   for (const b of p.blackouts) parts.push(`busy ${b.value.start}–${b.value.end}${quote(b)}`);
   if (p.minNights || p.maxNights) parts.push(`trip length ${p.minNights?.value ?? "?"}–${p.maxNights?.value ?? "?"} nights`);
   if (p.dietary.length) parts.push(p.dietary.map((d) => d.value).join(", "));
+  if (p.cuisines?.length) parts.push(`food they like: ${p.cuisines.map((c) => `${c.value}${quote(c)}`).join(", ")}`);
+  if (p.cuisineDislikes?.length) parts.push(`food they don't want: ${p.cuisineDislikes.map((c) => c.value).join(", ")}`);
   if (p.wants.length) parts.push(`wants ${p.wants.map((x) => `${x.value}${quote(x)}`).join(", ")}`);
   if (p.vetoes.length) parts.push(`vetoes ${p.vetoes.map((x) => `${x.value}${quote(x)}`).join(", ")}`);
   if (p.likes.length) parts.push(`likes ${p.likes.map((x) => x.value).join(", ")}`);

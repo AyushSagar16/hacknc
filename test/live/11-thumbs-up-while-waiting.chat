@@ -1,0 +1,29 @@
+# Real chats: when one person answered and Atlas was waiting on the others, it said nothing at all
+# and looked broken. Now that message gets a 👍. After the stay is booked Atlas asks what food
+# everyone's into (no itinerary yet); answers are saved as cuisine facts, each gets a 👍 while
+# Atlas waits, and the shortlist follows once most have answered.
+today 2026-10-10 14:00
+members maya leo priya
+atlas joins by maya
+maya: i'm free nov 12-15, flying out of raleigh
+expect sql SELECT count(*)::int AS n FROM facts WHERE key IN ('date_window', 'home_city') = [{"n":2}]
+# a word reply or a 👍, never nothing
+expect sql SELECT count(*) > 0 AS answered FROM messages WHERE direction = 'outbound' AND id > (SELECT max(id) FROM messages WHERE text LIKE 'i''m free nov 12-15%') = [{"answered":true}]
+maya: set my budget to 900
+leo: set my budget to 900
+priya: set my budget to 900
+maya: atlas we all agreed on asheville nov 12-15, lock it in
+expect trip.status = "locked"
+expect sql SELECT plan_written_at IS NULL AS no_plan FROM trips = [{"no_plan":true}]
+nearby food google_maps_asheville_restaurants.json
+nearby activity google_maps_asheville_things_to_do.json
+stay booked Aloft Asheville Downtown | 35.5935 -82.5536
+clock +1m
+expect atlas ~ /what kind of food is everyone into/
+maya: indian for sure
+expect sql SELECT value->>'name' AS cuisine FROM facts f JOIN people p ON p.id = f.person_id WHERE f.key = 'cuisine' AND lower(p.display_name) = 'maya' = [{"cuisine":"indian"}]
+expect atlas reacted like
+leo: tacos!! not big on seafood
+clock +1m
+expect atlas ~ /places to eat near aloft asheville downtown/
+expect transcript !~ /did some digging/

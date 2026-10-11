@@ -1,10 +1,10 @@
 // What each section looks like as an iMessage link preview. iMessage reads og:title,
 // og:description, og:site_name and og:image from the page; the image comes from each route's
 // opengraph-image.tsx. Every section gets its own title and description so a link to the
-// itinerary doesn't preview like a link to the research.
+// itinerary doesn't preview like a link to the overview.
 import type { Metadata } from "next";
 import { clip, formatRange, itineraryLine, tripFacts } from "./format";
-import type { SiteResearch, SiteSection, SiteTrip } from "./types";
+import type { SiteSection, SiteTrip } from "./types";
 
 export interface Preview {
   /** Small line above the title on the OG image ("itinerary"). */
@@ -18,11 +18,7 @@ export interface Preview {
 
 const placeOf = (t: SiteTrip) => t.destination ?? t.title;
 
-export function previewFor(
-  section: SiteSection,
-  trip: SiteTrip,
-  extra: { research?: SiteResearch[] } = {},
-): Preview {
+export function previewFor(section: SiteSection, trip: SiteTrip): Preview {
   const when = formatRange(trip.startDate, trip.endDate);
   const place = placeOf(trip);
   const facts = tripFacts(trip);
@@ -35,7 +31,7 @@ export function previewFor(
         description: clip(
           trip.summary ??
             (sentences([trip.overview.stage, trip.overview.decision, trip.travelers.length ? `With ${listNames(trip.travelers)}` : undefined]) ||
-              "The plan and the research in one place."),
+              "The whole plan in one place."),
           180,
         ),
       };
@@ -44,17 +40,8 @@ export function previewFor(
         eyebrow: "itinerary",
         title: place,
         subtitle: [when, trip.itinerary.length ? `${trip.itinerary.length} days planned` : "not planned yet"].filter(Boolean).join(" · "),
-        description: trip.itinerary.length ? itineraryLine(trip.itinerary) : "The day-by-day plan shows up here once the group locks a destination.",
+        description: trip.itinerary.length ? itineraryLine(trip.itinerary) : "The day-by-day plan shows up here once the group picks where to stay and what to eat and do.",
       };
-    case "research": {
-      const notes = extra.research ?? [];
-      return {
-        eyebrow: "research",
-        title: place,
-        subtitle: notes.length ? `${notes.length} topic${notes.length === 1 ? "" : "s"}: ${clip(notes.map((n) => n.topic.toLowerCase()).join(", "), 70)}` : "nothing researched yet",
-        description: notes.length ? clip(notes.map((n) => n.summary).join(" "), 180) : "Ask Atlas to look into visas, weather, neighborhoods or food.",
-      };
-    }
   }
 }
 

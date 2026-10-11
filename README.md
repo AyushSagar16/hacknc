@@ -6,7 +6,10 @@ Add Atlas's number to the group. It introduces itself, then reads along. It keep
 everyone wants ("cancun is too pricey for me", "i'm vegetarian", "i can't fly after the 14th") and
 what everyone can spend, then keeps the plan moving. It proposes priced options that fit the
 group's vibe and limits, runs a poll, finds a place to stay and books it on a shared trip fund everyone pays into on their
-paydays, splits expenses during the trip and settles up at the end. It chimes in whenever the trip or money comes up and stays out of banter.
+paydays, asks what food everyone's into and shortlists places to eat and things to do near the stay,
+writes the day-by-day plan around those picks, splits expenses during the trip and settles up at the
+end. It chimes in whenever the trip or money comes up and stays out of banter. When someone answers
+and Atlas is still waiting on the others, it puts a 👍 on their message instead of going silent.
 When the group goes quiet on an unanswered message, it follows up with the next step, and when most
 of the group has voted it names who hasn't ("skip" decides with the votes in). "atlas stay quiet"
 mutes it.
@@ -149,11 +152,13 @@ last name and a generated address: never a phone number, handle or real last nam
 
 ### Trip pages (web/)
 
-Every trip gets its own page at an unguessable URL (`/t/<uuid>`) with the plan, the day-by-day
-itinerary, sourced research and the trip's group chat. Atlas writes the page itself: the agent
-sends the itinerary and summary as structured JSON (`update_itinerary`, `set_trip_summary`),
-validated before it's saved. It posts the link, deep-linked to the section that changed, when a
-trip starts, gets a plan, gets a weather swap or finishes research.
+Every trip gets its own page at an unguessable URL (`/t/<uuid>`) with the plan and the day-by-day
+itinerary. Atlas writes the page itself: the agent sends the itinerary and summary as structured
+JSON (`update_itinerary`, `set_trip_summary`), validated before it's saved. The itinerary comes
+last, once the stay is booked and the group has picked food & things to do. Atlas posts one link
+per reply, deep-linked to the section that changed, when a trip starts, gets a plan or gets a
+weather swap. Background research (things to do, food, events on the dates) is kept for Atlas and
+the shortlist, not posted as its own section.
 iMessage builds each section's preview card from that page's tags and image. A chat can plan
 several trips; `/g/<uuid>` lists them.
 

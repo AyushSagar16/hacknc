@@ -72,6 +72,79 @@ export function activityQuery(extra?: string): string {
   return extra?.trim() ? extra.trim() : "things to do";
 }
 
+/** Searches per kind beyond the general one, so the group's own tastes find better places. */
+export const MAX_EXTRA_QUERIES = 2;
+
+/** What to search for an interest the group has ("hiking" → "hiking trails"). */
+const INTEREST_QUERY: Record<string, string> = {
+  hiking: "hiking trails",
+  outdoors: "parks and nature",
+  music: "live music venues",
+  nightlife: "bars and nightlife",
+  culture: "museums and galleries",
+  history: "historic sites",
+  beach: "beaches",
+  shopping: "shopping",
+  relaxing: "spas",
+  adventure: "outdoor adventures",
+  snow: "ski and snow activities",
+  holiday: "holiday lights and markets",
+};
+
+/**
+ * Every search for a kind: the general one first, then the group's favourite cuisines (food) or
+ * interests (activities), most wanted first, at most MAX_EXTRA_QUERIES more. A specific ask
+ * ("tacos") is the only search.
+ */
+export function queriesFor(kind: NearbyKind, opts: { dietary?: Iterable<string>; query?: string; cuisines?: Record<string, number>; interests?: Record<string, number> }): string[] {
+  if (opts.query?.trim()) return [kind === "food" ? foodQuery([], opts.query) : activityQuery(opts.query)];
+  const general = kind === "food" ? foodQuery(opts.dietary ?? []) : activityQuery();
+  const ranked = (w: Record<string, number> | undefined) =>
+    Object.entries(w ?? {})
+      .filter(([, n]) => n > 0)
+      .sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]))
+      .map(([k]) => k);
+  const extra =
+    kind === "food"
+      ? ranked(opts.cuisines).filter((c) => c !== "anything").map((c) => foodQuery([], c))
+      : ranked(opts.interests).flatMap((t) => (INTEREST_QUERY[t] ? [INTEREST_QUERY[t]!] : []));
+  return [...new Set([general, ...extra.slice(0, MAX_EXTRA_QUERIES)])];
+}
+
+/** Other words a cuisine goes by on the map ("bbq" places call themselves "barbecue"). */
+const CUISINE_ALIASES: Record<string, string[]> = {
+  bbq: ["barbecue", "bbq", "smokehouse"],
+  barbecue: ["barbecue", "bbq", "smokehouse"],
+  sushi: ["sushi", "japanese"],
+  ramen: ["ramen", "japanese", "noodle"],
+  tacos: ["taco", "mexican", "taqueria"],
+  mexican: ["mexican", "taco", "taqueria"],
+  pizza: ["pizza", "pizzeria", "italian"],
+  seafood: ["seafood", "fish", "oyster", "crab"],
+  burgers: ["burger"],
+  indian: ["indian"],
+  thai: ["thai"],
+  chinese: ["chinese", "dim sum", "szechuan"],
+  korean: ["korean"],
+  southern: ["southern", "soul food"],
+  brunch: ["brunch", "breakfast"],
+  coffee: ["coffee", "cafe"],
+  dessert: ["dessert", "ice cream", "bakery"],
+};
+
+/** How well a restaurant matches what people said they want to eat (+ liked, − not wanted). */
+export function cuisineFit(p: Pick<NearbyPlace, "name" | "category" | "types" | "description">, cuisines: Record<string, number> | undefined): number {
+  if (!cuisines) return 0;
+  const d = [p.name, p.category ?? "", ...p.types, p.description ?? ""].join(" ").toLowerCase();
+  let fit = 0;
+  for (const [c, w] of Object.entries(cuisines)) {
+    if (c === "anything" || w === 0) continue;
+    const words = CUISINE_ALIASES[c] ?? [c.replace(/s$/, "")];
+    if (words.some((word) => new RegExp(`\\b${word.replace(/[^a-z ]/gi, "")}`, "i").test(d))) fit += w;
+  }
+  return fit;
+}
+
 // ---------- parsing ----------
 
 const field = (obj: unknown, key: string): unknown => (obj && typeof obj === "object" ? (obj as Record<string, unknown>)[key] : undefined);
@@ -227,6 +300,8 @@ export interface RankOptions {
   dietary?: Iterable<string>;
   /** Tag → weight: + per person who likes it, − per person who doesn't. */
   interests?: Record<string, number>;
+  /** Cuisine → weight, the same way ("thai": 2 when two people want thai). */
+  cuisines?: Record<string, number>;
   /** People with low mobility: keep it close. */
   lowMobility?: boolean;
   /** Already picked or shown: skip. */
@@ -257,7 +332,7 @@ export function rankPlaces(places: NearbyPlace[], opts: RankOptions = {}): Nearb
 
   const score = (p: NearbyPlace): number => {
     let s = (p.rating ?? 4.2) + Math.log10((p.reviews ?? 50) + 1) * 0.15;
-    if (p.kind === "food") s += dietFit(p, needs) * 0.6;
+    if (p.kind === "food") s += dietFit(p, needs) * 0.6 + Math.max(-1.5, Math.min(1.2, cuisineFit(p, opts.cuisines) * 0.4));
     else s += Math.max(-1, Math.min(1.5, activityTags(p).reduce((sum, t) => sum + (weights[t] ?? 0), 0) * 0.4));
     if (p.distanceM !== undefined) {
       const km = p.distanceM / 1000;
@@ -266,11 +341,24 @@ export function rankPlaces(places: NearbyPlace[], opts: RankOptions = {}): Nearb
     }
     return s;
   };
-  return pool
-    .map((p) => ({ p, s: score(p) }))
-    .sort((a, b) => b.s - a.s || a.p.name.localeCompare(b.p.name))
-    .slice(0, opts.limit ?? SHORTLIST_SIZE)
-    .map((x) => x.p);
+  const ranked = pool.map((p) => ({ p, s: score(p) })).sort((a, b) => b.s - a.s || a.p.name.localeCompare(b.p.name));
+  const limit = opts.limit ?? SHORTLIST_SIZE;
+  const top = ranked.slice(0, limit);
+  // Every cuisine someone asked for gets a spot when there's a place for it ("tacos" from leo
+  // shouldn't lose all five slots to the vegetarian places): it takes the lowest slot that isn't
+  // one of the asked-for cuisines.
+  const asked = Object.entries(opts.cuisines ?? {})
+    .filter(([c, w]) => w > 0 && c !== "anything")
+    .sort((a, b) => b[1] - a[1])
+    .map(([c]) => c);
+  const fits = (p: NearbyPlace, c: string) => p.kind === "food" && cuisineFit(p, { [c]: 1 }) > 0;
+  for (const c of asked) {
+    if (top.some((x) => fits(x.p, c))) continue;
+    const best = ranked.slice(limit).find((x) => fits(x.p, c));
+    const slot = [...top.keys()].reverse().find((i) => !asked.some((a) => fits(top[i]!.p, a)));
+    if (best && slot !== undefined) top[slot] = best;
+  }
+  return top.sort((a, b) => b.s - a.s || a.p.name.localeCompare(b.p.name)).map((x) => x.p);
 }
 
 /** "4.7★, mid-range, 6 min walk" (whatever is known). */
@@ -361,14 +449,19 @@ export async function searchNearby(
   opts: RankOptions & { dest?: Destination; query?: string },
   deps: PriceDeps,
 ): Promise<NearbyResult> {
-  const query = kind === "food" ? foodQuery(opts.dietary ?? [], opts.query) : activityQuery(opts.query);
-  let body: unknown;
-  try {
-    body = stubs.has(kind) ? stubs.get(kind) : await mapsSearch(mapsSearchParams(query, origin), deps);
-  } catch {
-    body = undefined;
-  }
-  const live = body ? parseMapsResults(body, kind) : [];
+  const queries = queriesFor(kind, opts);
+  const query = queries[0]!;
+  // Each search on its own (one failing doesn't sink the rest); duplicates merge in the ranking.
+  const bodies = await Promise.all(
+    queries.map(async (qy) => {
+      try {
+        return stubs.has(kind) ? stubs.get(kind) : await mapsSearch(mapsSearchParams(qy, origin), deps);
+      } catch {
+        return undefined;
+      }
+    }),
+  );
+  const live = bodies.flatMap((body) => (body ? parseMapsResults(body, kind) : []));
   if (live.length) return { places: rankPlaces(live, { ...opts, origin }), source: "serpapi", query };
   const offline = catalogPlaces(opts.dest, kind);
   if (offline.length) return { places: rankPlaces(offline, { ...opts, origin }), source: "catalog", query };

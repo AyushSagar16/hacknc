@@ -173,7 +173,6 @@ await store.upsertMessages(egyptId, messages);
 
 console.log(`egypt:     ${base}/t/${egyptId}`);
 console.log(`itinerary: ${base}/t/${egyptId}/itinerary`);
-console.log(`research:  ${base}/t/${egyptId}/research`);
 console.log(`chat:      ${base}/t/${egyptId}/chat`);
 console.log(`japan:     ${base}/t/${japanId}`);
 console.log(`hub:       ${base}/g/${chatId}`);

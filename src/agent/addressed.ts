@@ -57,7 +57,8 @@ export function addressedReason(input: AddressedInput): AddressedReason {
 
   // Answer to an open question from Atlas?
   const idx = history.findIndex((h) => h.id === message.id);
-  const before = (idx === -1 ? history : history.slice(0, idx)).filter((h) => h.kind === "text" || h.direction === "outbound");
+  // Atlas's own tapbacks (a 👍 on someone's answer) don't close its question for everyone else.
+  const before = (idx === -1 ? history : history.slice(0, idx)).filter((h) => (h.kind === "text" || h.direction === "outbound") && !(h.direction === "outbound" && h.kind === "reaction"));
   let humanSince = 0;
   for (let i = before.length - 1; i >= 0; i--) {
     const h = before[i]!;

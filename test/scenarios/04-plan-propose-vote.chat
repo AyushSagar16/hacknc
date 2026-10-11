@@ -1,4 +1,4 @@
-# Preferences come in naturally; Atlas extracts them silently, names a disagreement once, then
+# Preferences come in naturally; Atlas extracts them silently (a 👍 on what it read), names a disagreement once, then
 # proposes three options that respect every hard constraint (leo's cancun veto + vegetarian,
 # priya can only drive), runs a native poll, and the majority locks it in.
 today 2026-10-10 14:00
@@ -14,7 +14,9 @@ priya: yoo
 maya: ok i'm free nov 12-16, leaving from raleigh, and i want a beach
 ~extract [{"message":0,"about":"leo","key":"destination","polarity":"negative","explicit":true,"retracts":false,"confidence":0.95,"quote":"cancun is too pricey for me","place":"Cancún"},{"message":0,"about":"leo","key":"dietary","polarity":"positive","explicit":true,"retracts":false,"confidence":0.95,"quote":"i'm vegetarian","need":"vegetarian"},{"message":0,"about":"leo","key":"home_city","polarity":"positive","explicit":true,"retracts":false,"confidence":0.9,"quote":"i'd leave from charlotte","city":"Charlotte"},{"message":0,"about":"leo","key":"date_window","polarity":"positive","explicit":true,"retracts":false,"confidence":0.9,"quote":"same dates","earliest":"2026-11-12","latest":"2026-11-16"}]
 leo: cancun is too pricey for me, and i'm vegetarian. same dates, i'd leave from charlotte
-expect atlas quiet
+# nothing to say yet (priya hasn't shared), so a 👍 shows atlas read it
+expect atlas reacted like
+expect atlas says 1
 clock +15m
 ~extract {"facts":[{"message":0,"about":"priya","key":"travel_limit","polarity":"positive","explicit":true,"retracts":false,"confidence":0.95,"quote":"i can only do driving distance","limit":"no_flying"},{"message":0,"about":"priya","key":"activity","polarity":"positive","explicit":true,"retracts":false,"confidence":0.9,"quote":"i'm all about food","tag":"food"},{"message":0,"about":"priya","key":"activity","polarity":"negative","explicit":true,"retracts":false,"confidence":0.85,"quote":"beaches bore me","tag":"beach"},{"message":0,"about":"priya","key":"date_window","polarity":"positive","explicit":true,"retracts":false,"confidence":0.9,"quote":"12-16 works","earliest":"2026-11-12","latest":"2026-11-16"}],"tensions":[{"topic":"beach vs food city","sides":["maya","priya"]}]}
 ~agent text: maya wants a beach and priya's more of a food person, and priya can only drive. a beach town with a real food scene covers both

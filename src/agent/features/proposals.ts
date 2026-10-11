@@ -617,7 +617,7 @@ async function lockFromPoll(poll: PollRow, winner: number, count: number, tc: Tu
 
 /**
  * Lock the destination + dates, post booking links, fire trip-locked hooks. The day-by-day plan
- * is Atlas's to write next (update_itinerary); a plan for a different place is cleared.
+ * comes later (after the stay and food & activities); a plan for a different place is cleared.
  */
 export async function lockDestination(tc: TurnCtx, dest: Destination, headline: string): Promise<void> {
   await tc.nonCancellable();
@@ -633,6 +633,7 @@ export async function lockDestination(tc: TurnCtx, dest: Destination, headline: 
     await resetTravelPlans(tc.trip.id);
   }
   tc.trip = await updateTrip(tc.trip.id, {
+    ...(same ? {} : { plan_written_at: null }),
     status: "locked",
     destination_id: place ? null : dest.id,
     destination_place: place ?? null,
@@ -749,7 +750,7 @@ const reopenTool: Tool = {
       return { ok: true, data: { reopened: false, why: [...new Set(check.rejected.map((r) => r.reason))].slice(0, 2) }, next: `say in one line why ${next.name} doesn't fit (the reasons above) and ask if they want to change that limit; the trip stays locked on ${current.name}` };
     }
     await tc.nonCancellable();
-    tc.trip = await updateTrip(tc.trip.id, { status: "voting", destination_id: null, destination_place: null, destination_name: null, latitude: null, longitude: null, itinerary: [] as never, locked_at: null });
+    tc.trip = await updateTrip(tc.trip.id, { status: "voting", destination_id: null, destination_place: null, destination_name: null, latitude: null, longitude: null, itinerary: [] as never, plan_written_at: null, locked_at: null });
     await reopenStage(tc.trip.id, "location");
     await resetTravelPlans(tc.trip.id);
     await proposeDestinations(tc, { only: [current, next], leadIn: `ok, quick re-vote: ${current.name.toLowerCase()} or ${next.name.toLowerCase()}? majority wins` });
@@ -816,7 +817,7 @@ const lockTool: Tool = {
   decl: {
     name: "lock_destination",
     description:
-      "Lock in a destination when the group (\"we\", \"everyone\", a majority) has clearly decided, even outside the poll. Any real place works, including ones that weren't among the options (\"boone, nc\", \"lake lure\"): it's looked up on the map. Posts the lock-in and booking links itself; write the day-by-day plan right after with update_itinerary. Works on an already-locked trip too (re-locks; a new place needs a new plan); if only one person wants to switch, use reopen_destination for a quick re-vote instead.",
+      "Lock in a destination when the group (\"we\", \"everyone\", a majority) has clearly decided, even outside the poll. Any real place works, including ones that weren't among the options (\"boone, nc\", \"lake lure\"): it's looked up on the map. Posts the lock-in and booking links itself. Works on an already-locked trip too (re-locks a new place); if only one person wants to switch, use reopen_destination for a quick re-vote instead.",
     parameters: { type: "object", properties: { destination: { type: "string", description: "option number or place name; add the state or country when it's ambiguous (\"portland, me\")" } }, required: ["destination"] },
   },
   async run(args, ctx) {
@@ -828,14 +829,12 @@ const lockTool: Tool = {
     // Any real place works: the catalog first, then the map (off-catalog places get estimates).
     dest ??= await resolvePlace(input);
     const place = placeOf(dest);
-    // This agent turn writes the plan itself, so no follow-up is needed for it.
-    tc.notes.set("itinerary.byAgent", true);
     await lockDestination(tc, dest, `🎉 ${(place ? placeLabel(place) : dest.name).toLowerCase()} it is!`);
     return {
       ok: true,
       next: tc.trip.start_date
-        ? "locked; the lock-in and booking links were posted. now call update_itinerary with a day-by-day plan (ideas are in the situation under trip page), then at most a one-line lead-in"
-        : "locked; the lock-in was posted. dates aren't set, so ask for them before writing the plan",
+        ? "locked; the lock-in and booking links were posted. don't write the day-by-day plan yet (it comes after the stay and food & activities); reply NO_REPLY or one short line on the next step in plan stages"
+        : "locked; the lock-in was posted. dates aren't set yet: the next step is the dates (find_dates)",
     };
   },
 };

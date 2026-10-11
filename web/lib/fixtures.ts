@@ -1,7 +1,7 @@
 // Dev-only sample data so the trip page can be previewed without Supabase:
 //   ATLAS_SITE_FIXTURES=1 npm run dev  →  http://localhost:3000/t/00000000-0000-4000-8000-00000000a71a
 // Never used in production builds (see lib/data.ts). Mirrors what scripts/site-seed.ts publishes.
-import type { SiteResearch, SiteTrip } from "./types";
+import type { SiteTrip } from "./types";
 
 export const FIXTURE_CHAT_ID = "00000000-0000-4000-8000-0000000c4a75";
 export const FIXTURE_TRIP_ID = "00000000-0000-4000-8000-00000000a71a";
@@ -88,12 +88,3 @@ const early: SiteTrip = {
 };
 
 export const FIXTURE_TRIPS: SiteTrip[] = [tahoe, early];
-
-export const FIXTURE_RESEARCH: SiteResearch[] = [
-  {
-    topic: "Chains & driving",
-    summary: "Carry chains or have AWD; US-50 over Echo Summit can close in storms.",
-    bodyMd: "Caltrans posts chain controls on US-50 and I-80. Check before leaving.",
-    createdAt: "2026-11-20T18:00:00Z",
-  },
-];

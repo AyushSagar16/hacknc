@@ -1,9 +1,10 @@
-// Research on the trip page. It all comes from the web search in features/search.ts (keyless
+// Background research for a trip. It all comes from the web search in features/search.ts (keyless
 // results + pages read, every item checked against the page it came from):
-//   - when a trip locks in, a background job looks up things to do, food and events on the trip
-//     dates, saves each as a note with its source, posts a one-line-per-topic summary and links
-//     the research section;
-//   - every web_search Atlas runs for a trip during the chat is saved to the page as well.
+//   - when a trip locks in, a background job quietly looks up things to do, food and events on the
+//     trip dates and saves each as a note with its source. Nothing is posted: the notes are in
+//     Atlas's situation, and events on the dates go out with the things-to-do shortlist
+//     (features/places.ts);
+//   - every web_search Atlas runs for a trip during the chat is saved as a note as well.
 import { createHash } from "node:crypto";
 import { isoDate, now } from "../../clock.ts";
 import { childLog } from "../../log.ts";
@@ -17,7 +18,6 @@ import { tripById, type TripRow } from "../../trips/state.ts";
 import type { AppServices, Feature } from "../feature.ts";
 import { lookup as webLookup, type Lookup, type LookupInput, type Purpose } from "./search.ts";
 import { requestSync } from "../../site/publish.ts";
-import { announceFromJob } from "./site.ts";
 
 const log = childLog({ component: "research" });
 
@@ -130,13 +130,6 @@ async function context(trip: TripRow, timezone: string): Promise<string[]> {
   return lines.slice(0, 12);
 }
 
-const lower = (s: string) => s.charAt(0).toLowerCase() + s.slice(1);
-
-/** The chat version: one line per topic. The page has the rest. */
-export function chatSummary(place: string, notes: ResearchNote[]): string {
-  return [`did some digging on ${place.toLowerCase()} for the trip page:`, ...notes.map((n) => `${lower(n.topic)}: ${lower(n.summary.replace(/\.$/, ""))}`)].join("\n");
-}
-
 export const researchFeature: Feature = {
   name: "research",
 
@@ -148,7 +141,7 @@ export const researchFeature: Feature = {
     );
     if (!rows.length && !pending?.n) return null;
     return {
-      title: "research on the trip page",
+      title: "background research (use it when it helps; don't post it as a list unprompted)",
       lines: [...rows.map((r) => `- ${r.topic}: ${r.summary}`), ...(pending?.n ? ["more research is running in the background"] : [])],
     };
   },
@@ -159,7 +152,7 @@ export const researchFeature: Feature = {
 
   jobs(svc) {
     return {
-      [RESEARCH_JOB]: async (payload, { jobId }) => {
+      [RESEARCH_JOB]: async (payload) => {
         const trip = await tripById(Number(payload.tripId));
         if (!trip?.destination_name) return;
         const chat = await one<{ timezone: string }>(`SELECT timezone FROM chats WHERE id = $1`, [trip.chat_id]);
@@ -188,9 +181,7 @@ export const researchFeature: Feature = {
         }
         // Nothing came back: let the job retry (topics already saved are skipped next time).
         if (!notes.length && failures) throw new Error(`research failed for all ${failures} topic(s)`);
-        if (!notes.length) return;
-        await svc.post(trip.chat_id, `research${jobId}`, [{ type: "say", text: chatSummary(trip.destination_name, notes) }]);
-        await announceFromJob(svc, trip.id, "research", `research${jobId}:link`);
+        if (notes.length) await requestSync(svc.cfg, trip);
       },
     };
   },

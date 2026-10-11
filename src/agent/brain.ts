@@ -1,6 +1,8 @@
 // One turn of Atlas, in a fixed order:
 //   intro (once) → per-message commands and fast paths (no model) → extraction in parallel with
 //   the addressed check + deterministic hints + speak gate → agent with tools → money guard.
+// When a turn ends with Atlas saying nothing, a message that gave it something (an answer to its
+// question, a date, a preference) gets a 👍 tapback, so the group can see Atlas read it.
 // Money and constraints are decided by code; the models only read and write language.
 import type { Config } from "../config.ts";
 import { isoDate, now as clockNow } from "../clock.ts";
@@ -21,10 +23,12 @@ import type { Llm } from "./llm.ts";
 import { nameList } from "./features/planning.ts";
 import { CONNECT_QUESTION, offerConnect } from "./features/connect.ts";
 import { warmMemory } from "./features/memory.ts";
+import { oneSiteLink } from "./links.ts";
 import { describeSituation } from "./situation.ts";
 import { isSmallTalk } from "./smallTalk.ts";
 import { mentionsTrip, RECENT_MESSAGE_COUNT, roomNeedsAtlas, speakGate } from "./speakGate.ts";
 import { ToolRegistry, say } from "./tools.ts";
+import type { Action } from "../transport/outbound.ts";
 
 export interface BrainDeps {
   cfg: Config;
@@ -43,6 +47,10 @@ export const EXTRACTION_WAIT_MS = 4_000;
 const AGENT_RETRY_MS = 3_000;
 /** How far back a reply is compared with Atlas's own messages, to avoid restating one. */
 const REPEAT_WINDOW_MESSAGES = 8;
+/** At most this many 👍 acknowledgements per turn (one per person). */
+export const MAX_ACKS_PER_TURN = 4;
+/** A silent reply waits this long for extraction, to know which messages gave Atlas something. */
+const ACK_EXTRACTION_WAIT_MS = 20_000;
 
 export function introLines(agentName: string): string[] {
   const n = agentName.toLowerCase();
@@ -64,6 +72,7 @@ export function createBrain(deps: BrainDeps): TurnHandler & { settle(): Promise<
   const handler = async (input: TurnInput): Promise<TurnResult> => {
     let ctxRef: TurnCtx | undefined;
     const result = await turn(input, (tc) => (ctxRef = tc));
+    result.actions = oneSiteLink(result.actions, cfg.SITE_BASE_URL);
     if (ctxRef) for (const f of features) if (f.afterTurn) await f.afterTurn(ctxRef).catch(() => {});
     return result;
   };
@@ -76,7 +85,9 @@ export function createBrain(deps: BrainDeps): TurnHandler & { settle(): Promise<
     const { chat } = input;
     const now = clockNow();
     const today = isoDate(now, chat.timezone);
-    const [tripRow, members, history] = await Promise.all([tripFor(chat.id), activeMembers(chat.id), recentMessages(chat.id, 40)]);
+    const [tripRow, members, rawHistory] = await Promise.all([tripFor(chat.id), activeMembers(chat.id), recentMessages(chat.id, 40)]);
+    // Atlas's own tapbacks aren't things it said: they'd read as its last message.
+    const history = rawHistory.filter((h) => !(h.direction === "outbound" && h.kind === "reaction"));
     let trip = await advanceTripStatus(tripRow, today);
     const byId = new Map<number, MemberRow>(members.map((m) => [m.id, m]));
     const label = (id: number | null) => (id === null ? agentName.toLowerCase() : labelOf(byId.get(id) ?? { display_name: null, handle: null }));
@@ -167,7 +178,7 @@ export function createBrain(deps: BrainDeps): TurnHandler & { settle(): Promise<
       .then(() => runExtraction(tc, llm, cfg, agentName))
       .catch((err) => {
         log.warn({ err: (err as Error).message }, "extraction crashed");
-        return { tensions: [] as Tension[], newConstraints: false };
+        return { tensions: [] as Tension[], newConstraints: false, factMessageIds: [] as number[] } satisfies Extracted;
       });
     extracting.set(chat.id, extraction);
     void extraction.finally(() => {
@@ -285,7 +296,7 @@ export function createBrain(deps: BrainDeps): TurnHandler & { settle(): Promise<
     // Replying: don't hold the first bubble for a slow extraction. Staying quiet: wait, because
     // what extraction finds (a fresh disagreement) can still be a reason to speak.
     const settled = speak ? await within(extraction, EXTRACTION_WAIT_MS) : await extraction;
-    const extracted = settled ?? { tensions: [] as Tension[], newConstraints: false };
+    const extracted = settled ?? { tensions: [] as Tension[], newConstraints: false, factMessageIds: [] as number[] };
     profilesCache = undefined; // new facts landed
     if (!speak && !addressed && !quiet && unprompted < UNPROMPTED_PER_HOUR) {
       // A disagreement or a plan-breaking constraint is worth one unprompted line even if the gate passed.
@@ -296,7 +307,10 @@ export function createBrain(deps: BrainDeps): TurnHandler & { settle(): Promise<
       }
       if (speak) gate = { decision: "SPEAK", reason: "deterministic trigger" };
     }
-    if (!speak) return { actions, route: route === "silent" ? "gate_silent" : route, addressed, gate };
+    if (!speak) {
+      if (!quiet) acknowledge(actions, remaining.filter((m) => extracted.factMessageIds.includes(m.id)));
+      return { actions, route: route === "silent" ? "gate_silent" : route, addressed, gate };
+    }
     input.typing?.();
 
     // ---------- the agent ----------
@@ -329,7 +343,7 @@ export function createBrain(deps: BrainDeps): TurnHandler & { settle(): Promise<
     if (out.failed) {
       if (actions.length === toolStart && (explicitlyAddressed || needsAtlas)) {
         say(tc, out.failed === "no_key" ? "my language brain isn't connected right now (no gemini key) — commands like \"summarize\", \"what's our budget\" and \"settle up\" still work" : "sorry, my brain glitched for a sec — say that again?");
-      }
+      } else if (!quiet) acknowledge(actions, await ackable(remaining, settled, extraction));
       return { actions, route: "agent_failed", addressed, gate };
     }
     let bubbles = addressed ? out.bubbles : out.bubbles.slice(0, 1);
@@ -368,6 +382,8 @@ export function createBrain(deps: BrainDeps): TurnHandler & { settle(): Promise<
     const toolPosts = actions.splice(toolStart);
     for (const b of bubbles) actions.push({ type: "say", text: b });
     actions.push(...toolPosts);
+    // Nothing to say (waiting on the rest of the group, say): a 👍 shows the message landed.
+    if (!quiet && !actions.some(visible)) acknowledge(actions, await ackable(remaining, settled, extraction));
     return { actions, route: "agent", addressed, gate };
   }
 
@@ -441,7 +457,14 @@ export async function nextStepLine(tc: TurnCtx, features: Feature[]): Promise<st
   return `i'm here. where things stand:\n${lines.map((l) => `- ${l}`).join("\n")}`;
 }
 
-async function runExtraction(tc: TurnCtx, llm: Llm, cfg: Config, agentName: string): Promise<{ tensions: Tension[]; newConstraints: boolean }> {
+interface Extracted {
+  tensions: Tension[];
+  newConstraints: boolean;
+  /** Messages a fact was taken from (for the 👍 when Atlas doesn't answer). */
+  factMessageIds: number[];
+}
+
+async function runExtraction(tc: TurnCtx, llm: Llm, cfg: Config, agentName: string): Promise<Extracted> {
   // Everything not yet read: this batch plus anything a failed earlier extraction left behind.
   const since = new Date(tc.now.getTime() - 6 * 3_600_000);
   const recent = await q<MessageRow>(
@@ -460,10 +483,10 @@ async function runExtraction(tc: TurnCtx, llm: Llm, cfg: Config, agentName: stri
         )
       : [];
   const pending = [...older, ...recent];
-  if (pending.length === 0) return { tensions: [], newConstraints: false };
+  if (pending.length === 0) return { tensions: [], newConstraints: false, factMessageIds: [] };
   if (pending.every((m) => isSmallTalk(m.text))) {
     await markExtracted(pending.map((m) => m.id), tc.now);
-    return { tensions: [], newConstraints: false };
+    return { tensions: [], newConstraints: false, factMessageIds: [] };
   }
   const firstId = pending[0]!.id;
   const context = tc.history.filter((h) => h.id < firstId).slice(-12);
@@ -488,10 +511,15 @@ async function runExtraction(tc: TurnCtx, llm: Llm, cfg: Config, agentName: stri
     known,
   });
   if (!result.failed) await markExtracted(pending.map((m) => m.id), tc.now);
-  const constraintFacts = result.factIds.length
-    ? await one<{ n: number }>(`SELECT count(*)::int AS n FROM facts WHERE id = ANY($1) AND (polarity = 'negative' OR key IN ('dietary','travel_limit','date_window','blackout'))`, [result.factIds])
+  const counted = result.factIds.length
+    ? await one<{ n: number; sources: number[] | null }>(
+        `SELECT count(*) FILTER (WHERE polarity = 'negative' OR key IN ('dietary','travel_limit','date_window','blackout'))::int AS n,
+                array_agg(DISTINCT source_message_id) FILTER (WHERE source_message_id IS NOT NULL) AS sources
+           FROM facts WHERE id = ANY($1)`,
+        [result.factIds],
+      )
     : undefined;
-  return { tensions: result.tensions, newConstraints: (constraintFacts?.n ?? 0) > 0 };
+  return { tensions: result.tensions, newConstraints: (counted?.n ?? 0) > 0, factMessageIds: (counted?.sources ?? []).map(Number) };
 }
 
 /** The promise's value, or undefined if it isn't settled within ms. */
@@ -546,4 +574,37 @@ async function unpromptedLastHour(chatId: number, now: Date): Promise<number> {
 function minutesSinceAtlas(history: MessageRow[], now: Date): number {
   const last = [...history].reverse().find((h) => h.direction === "outbound");
   return last ? (now.getTime() - last.sent_at.getTime()) / 60_000 : Number.POSITIVE_INFINITY;
+}
+
+/** Something the group sees as Atlas talking (a tapback doesn't count). */
+const visible = (a: Action) => a.type !== "react";
+
+/**
+ * The messages worth a 👍 when Atlas stays silent: ones that gave it something (extraction took a
+ * fact from them: dates, a city, what they like to eat). Banter that merely follows an Atlas
+ * question doesn't count. Waits a while for extraction when it hasn't landed yet.
+ */
+async function ackable(remaining: MessageRow[], settled: { factMessageIds: number[] } | undefined, extraction: Promise<{ factMessageIds: number[] }>): Promise<MessageRow[]> {
+  const facts = settled ?? (await within(extraction, ACK_EXTRACTION_WAIT_MS));
+  const withFacts = new Set(facts?.factMessageIds ?? []);
+  return remaining.filter((m) => withFacts.has(m.id));
+}
+
+/**
+ * 👍 on messages Atlas read but isn't answering, when the turn says nothing else: the latest one
+ * per person, at most MAX_ACKS_PER_TURN, never small talk, never twice on one message. Platforms
+ * without tapbacks skip it (no fallback text: a "got it" bubble would be the noise it avoids).
+ */
+export function acknowledge(actions: Action[], candidates: Pick<MessageRow, "id" | "person_id" | "provider_message_id" | "text" | "kind" | "direction">[]): void {
+  if (actions.some(visible)) return;
+  const reacted = new Set(actions.flatMap((a) => (a.type === "react" ? [a.targetId] : [])));
+  const latest = new Map<number, (typeof candidates)[number]>();
+  for (const m of candidates) {
+    if (m.kind !== "text" || m.direction !== "inbound" || m.person_id === null || !m.provider_message_id || isSmallTalk(m.text)) continue;
+    latest.set(m.person_id, m);
+  }
+  for (const m of [...latest.values()].slice(-MAX_ACKS_PER_TURN)) {
+    if (reacted.has(m.provider_message_id)) continue;
+    actions.push({ type: "react", targetId: m.provider_message_id, tapback: "like" });
+  }
 }
