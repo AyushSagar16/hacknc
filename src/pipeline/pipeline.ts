@@ -28,6 +28,7 @@ import {
   type MessageRow,
 } from "../db/repos/core.ts";
 import { normalize, type InboundEvent } from "../transport/inbound.ts";
+import { soloActions } from "../transport/soloVoice.ts";
 import { render, type Action } from "../transport/outbound.ts";
 import { enqueueJob, recordJobFailure } from "./jobs.ts";
 import { logSent, restates } from "../memory/atlasLog.ts";
@@ -460,6 +461,12 @@ export class Pipeline {
   async enqueue(chatId: number, guidPrefix: string, actions: Action[], turnId: number | null = null): Promise<void> {
     if (actions.length === 0) return;
     const at = now();
+    // A private chat hears it as one person, not a group (src/transport/soloVoice.ts).
+    const chat = await getChat(chatId);
+    if (chat && !chat.is_group) {
+      const names = await q<{ display_name: string | null }>(`SELECT p.display_name FROM chat_members cm JOIN people p ON p.id = cm.person_id WHERE cm.chat_id = $1`, [chatId]);
+      actions = soloActions(actions, names.map((n) => (n.display_name ?? "").toLowerCase().split(/\s+/)[0] ?? "").filter(Boolean));
+    }
     for (const [idx, action] of actions.entries()) {
       await q(
         `INSERT INTO outbox (chat_id, turn_id, idx, client_guid, action, created_at) VALUES ($1,$2,$3,$4,$5,$6) ON CONFLICT (client_guid) DO NOTHING`,

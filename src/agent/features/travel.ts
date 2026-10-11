@@ -132,7 +132,7 @@ async function setMode(tc: TurnCtx, personId: number, mode: TravelMode): Promise
   return { line: legLine(mine, legs), legs };
 }
 
-const I_WILL = /^\W*(?:(?:ok|okay|actually|nah|yeah|wait),?\s+)*i(?:['’]ll| will|['’]m| am|ll|m)\s+(?:just\s+|gonna\s+|going to\s+)?(drive|driving|fly|flying)(?:\s+(?:there|down|up|instead|myself|tbh))*\W*$/i;
+const I_WILL = /^\W*(?:(?:ok|okay|actually|nah|yeah|wait),?\s+)*i(?:['’]ll| will|['’]m| am|ll|m)\s+(?:just\s+|gonna\s+|going to\s+|(?:probably\s+)?(?:need|have|want) to\s+)?(drive|driving|fly|flying)(?:\s+(?:there|down|up|instead|myself|tbh))*\W*$/i;
 
 const planTravelTool: Tool = {
   soloPost: true,
@@ -154,7 +154,14 @@ const planTravelTool: Tool = {
   },
 };
 
+/** "got it, maya: flying, ~$180 est. fare"; when Atlas doesn't know where they're leaving from, ask it. */
+function modeReply(line: string, name: string, mode: TravelMode): string {
+  if (/need to know where you're leaving from$/.test(line)) return `got it. ${name}, where are you ${mode === "fly" ? "flying" : "driving"} from?`;
+  return `got it, ${line}`;
+}
+
 const setTravelModeTool: Tool = {
+  soloPost: true,
   decl: {
     name: "set_travel_mode",
     description: "One person switches how they get there (\"i'll drive\", \"actually i'm flying\"). Saves it, redoes carpools, and says their new plan in one line.",
@@ -171,7 +178,7 @@ const setTravelModeTool: Tool = {
     const mode = args.mode === "drive" || args.mode === "fly" ? args.mode : undefined;
     if (!mode) throw new ToolError("mode is drive or fly");
     const { line } = await setMode(tc, who, mode);
-    if (line) say(tc, `got it, ${line}`);
+    if (line) say(tc, modeReply(line, tc.label(who).toLowerCase().split(/\s+/)[0] ?? "", mode));
     return { ok: true, next: line ? "their new plan was posted; reply NO_REPLY" : `saved: ${tc.label(who)} will ${mode}. it's used once the place and dates are settled; say so in a few words` };
   },
 };
@@ -190,7 +197,7 @@ export const travelFeature: Feature = {
     tc.senderId = msg.person_id;
     try {
       const { line } = await setMode(tc, msg.person_id, mode);
-      if (line) say(tc, `got it, ${line}`);
+      if (line) say(tc, modeReply(line, tc.label(msg.person_id).toLowerCase().split(/\s+/)[0] ?? "", mode));
     } catch (err) {
       if (!(err instanceof ToolError)) throw err;
       say(tc, err.message);
