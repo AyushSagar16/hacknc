@@ -6,13 +6,12 @@ const SECTIONS = [
   { href: "", label: "Overview" },
   { href: "/itinerary", label: "Itinerary" },
   { href: "/research", label: "Research" },
-  { href: "/chat", label: "Chat" },
 ];
 
 export function SectionNav({ tripId }: { tripId: string }) {
   const path = usePathname();
   return (
-    <nav className="sections">
+    <nav className="sections glass">
       {SECTIONS.map((s) => {
         const href = `/t/${tripId}${s.href}`;
         return (

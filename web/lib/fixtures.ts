@@ -1,7 +1,7 @@
 // Dev-only sample data so the trip page can be previewed without Supabase:
 //   ATLAS_SITE_FIXTURES=1 npm run dev  →  http://localhost:3000/t/00000000-0000-4000-8000-00000000a71a
 // Never used in production builds (see lib/data.ts). Mirrors what scripts/site-seed.ts publishes.
-import type { SiteMessage, SiteResearch, SiteTrip } from "./types";
+import type { SiteResearch, SiteTrip } from "./types";
 
 export const FIXTURE_CHAT_ID = "00000000-0000-4000-8000-0000000c4a75";
 export const FIXTURE_TRIP_ID = "00000000-0000-4000-8000-00000000a71a";
@@ -94,13 +94,6 @@ export const FIXTURE_RESEARCH: SiteResearch[] = [
     topic: "Chains & driving",
     summary: "Carry chains or have AWD; US-50 over Echo Summit can close in storms.",
     bodyMd: "Caltrans posts chain controls on US-50 and I-80. Check before leaving.",
-    sources: [{ title: "dot.ca.gov", url: "https://dot.ca.gov" }],
     createdAt: "2026-11-20T18:00:00Z",
   },
-];
-
-export const FIXTURE_MESSAGES: SiteMessage[] = [
-  { localId: 1, sender: "Leo", fromAtlas: false, text: "cabin looks so good", sentAt: "2026-11-28T21:00:00Z" },
-  { localId: 2, sender: "Atlas", fromAtlas: true, text: "booked ✓ heavenly pines cabin, jan 15–18", sentAt: "2026-11-28T21:10:00Z" },
-  { localId: 3, sender: "Atlas", fromAtlas: true, text: "fund's at $840 / $1,200, leo's next $90 goes in friday", sentAt: "2026-12-04T17:05:00Z" },
 ];
