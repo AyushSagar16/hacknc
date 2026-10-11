@@ -24,6 +24,20 @@ export interface SiteOverview {
    * activities). Optional: pages published before stages existed don't have it.
    */
   stages?: SiteStage[];
+  fund?: SiteFund;
+}
+
+export interface SiteFund {
+  /** e.g. "Capital One · Tahoe Trip Fund" */
+  accountLabel: string;
+  targetCents: number;
+  collectedCents: number;
+  /** ISO date (YYYY-MM-DD) contributions are due by, if set */
+  deadline: string | null;
+  /** first names only; never budgets */
+  members: { name: string; shareCents: number; contributedCents: number; nextCents: number | null; nextDate: string | null }[];
+  /** newest first */
+  transactions: { at: string; kind: "contribution" | "purchase" | "refund" | "transfer"; label: string; amountCents: number }[];
 }
 
 export interface SiteStage {
