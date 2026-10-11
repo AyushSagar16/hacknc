@@ -24,6 +24,8 @@ export interface PollRow {
   proposal_id: number | null;
   created_at: Date;
   closed_at: Date | null;
+  /** When Atlas called out who hasn't voted (once per poll). */
+  reminded_at?: Date | null;
 }
 
 export async function createPoll(

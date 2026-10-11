@@ -7,7 +7,8 @@ import { config } from "../../config.ts";
 import { now } from "../../clock.ts";
 import { formatUsd } from "../../money/cents.ts";
 import { one, q } from "../../db/pool.ts";
-import { activeMembers, ensureMember, insertMessage, upsertPerson, type MessageRow } from "../../db/repos/core.ts";
+import { activeMembers, ensureMember, insertMessage, labelOf, upsertPerson, type MessageRow } from "../../db/repos/core.ts";
+import { enqueueJob, rescheduleSingleton } from "../../pipeline/jobs.ts";
 import { budgetRows } from "../../nessie/budgets.ts";
 import { interestWeights } from "../../profile/groupView.ts";
 import { destinationById, destinations, findDestination, resolveHome, type Destination, type Tag } from "../../trips/catalog.ts";
@@ -16,7 +17,7 @@ import { hardFilter, hasTag, tripMonths, type Rejection } from "../../trips/filt
 import { estimateCost, travelPlan, type CostBreakdown } from "../../trips/estimate.ts";
 import { dayLabel, draftItinerary } from "../../trips/itinerary.ts";
 import { googleFlightsLink, googleHotelsLink } from "../../trips/links.ts";
-import { closedPollFor, closePoll, createPoll, lastDecidedPoll, openNativePolls, openPolls, recordVote, setVote, voteRows, votesFor, type PollRow } from "../../trips/pollStore.ts";
+import { closedPollFor, closePoll, createPoll, pollById, lastDecidedPoll, openNativePolls, openPolls, recordVote, setVote, voteRows, votesFor, type PollRow } from "../../trips/pollStore.ts";
 import { priceOption, type PriceCache } from "../../trips/pricing.ts";
 import { applyVibe, bestReason, inferVibe, pickThree, scoreDestinations, vibeTags, type Scored } from "../../trips/score.ts";
 import { updateTrip } from "../../trips/state.ts";
@@ -304,6 +305,60 @@ const lateVoteReplies = new Set<string>();
 /** "pick for us", "you pick", "atlas decide": the group hands a tied poll to Atlas. */
 export const PICK_FOR_US = /\b(?:pick for us|you pick|you choose|you decide|(?:just )?pick (?:one|for us|it)|atlas,? (?:pick|choose|decide)|go with the cheaper(?: one)?|cheaper one|break the tie|tiebreak(?:er)?|flip a coin)\b/i;
 
+/** Quiet this long after a poll's latest vote, Atlas names who hasn't voted (once per poll). */
+export const POLL_REMIND_MS = 30_000;
+export const POLL_REMIND_JOB = "poll.remind";
+/** "skip", "move on", "just decide": close the poll with the votes that are in. */
+export const SKIP_POLL = /^\W*(?:(?:ok|okay|yeah|ya|atlas)\W+)*(?:skip(?: (?:it|them|him|her|that))?|just skip|move on|let'?s move on|just decide|decide|go with (?:it|that|what we(?:'ve)? (?:have|got))|close (?:the |it|the poll)?(?: poll)?|we'?re good|that'?s everyone|call it)\W*$/i;
+
+/** Push the "who hasn't voted" check to 30 s after this vote. */
+async function schedulePollReminder(poll: PollRow, at: Date): Promise<void> {
+  const key = `poll-remind:${poll.id}`;
+  const due = new Date(at.getTime() + POLL_REMIND_MS);
+  await enqueueJob(POLL_REMIND_JOB, { pollId: poll.id }, { dueAt: due, singletonKey: key });
+  await rescheduleSingleton(key, due);
+}
+
+const memberFirstName = (p: { display_name: string | null; handle: string | null }) => labelOf(p).toLowerCase().split(/\s+/)[0] ?? "";
+
+/** The poll.remind job: most of the group voted, the rest went quiet for 30 s — name them, once. */
+export async function remindPoll(pollId: number, at: Date, post: (chatId: number, guid: string, text: string) => Promise<void>): Promise<"posted" | "rescheduled" | "skipped"> {
+  const poll = await pollById(pollId);
+  if (!poll || poll.status !== "open" || poll.reminded_at) return "skipped";
+  const latest = await one<{ at: Date | null }>(`SELECT max(voted_at) AS at FROM votes WHERE poll_id = $1`, [pollId]);
+  if (latest?.at && at.getTime() - latest.at.getTime() < POLL_REMIND_MS - 1_000) return "rescheduled";
+  const members = await activeMembers(poll.chat_id);
+  const votes = await votesFor(pollId);
+  const result = tallyPoll(poll, votes, members.length);
+  if (result.decided || result.deadlocked) return "skipped";
+  const voted = new Set(votes.filter((v) => v.selected).map((v) => v.personId));
+  const missing = members.filter((m) => !voted.has(m.id));
+  // "Most of the group": at least half in, and someone still out.
+  if (missing.length === 0 || voted.size * 2 < members.length) return "skipped";
+  await q(`UPDATE polls SET reminded_at = $2 WHERE id = $1 AND reminded_at IS NULL`, [pollId, at]);
+  const names = missing.map(memberFirstName).filter(Boolean);
+  await post(poll.chat_id, `poll-remind-${pollId}`, `still waiting on ${joinWords(names)} 🗳️ ${voted.size} of ${members.length} are in\n${missing.length === 1 ? names[0] : "you all"} can vote on the poll above, or anyone say "skip" and i'll go with what we've got`);
+  return "posted";
+}
+
+/** "skip" on an open poll: decide with the votes that are in (ties go to the cheaper option). */
+async function skipPoll(msg: MessageRow, tc: TurnCtx, polls: PollRow[]): Promise<boolean> {
+  if (!SKIP_POLL.test(msg.text)) return false;
+  for (const poll of polls) {
+    const votes = await votesFor(poll.id);
+    const result = tallyPoll(poll, votes, tc.members.length);
+    if (result.leader === null) {
+      say(tc, "nobody's voted yet, so there's nothing to go with. tap the poll above first 🗳️");
+      return true;
+    }
+    const top = Math.max(...result.counts);
+    const how = `${result.voters} of ${tc.members.length} voted${result.tie ? `, tied ${result.counts.filter((c) => c === top).join("–")} so the cheaper one` : ""}`;
+    await decidePoll(poll, result.leader, top, tc, how);
+    return true;
+  }
+  return false;
+}
+
 /** The tie line: "it's a tie: atlanta 2, asheville 2. anyone want to switch? ..." */
 export function tieMessage(names: string[], counts: number[], leader: number, priced: boolean): string {
   const top = Math.max(...counts);
@@ -329,7 +384,9 @@ async function afterVote(poll: PollRow, tc: TurnCtx, voterId: number | null, sou
     }
     return false;
   }
-  // Not decided yet: stay quiet. Native votes already show on the poll; a text vote gets a tapback.
+  // Not decided yet: stay quiet for now, and check back in 30 s for whoever hasn't voted.
+  await schedulePollReminder(poll, tc.now).catch(() => {});
+  // Native votes already show on the poll; a text vote gets a tapback.
   if (source === "text" && msg && voterId !== null) {
     const choice = poll.options[votes.filter((v) => v.personId === voterId && v.selected).at(-1)?.optionIdx ?? 0]?.title.split(" (")[0] ?? "";
     tc.out.push({ type: "react", targetId: msg.provider_message_id, tapback: "like", fallbackText: `got it: ${tc.label(voterId).toLowerCase()} → ${choice.toLowerCase()} (${result.voters} of ${tc.members.length} voted)` });
@@ -717,6 +774,19 @@ export const proposalsFeature: Feature = {
   name: "proposals",
   tools: [proposeTool, recordVoteTool, lockTool, reopenTool, createPollTool],
 
+  jobs(svc) {
+    return {
+      [POLL_REMIND_JOB]: async (payload) => {
+        const pollId = Number(payload.pollId);
+        if (!Number.isInteger(pollId)) return;
+        const at = now();
+        const outcome = await remindPoll(pollId, at, (chatId, guid, text) => svc.post(chatId, guid, [{ type: "say", text }]));
+        // A vote landed since this was scheduled: check again 30 s after that one.
+        if (outcome === "rescheduled") return { rescheduleAt: new Date(at.getTime() + POLL_REMIND_MS) };
+      },
+    };
+  },
+
   async fastPath(msg, tc) {
     if (msg.person_id === null) return false;
     const polls = await openPolls(tc.chat.id);
@@ -751,6 +821,8 @@ export const proposalsFeature: Feature = {
     if (msg.kind === "text" && msg.speakable) {
       // "pick for us" on a tied poll: Atlas breaks the tie (cheaper option).
       if (await resolveTieByAsk(msg, tc, polls)) return true;
+      // "skip": go with the votes that are in.
+      if (await skipPoll(msg, tc, polls)) return true;
       const poll = polls.find((p) => p.kind === "destination") ?? polls[0]!;
       const titles = poll.options.map((o) => o.title.split(" (")[0]!);
       const idx = parseVote(msg.text, titles);

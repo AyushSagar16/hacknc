@@ -55,12 +55,12 @@ export function setClock(next: Clock): void {
   current = next;
 }
 
-const UNITS: Record<string, number> = { m: 60_000, h: 3_600_000, d: 86_400_000, w: 604_800_000 };
+const UNITS: Record<string, number> = { s: 1_000, m: 60_000, h: 3_600_000, d: 86_400_000, w: 604_800_000 };
 
 /** Parse "+3d", "90m", "2h" into milliseconds. */
 export function parseDuration(text: string): number {
-  const match = /^\+?(\d+(?:\.\d+)?)\s*([mhdw])$/.exec(text.trim());
-  if (!match) throw new Error(`Unrecognized duration "${text}" (try +3d, 6h, 90m)`);
+  const match = /^\+?(\d+(?:\.\d+)?)\s*([smhdw])$/.exec(text.trim());
+  if (!match) throw new Error(`Unrecognized duration "${text}" (try +3d, 6h, 90m, 30s)`);
   return Number(match[1]) * (UNITS[match[2]!] ?? 0);
 }
 
