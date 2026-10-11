@@ -1,6 +1,6 @@
 # hacknc — agent instructions
 
-This is Atlas, a trip and money planner for iMessage group chats, built on [Spectrum](https://photon.codes/docs/spectrum-ts) (pinned to `spectrum-ts@^12.10.1`). The composition root is `src/app.ts`; `src/index.ts` and `scripts/live.ts` start it. Read `README.md` and `docs/architecture.md` first; memory design and trade-offs are in `docs/memory-research.md`.
+This is Atlas, a trip and money planner for iMessage group chats, built on [Spectrum](https://photon.codes/docs/spectrum-ts) (pinned to `spectrum-ts@^12.10.1`). The composition root is `src/app.ts`; `src/index.ts` and `scripts/live.ts` start it. Read `README.md`, `docs/technical.md` and `docs/architecture.md` first; memory design and trade-offs are in `docs/memory-research.md`.
 
 ## Working in this project
 

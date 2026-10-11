@@ -1,56 +1,84 @@
 # Atlas
 
-**A trip and financial planner that lives in your friend group's iMessage chat.**
+**A trip and money planner that lives in your friend group's iMessage chat.**
 
-Add Atlas's number to the group. It introduces itself, then reads along. It keeps track of what
-everyone wants ("cancun is too pricey for me", "i'm vegetarian", "i can't fly after the 14th") and
-what everyone can spend, then keeps the plan moving. It proposes priced options that fit the
-group's vibe and limits, runs a poll, finds a place to stay and books it on a shared trip fund everyone pays into on their
-paydays, asks what food everyone's into and shortlists places to eat and things to do near the stay,
-writes the day-by-day plan around those picks, splits expenses during the trip and settles up at the
-end. It chimes in whenever the trip or money comes up and stays out of banter. When someone answers
-and Atlas is still waiting on the others, it puts a 👍 on their message instead of going silent.
-When the group goes quiet on an unanswered message, it follows up with the next step, and when most
-of the group has voted it names who hasn't ("skip" decides with the votes in). "atlas stay quiet"
-mutes it.
+## How we got it into the group chat
 
-- **It reads the conversation.** There are no forms. Each person's preferences and constraints
-  are extracted from normal chat, with the words they came from, and resolved deterministically
-  (explicit beats implied, newest wins).
-- **Budgets come from account data.** Each person gets a Capital One Nessie customer (their first
-  name, a generated last name) with checking, savings and a Quicksilver card, and months of generated
-  paychecks, bills (Verizon Wireless, Duke Energy, rent...) and purchases at familiar merchants.
-  Their suggested budget is computed from that data with a formula Atlas explains in three lines.
-  In the chat this is presented as each person's connected Capital One account ("based on your last
-  few months of spending"); Atlas never says "demo", "sandbox" or "Nessie" to the group. The Nessie
-  data is generated, never anyone's real bank. A unit test (`test/unit/chat-wording.test.ts`) keeps
-  that wording out of prompts, tool descriptions and chat strings.
-- **Budgets are private by default.** The group only ever sees the pooled per-person number (and,
-  with two people, not even that, since it would give the other person's away). Each person can text
-  Atlas to see their own breakdown, say "share my budget" to show theirs to the group, and "keep my
-  budget private" to switch back.
-- **The money runs through Nessie end to end.** Budgets; a trip fund that is its own Nessie
-  customer and account ("<Trip> Trip Fund"), filled by Nessie transfers from each person's checking
-  on their paydays and paying for the stay as a Nessie purchase at a merchant named after it; every
-  trip expense as a Nessie purchase; and one combined settle-up (tab + fund, leftover refunded
-  pro-rata) as Nessie transfers after each payer confirms. People who never connected a bank are
-  tracked in Atlas's ledger only.
-- **It remembers.** Messages and decisions are stored in Tiger Data and recalled before every reply,
-  even weeks later, with hybrid search: BM25 (`pg_textsearch`) and Gemini embeddings on a
-  pgvectorscale `diskann` index, fused with reciprocal rank fusion. It also remembers its own words
-  (an `atlas_log` hypertable), so it doesn't repeat a nudge or re-ask someone.
-- **It looks things up.** Things to do, food, events and school-break dates come from the live web,
-  and every item it posts has to appear in a page it actually read. Weather is a real forecast within
-  two weeks and three-year climatology beyond that.
-- **It watches the weather.** When the trip's forecast changes materially, it speaks up with a
-  concrete swap ("saturday flipped to rain, want to swap the beach day for the food market tour?").
+Atlas is a member of the group, not an app. It has its own phone number on a real iMessage line, so
+you add it to a group chat the same way you'd add a friend. Nobody installs anything or fills in a
+form.
 
-Money and constraints are deterministic code. The models only do language, and every dollar
-figure Atlas shows the group traces to a Nessie call or a labeled estimate.
+Getting there took three pieces:
 
----
+1. **A real iMessage line.** Every message in the group reaches our server as an event, and Atlas
+   replies from its own number. Each delivery is signature-checked and saved before it's
+   acknowledged, so nothing is lost if Atlas restarts mid-conversation.
+2. **[Photon Spectrum](https://photon.codes/docs/spectrum-ts) as the messaging layer.** Spectrum
+   gives us one interface for iMessage: sending, tapbacks (👍), native polls, threaded replies and
+   typing indicators. We wrote a custom Spectrum platform for our line, plus a simulator platform
+   so the same code runs as a terminal group chat with no phones. Anything a line can't do natively
+   falls back to plain text (a poll becomes a numbered list you vote on by replying).
+3. **Group-chat manners.** A group is noisy, so Atlas has to know when to talk. Bursts of messages
+   are batched, and a newer message cancels a reply that's already in progress. A fast "speak gate"
+   model decides whether to chime in: trip and money talk, yes; banter, no. When it's waiting on
+   someone it reacts with a 👍 instead of going silent, follows up when the group goes quiet, and
+   "atlas stay quiet" mutes it. Each group chat is its own sandbox, so one group's plans never leak
+   into another's.
 
-## Quick start (no phones, no keys)
+## What it does
+
+Add Atlas's number to the group. It introduces itself, then reads along, picking up what everyone
+wants ("cancun is too pricey for me", "i'm vegetarian", "i can't fly after the 14th") and what
+everyone can spend. From there it keeps the plan moving:
+
+- proposes priced options that fit the group, and runs a poll
+- finds a place to stay and books it from a shared trip fund that everyone pays into on payday
+- shortlists food and things to do near the stay, then writes a day-by-day plan on a trip page
+- watches the forecast and suggests swaps ("saturday flipped to rain, want to swap the beach day?")
+- splits expenses during the trip and settles up at the end
+
+Budgets are private by default. The group only sees the pooled number, and each person can text
+Atlas to see their own.
+
+## The stack
+
+| Piece | What it does |
+|---|---|
+| **TypeScript / Node 22** | The whole backend |
+| **[Photon Spectrum](https://photon.codes/docs/spectrum-ts)** | iMessage messaging: sends, tapbacks, polls, replies, typing |
+| **[Google Gemini](https://ai.google.dev)** | Language only: replies, the speak gate, pulling preferences out of chat, and embeddings for memory |
+| **[Tiger Data](https://www.tigerdata.com)** (Postgres + TimescaleDB, pgvector, pgvectorscale) | Messages, memory, job queue, spending and forecast history |
+| **[Capital One Nessie](https://nessieisreal.com)** | Generated bank accounts behind each person's budget, the trip fund, purchases and settle-up |
+| **[SerpApi](https://serpapi.com)** + web search | Live flight and hotel prices, things to do, food and events |
+| **[Open-Meteo](https://open-meteo.com)** | Forecasts and climate data |
+| **Next.js on Vercel + Supabase** | The trip pages Atlas publishes for each trip |
+
+## How it works
+
+```
+group chat ─► iMessage line ─► saved event ─► Spectrum ─► Atlas
+                                                           │
+   batch the burst ─► commands, votes, "i paid 64 for dinner" (plain code)
+                   ─► pick up preferences (Gemini)
+                   ─► should Atlas speak? (Gemini, fast model)
+                   ─► reply with tools: options, budgets, money, weather, memory
+                   ─► money guard ─► send back to the group
+```
+
+- **The models only do language.** Money, budgets, constraints, polls and schedules are plain,
+  deterministic code. Every dollar figure Atlas writes has to trace back to a real calculation or a
+  labeled estimate, or the reply is blocked.
+- **It remembers.** Every message is stored and searched before each reply (keyword plus vector
+  search), so Atlas can recall something said weeks ago. It also remembers its own messages, so it
+  doesn't repeat itself.
+- **It only cites what it read.** Anything it suggests from the web has to appear on a page it
+  actually fetched.
+- **Budgets come from account data.** Each person's suggested budget is computed from months of
+  generated paychecks, bills and purchases in Nessie, never anyone's real bank.
+
+## Try it
+
+No phones or keys needed:
 
 ```bash
 npm install
@@ -61,275 +89,27 @@ npm run db:up
 ```
 
 ```bash
-npm test
-```
-
-```bash
-npm run test:scenarios
-```
-
-```bash
 npm run sim
 ```
 
-`npm run sim` opens a group chat in your terminal with Maya, Leo and Priya, and adds Atlas. Type
-`maya: hi atlas`, `leo react like atlas.last`, `maya vote 2`, `clock +3d`, `/facts`, `/state`. The
-judge console is at http://127.0.0.1:8790. Without a Gemini key, deterministic features
-(commands, budgets, polls, money, weather) still work, and model-driven replies are silent. Add
-`GEMINI_API_KEY` to `.env` and the simulator uses Gemini live.
+This opens a group chat in your terminal with Maya, Leo and Priya, and adds Atlas. Add a
+`GEMINI_API_KEY` to `.env` for live model replies.
 
-## Setup for the real thing
-
-1. **Node 22.9+**, Docker (for local Postgres) or a Tiger Cloud service.
-2. `cp .env.example .env` and fill in what you have. **Never commit `.env`.**
-3. `npm run doctor` checks everything. It reports which keys are set, never their values.
-
-### Environment variables
-
-| Variable | What for |
-|---|---|
-| `IMESSAGE_MODE` | `linq` (default), `local`, `cloud` or `sim` |
-| `AGENT_NAME` | What friends call it (default `Atlas`) |
-| `LINQ_API_KEY` | Linq line key (`npm i -g @linqapp/cli && linq signup`) |
-| `LINQ_WEBHOOK_PORT`, `LINQ_WEBHOOK_MODE`, `LINQ_WEBHOOK_SECRET` | Webhook receiver. `relay` mode needs no secret (captured from the CLI); `subscription` mode needs it |
-| `PROJECT_ID`, `PROJECT_SECRET` | Photon Spectrum Cloud (`cloud` mode; groups need a dedicated Business line) |
-| `DATABASE_URL` | Postgres with TimescaleDB + pgvector (+ pgvectorscale). Empty = local docker |
-| `GEMINI_API_KEY` | Gemini for the agent, speak gate, extraction and embeddings. Several keys, comma-separated, are load-balanced (see below) |
-| `GEMINI_MODEL_AGENT` / `_GATE` / `_EXTRACT` / `GEMINI_EMBED_MODEL` | Model overrides |
-| `NESSIE_API_KEY`, `NESSIE_BASE_URL` | Capital One Nessie sandbox |
-| `SERPAPI_API_KEY` | Live Google Flights / Hotels prices (optional; otherwise labeled estimates) |
-| `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`, `SITE_BASE_URL` | Trip pages: where Atlas publishes each trip, and where `web/` is deployed. Leave empty to turn trip pages off |
-| `CONNECT_SECRET`, `PUBLIC_BASE_URL` | Bank connect: `CONNECT_SECRET` signs connect links and the site's callback (same value in `web/.env`); `PUBLIC_BASE_URL` is where the site calls Atlas back (`npm run live` sets it to its tunnel). See [Bank connect](#bank-connect-onboarding) |
-| `NUDGE_IDLE_SECONDS` | How long a group must be quiet after an unanswered message before Atlas follows up (default 150 on a real line, off in the simulator; 0 = off) |
-| `PACING`, `PACE_BASE_MS`, `PACE_MS_PER_CHAR`, `PACE_MIN_MS`, `PACE_MAX_MS`, `PACE_FIRST_MAX_MS` | Typing indicator and a pause per bubble scaled to its length (`PACING=off` sends back to back) |
-| `ADDRESSED_DEBOUNCE_MS` | Quiet window before replying to a message that names Atlas (default 1500; others wait 2.5 s) |
-| `ALLOWED_CHATS`, `OPERATOR_HANDLES`, `CONSOLE_PORT`, `DEFAULT_TIMEZONE`, `LOG_LEVEL`, `LOG_FILE` | Operations |
-
-### Database
-
-- **Local:** `npm run db:up` starts `timescale/timescaledb-ha:pg18`, which includes TimescaleDB,
-  pgvector and pgvectorscale.
-- **Tiger Cloud:** create a free service and set
-  `DATABASE_URL=postgres://tsdbadmin:…@….tsdb.cloud.timescale.com:…/tsdb?sslmode=require`.
-
-Migrations run on start (`npm run migrate` to run them alone).
-
-### Nessie
-
-```bash
-npm run nessie:probe
-```
-
-This creates one fictional probe customer and tries every documented payload shape against the
-live API. It fails loudly with Nessie's error body and writes `docs/nessie-findings.md` and
-`data/nessie-capabilities.json`, which the app reads at runtime (for example, whether transfers can
-name a payee). Nessie data is publicly visible, so Atlas only ever sends a first name, a generated
-last name and a generated address: never a phone number, handle or real last name.
-
-### The real line (Linq)
-
-1. `npm i -g @linqapp/cli && linq signup` (each teammate their own line), then put the key in `.env`.
-2. On a free **Shared** line, register every person by number (`linq contacts add +19195550123`).
-   Messages from numbers that aren't registered are held or dropped.
-3. `cp demo/roster.example.json demo/roster.json` with your names and phones (optionally pin demo
-   personas). `npm run demo -- setup` shows who has texted the line.
-4. `npm run demo -- warm` seeds everyone's Nessie profile ahead of time and prints their budgets.
-5. `npm run live` starts Atlas, opens a `cloudflared` quick tunnel, and creates a Linq webhook
-   subscription for every event Atlas handles, native polls included. Every delivery is verified
-   with the subscription's signing secret, and the subscription is deleted on exit.
-   `npm run live -- --relay` uses the CLI's `linq webhooks listen` relay instead (no tunnel). The CLI
-   can't subscribe to poll events, so polls fall back to numbered text and tapback votes. If
-   cloudflared can't open a tunnel, `npm run live` falls back to the relay on its own.
-
-   `npm run up` is the clean start: it stops Atlas processes from earlier runs (any checkout),
-   orphaned tunnels and relays, and anything still on the webhook or console port, deletes webhook
-   subscriptions left by earlier sessions, checks the database (starting docker compose for the
-   local one), prints each step as a checklist, then runs `npm run live`. Arguments after `--` go
-   to `live` (`npm run up -- --relay`); `npm run up -- --clean-only` cleans up without starting.
-6. Create a group with your friends and the Atlas number. Atlas introduces itself when Linq
-   reports the new chat. To add Atlas to an existing group, Apple may require it to already have
-   3 other members.
-
-### Trip pages (web/)
-
-Every trip gets its own page at an unguessable URL (`/t/<uuid>`) with the plan and the day-by-day
-itinerary. Atlas writes the page itself: the agent sends the itinerary and summary as structured
-JSON (`update_itinerary`, `set_trip_summary`), validated before it's saved. The itinerary comes
-last, once the stay is booked and the group has picked food & things to do. Atlas posts one link
-per reply, deep-linked to the section that changed, when a trip starts, gets a plan or gets a
-weather swap. Background research (things to do, food, events on the dates) is kept for Atlas and
-the shortlist, not posted as its own section.
-iMessage builds each section's preview card from that page's tags and image. A chat can plan
-several trips; `/g/<uuid>` lists them.
-
-1. Create a Supabase project and apply `supabase/migrations` (`supabase link` then
-   `supabase db push`, or paste the SQL into the SQL editor). RLS is on with no policies, so only
-   the service-role key can read or write.
-2. Deploy `web/` to Vercel (project root `web`) with `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY` and
-   `NEXT_PUBLIC_SITE_URL` (see `web/.env.example`).
-3. Set `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY` and `SITE_BASE_URL` in `.env`. `npm run doctor`
-   checks them.
-
-Locally: `supabase start`, put the local keys in `web/.env.local`, then run `npm run web:dev` and
-`npm run site:seed` (it publishes a made-up trip and prints its URLs). Pages show first names only,
-never phone numbers, and nothing about budgets or balances. Private chats are never published.
-
-### Bank connect onboarding
-
-Nobody gets a Nessie customer just for being in the group. The intro ends with "want to connect
-your capital one so i can plan around real budgets?" (late joiners are asked in their welcome).
-
-1. "yes" (or "connect me", anytime) → Atlas posts "here's yours maya 🔒" and a link to
-   `SITE_BASE_URL/connect/<token>`. The token is `base64url(json).base64url(HMAC-SHA256(CONNECT_SECRET, json))`
-   over `{v, p: person, c: chat, n: first name, cb: Atlas's public URL, i: instance id, exp}`, valid
-   48 hours. Fuzzier asks go through the agent's `send_connect_link` tool.
-2. The consent page (`web/app/connect/[token]`, styled as a Capital One screen: read-only balances and
-   the last 3 months of transactions) verifies the token, and Connect files `{token, signature}` in
-   Supabase's `connect_events` under the link's instance id (`signature` = HMAC of `{"token"}`). Links
-   without an instance id POST to `${cb}/connect-callback` instead.
-3. Atlas polls `connect_events` for its own instance id (`src/connect/inbox.ts`, every 3 s), so nothing
-   has to reach it from the internet: bank connect works behind the linq relay with no tunnel. The
-   instance id is per database (`app_meta`), so several Atlases can share one Supabase project. Each
-   approval (or a direct `/connect-callback`) gets the same check: both signatures and the expiry, marks the person connected (idempotent), and a `connect.complete` job links and seeds their
-   Nessie customer, computes their budget and says "maya's connected ✓" in the group. No figure:
-   budgets stay private.
-4. "no"/"nah" → Atlas asks for a rough number instead ("like 600" sets it). Whoever has neither
-   connected nor given a budget gets one nudge about a day later (`connect.nudge` job).
-
-State lives in `bank_connections` (migration 010). In the chat it's always "your capital one"; Nessie
-is the backend. To try it end to end: set the same `CONNECT_SECRET` in `.env` and `web/.env.local`,
-point `SITE_BASE_URL` at the deployed site (or `http://localhost:3000` with `npm run web:dev`), and run
-`npm run live`. In the simulator, `maya connects` in a `.chat` script (or the REPL) runs the same
-callback handler; without `CONNECT_SECRET` the simulator signs with a fixed dev secret that
-`npm run web:dev` also accepts, so sim links open locally.
-
-`npm run ops` has operator commands for a live demo: `failures`, `turns`, `mute`, `weather` (inject
-a forecast), and `say` (send as Atlas).
-
-Other lines:
-- `IMESSAGE_MODE=local npm start` runs on this Mac's Messages account (a spare Apple ID, with Full
-  Disk Access for the terminal). It has no native polls or tapbacks; text fallbacks are automatic.
-- `IMESSAGE_MODE=cloud` works with a Photon Business dedicated line. Shared-pool (Free/Pro) lines
-  can't do groups.
-
-## How it works
-
-```
-Linq webhook ──► signature check ──► durable event log ──► Spectrum (custom "linq" platform)
-                                                            │
-                     ┌──────────────────────────────────────┘
-                     ▼
-     inbox (dedupe per chat) ─► per-chat debounce ─► turn:
-        intro once → commands & fast paths (votes, confirmations, "i paid 64 for dinner")
-        → extraction (Gemini Flash) ∥ addressed check + deterministic hints + speak gate (Flash-Lite)
-        → agent (Gemini Flash + tools: proposals, budgets, money, weather, memory)
-        → money guard → outbox (stable client GUIDs) ─► Spectrum send with text fallbacks
-```
-
-- **Transport:** Spectrum (`spectrum-ts` 12.10.1) with a custom Linq platform, the local and cloud
-  iMessage providers, and a simulator platform. Every rich action (tapback, poll, threaded reply,
-  link) falls back to plain text when a line can't do it.
-- **Pipeline:** each webhook is persisted before it's acknowledged. Messages are deduped per chat,
-  bursts are debounced, and a newer message cancels an in-flight turn (its messages carry
-  forward). Once a money side effect starts, the turn can't be cancelled. Sends are idempotent
-  through stable client GUIDs, and all background work goes through a Postgres job queue with a
-  `job_failures` audit table.
-- **Memory:** each group chat is a sandbox. History, recall and per-person facts are read only in
-  the chat they came from, so one itinerary never leaks into another. Recall is stored
-  in `memory_chunks` with a `diskann` vector index and a BM25 index, queried together in one SQL
-  statement. Atlas's own messages go to the `atlas_log` hypertable, which feeds a "what you already
-  said" section and a `pg_trgm` guard against repeated nudges. See [docs/memory-research.md](docs/memory-research.md).
-- **Time series:** `spend_events` and `weather_snapshots` are hypertables. Two continuous
-  aggregates, `trip_spend_daily` (spend so far) and `forecast_drift_daily` (the forecast
-  timeline), feed the chat and the judge console.
-
-The full design is in [docs/architecture.md](docs/architecture.md). The step-0 transport
-investigation is in [docs/spike-report.md](docs/spike-report.md).
-
-## Models
-
-| Role | Model | Why |
-|---|---|---|
-| Agent replies + tools | `gemini-3.5-flash-lite` | Fast (about half a second a call), calls tools reliably, and has a free tier |
-| Preference extraction | `gemini-3.1-flash-lite` | Structured JSON that matched Flash on our extraction tests; a separate free quota from the agent's |
-| Speak gate | `gemini-3.5-flash-lite` | The fastest model; it runs on most messages and fails closed |
-| Memory | `gemini-embedding-2`, 768 dims | Recall over months of chat |
-
-Atlas runs on Gemini's free tier, with no billing needed. Free quota is counted per model per day,
-and Flash models get only about 20 requests a day each. So the lite models do the everyday work, and
-`GEMINI_FALLBACK_MODELS` (`gemini-3.1-flash-lite`, `gemini-3.5-flash-lite`, `gemini-3-flash-preview`,
-`gemini-3.8-flash`) takes over as each one runs out. A model that's out of quota or overloaded is
-skipped for a while: 30 minutes for a daily quota, or the retry delay Google returns for a
-per-minute one. With several keys in `GEMINI_API_KEY` (comma-separated, each from a different Google
-Cloud project, since quota is per project), calls rotate across the keys and a quota error benches
-the model on that key only, so the other keys keep the preferred model going before Atlas falls
-back to the next model. Overload, timeouts and missing models are Google's side and bench the model
-on every key; a rejected key is skipped for an hour. Atlas also avoids spending calls it doesn't need:
-- Laughter and acks ("lol", "😂", "ok") skip the models entirely, and so does off-topic chatter with
-  no trip or money words ("did anyone watch the game").
-- A trip or money question to the room, an objection or a change of mind skips the gate and goes
-  straight to the agent; if the gate model is out of quota, a deterministic fallback decides.
-- Commands, votes, poll reminders and money never wait on a model.
-- A one-word memory query is a BM25 search with no embedding call.
-- A tool that posts its own message ends the agent's turn.
-- Startup pings only the primary models.
-
-To see your project's exact limits, open Google AI Studio's rate-limit page.
-
-## Testing
-
-- `npm test` runs unit and integration tests against a real Postgres, with a fake Linq API, a fake
-  Nessie that models the quirks observed in 2026, fake SerpApi/Open-Meteo, and scripted model
-  answers.
-- `npm run test:scenarios` plays every `test/scenarios/*.chat` conversation through the real
-  pipeline on the simulator, with scripted model answers, so it runs offline and deterministically.
-  `npm run test:scenarios -- --live` runs them against real Gemini, where the scripted lines are
-  ignored and wording can vary.
-- `npx tsx --env-file-if-exists=.env scripts/e2e.ts --live --dir test/live` replays every bug found
-  in a real chat or a persona QA run (`test/live/*.chat`) against real Gemini, with wording-tolerant
-  checks (regexes, SQL, silence). It spends free-tier quota, so run it on its own.
-- `npx tsx --env-file-if-exists=.env scripts/persona-server.ts --port 8801 --members maya,leo,priya`
-  runs a simulated group chat (fake phone numbers, a throwaway database, live Gemini) behind a small
-  localhost HTTP API (`POST /step`, `GET /wait`, `/transcript`, `/state`), so a person, a script or
-  an agent can play the whole group. Start several on different ports one after another.
-- `npm run typecheck`.
-
-## Project layout
-
-```
-src/transport   Linq platform + webhook server, simulator platform, inbound/outbound mapping
-src/pipeline    inbox, debounce/cancel/carry-forward, outbox, jobs + job_failures
-src/agent       brain (turn order), speak gate, agent loop, commands, money guard, features/*
-src/profile     extraction schema, Gemini extraction, deterministic aggregation, group view
-src/memory      embedding writer, hybrid BM25 + vector recall, atlas_log (Atlas's own words)
-src/search      web search (results + pages read, every item verified against the source)
-src/money       cents, splits, settle-up (exact minimum transfers), budget engine, payment plans, trip-fund math
-src/nessie      client (cache, audit, circuit breaker), personas, seeding, ledger, budgets
-src/trips       catalog, constraints, filter, scoring, live pricing, polls, ledger, itinerary
-src/weather     Open-Meteo client, classification, change detection, cadence, swaps
-src/site        trip pages: snapshot (the privacy boundary), Supabase store, publish + links
-src/console     the judge console
-web             the trip-page site (Next.js on Vercel, reads Supabase server-side)
-supabase        the site's Supabase schema
-video           the launch video (Remotion; see video/README.md)
-scripts         sim, e2e, up, live, persona-server, doctor, demo, ops, nessie-probe, migrate, site-seed
-```
+Setup for a real line, environment variables, the full pipeline, models, testing and project
+layout are in **[docs/technical.md](docs/technical.md)**. The design is in
+[docs/architecture.md](docs/architecture.md) and the memory work in
+[docs/memory-research.md](docs/memory-research.md).
 
 ## Credits
 
 Atlas adapts code and ideas from **[scout](https://github.com/ethanyanghq/scout) by Ethan Yang**,
-used and adapted **with the author's explicit permission**. That includes the Linq platform and
-simulator foundations, the two-stage speak gate, the `.chat` scenario format, vote parsing, and the
+used and adapted **with the author's explicit permission**. That includes the simulator
+foundations, the two-stage speak gate, the `.chat` scenario format, vote parsing, and the
 expense-split and settle-up math. The upstream repository has no license file; the author's
 permission is the basis for this use. Adapted code lives in its own commits titled
 `import from scout (used with author permission)`, and each adapted file names its source in a
 header. The full list is in [NOTICE](NOTICE). Thank you, Ethan.
 
-Also built on:
-- [Photon Spectrum](https://photon.codes/docs/spectrum-ts)
-- [Linq](https://linqapp.com)
-- [Capital One Nessie](https://nessieisreal.com) (generated account data, shown in chat as a connected Capital One account)
-- [Tiger Data](https://www.tigerdata.com) (TimescaleDB, pgvector, pgvectorscale)
-- [Google Gemini](https://ai.google.dev)
-- [SerpApi](https://serpapi.com)
-- Weather data by [Open-Meteo](https://open-meteo.com), licensed CC BY 4.0
+The iMessage line Atlas runs on is provided by [Linq](https://linqapp.com), connected to Spectrum
+through a custom Linq platform (also adapted from scout). Weather data by
+[Open-Meteo](https://open-meteo.com), licensed CC BY 4.0.
