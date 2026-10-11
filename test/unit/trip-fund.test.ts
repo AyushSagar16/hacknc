@@ -131,3 +131,17 @@ describe("fund basics", () => {
     expect(fundName({ title: null, destination_name: "Boone, NC" })).toBe("Boone Trip Fund");
   });
 });
+
+describe("a stay someone booked themselves", () => {
+  it("reads lodging from an expense description", async () => {
+    const { looksLikeStay, stayName } = await import("../../src/agent/features/fund.ts");
+    expect(looksLikeStay("Mountain Inn - 2 nights")).toBe(true);
+    expect(looksLikeStay("the airbnb")).toBe(true);
+    expect(looksLikeStay("cabin")).toBe(true);
+    expect(looksLikeStay("dinner")).toBe(false);
+    expect(looksLikeStay("drinks last night")).toBe(false);
+    expect(stayName("Mountain Inn - 2 nights")).toBe("Mountain Inn");
+    expect(stayName("the cabin for 3 nights")).toBe("the cabin");
+    expect(stayName("airbnb deposit")).toBe("airbnb");
+  });
+});

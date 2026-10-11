@@ -22,7 +22,7 @@ import { doneBy, fundItems, payDueItems, recordContribution, refundFromFund } fr
 import { activeExpenses, categorize, expenseByKey, expenseNumber, insertExpense, numberOf, openSettlements, proposeSettlements, setExpenseNessie, spentSoFar, tripBalances, voidExpense, type ExpenseRow, type SettlementRow } from "../../trips/ledger.ts";
 import { tripById, updateTrip } from "../../trips/state.ts";
 import type { AppServices, Feature, TurnCtx } from "../feature.ts";
-import { postFundPlan } from "./fund.ts";
+import { looksLikeStay, postFundPlan, recordOwnStay, stayName } from "./fund.ts";
 import { nameList } from "./planning.ts";
 import type { Figure } from "../figures.ts";
 import { ToolError, num, say, str, strList, type Tool } from "../tools.ts";
@@ -385,6 +385,13 @@ async function resolveConfirmation(msg: MessageRow, tc: TurnCtx): Promise<boolea
   return false;
 }
 
+/** An expense that's the place someone booked for the group becomes the trip's stay too, so the plan moves on. */
+async function stayFromExpense(tc: TurnCtx, description: string, amountCents: number, explicit?: boolean): Promise<string | null> {
+  if (explicit === false || (explicit !== true && !looksLikeStay(description))) return null;
+  const name = stayName(description);
+  return (await recordOwnStay(tc, name, amountCents)) ? `🏠 ${name} is our stay ✓` : null;
+}
+
 // ---------- tools ----------
 
 const logExpenseTool: Tool = {
@@ -403,6 +410,7 @@ const logExpenseTool: Tool = {
           items: { type: "object", properties: { name: { type: "string" }, amount_usd: { type: "number" }, shared_by: { type: "array", items: { type: "string" } } }, required: ["name", "amount_usd", "shared_by"] },
           description: "per-item lines; tax/tip/fees left over are shared in proportion",
         },
+        is_stay: { type: "boolean", description: "true when this is where the group is staying and the sender booked it (\"i booked mountain inn, 2 nights at 100\"): it also becomes the trip's stay so planning moves on" },
       },
       required: ["amount_usd", "description"],
     },
@@ -437,8 +445,10 @@ const logExpenseTool: Tool = {
       sourceMessageId: tc.sourceMessageId,
     });
     if (duplicate) return { ok: true, next: "already logged from this message; say nothing" };
-    say(tc, text);
-    return { ok: true, posted: [text] };
+    const stay = await stayFromExpense(tc, description, Math.round(amount * 100), typeof args.is_stay === "boolean" ? args.is_stay : undefined);
+    const posted = stay ? `${text}\n${stay}` : text;
+    say(tc, posted);
+    return stay ? { ok: true, posted: [posted], next: "that's the trip's stay now; the food question goes out on its own. reply NO_REPLY" } : { ok: true, posted: [posted] };
   },
 };
 
@@ -551,7 +561,10 @@ export const moneyFeature: Feature = {
     const splitIds = parsed.splitAmong ? parsed.splitAmong.map((n) => (n === "me" ? msg.person_id! : tc.resolve(n))).filter((x): x is number => x !== undefined) : null;
     try {
       const { text, duplicate } = await logExpense(tc, { payerId: msg.person_id, amountCents: parsed.amountCents, description: parsed.description || "expense", splitIds, key: `exp:${msg.id}:0`, sourceMessageId: msg.id });
-      if (!duplicate) say(tc, text);
+      if (!duplicate) {
+        const stay = await stayFromExpense(tc, parsed.description, parsed.amountCents);
+        say(tc, stay ? `${text}\n${stay}` : text);
+      }
       return true;
     } catch (err) {
       if (err instanceof ToolError) return false;

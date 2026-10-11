@@ -160,6 +160,57 @@ export async function bookStay(tc: TurnCtx, o: StayOption, how?: string): Promis
   await postFundPlan(tc, { lead: "the stay's on the trip fund. balance is due as the fund fills up" });
 }
 
+const RENTAL_WORDS = /\b(?:airbnb|vrbo|cabin|house|home|condo|cottage|rental|apartment|apt|chalet|townhouse|villa|bungalow)\b/i;
+const LODGING_WORDS = /\b(?:hotel|motel|inn|lodge|resort|hostel|b&b|bnb|\d+\s+nights)\b/i;
+
+/** Whether an expense reads like the place everyone's staying ("Mountain Inn - 2 nights", "the airbnb"). */
+export function looksLikeStay(description: string): boolean {
+  return RENTAL_WORDS.test(description) || LODGING_WORDS.test(description);
+}
+
+/** "Mountain Inn - 2 nights" → "Mountain Inn"; "the cabin for 3 nights" → "the cabin". */
+export function stayName(description: string): string {
+  const name = description
+    .replace(/\s*(?:[-–—,:(]\s*)?(?:for\s+)?\d+\s+nights?\b.*$/i, "")
+    .replace(/^(?:booked|booking)\s+/i, "")
+    .replace(/\s+(?:deposit|down payment)$/i, "")
+    .trim();
+  return name || description.trim();
+}
+
+/**
+ * A stay someone booked on their own ("i booked mountain inn, 2 nights at 100"). It's the trip's
+ * stay, so the stage is decided and the plan moves on to food & activities (places.afterTurn).
+ * Already paid, so it's on the tab (log_expense), not the trip fund. False when a stay is already
+ * set or there's no place yet.
+ */
+export async function recordOwnStay(tc: TurnCtx, name: string, totalCents: number | null): Promise<boolean> {
+  if (stagesOf(tc.trip).stay === "decided" || !tripDestination(tc.trip)) return false;
+  await tc.nonCancellable();
+  const nights = tc.trip.start_date && tc.trip.end_date ? daysBetween(tc.trip.start_date, tc.trip.end_date) : 0;
+  const people = Math.max(1, tc.members.length);
+  const stay: TripStay = {
+    name,
+    kind: RENTAL_WORDS.test(name) ? "rental" : "hotel",
+    address: null,
+    lat: null,
+    lon: null,
+    check_in: tc.trip.start_date,
+    check_out: tc.trip.end_date,
+    total_cents: totalCents,
+    per_person_night_cents: totalCents && nights > 0 ? Math.round(totalCents / nights / people) : null,
+    rating: null,
+    link: null,
+    booked_at: tc.now.toISOString(),
+  };
+  await removeUnpaidStay(tc.trip.id);
+  tc.trip = await updateTrip(tc.trip.id, { stay });
+  const stages = await setStage(tc.trip.id, "stay", "decided", { force: true });
+  tc.trip = { ...tc.trip, stages };
+  for (const p of await openPolls(tc.chat.id, tc.trip.id)) if (p.kind === STAY_POLL_KIND) await q(`UPDATE polls SET status = 'closed', closed_at = $2 WHERE id = $1`, [p.id, tc.now]);
+  return true;
+}
+
 // ---------- the fund plan ----------
 
 /** One job per payday that has contributions due (idempotent per trip and day). */
@@ -303,18 +354,25 @@ const bookStayTool: Tool = {
   sideEffects: true,
   decl: {
     name: "book_stay",
-    description: "Book one of the stay options already posted when the group agrees on it in words (\"let's do the townhouse\", \"book it\"). Votes on the poll book it on their own.",
-    parameters: { type: "object", properties: { option: { type: "string", description: "the option's number (1-3) or name" } }, required: ["option"] },
+    description:
+      "Book one of the stay options already posted when the group agrees on it in words (\"let's do the townhouse\", \"book it\"). Votes on the poll book it on their own. Also for a place someone already booked on their own with no price given (\"we booked the mountain inn\"): pass its name and it becomes the trip's stay. If they said what they paid, use log_expense with is_stay instead.",
+    parameters: { type: "object", properties: { option: { type: "string", description: "the option's number (1-3) or name, or the name of the place they booked themselves" } }, required: ["option"] },
   },
   async run(args, ctx) {
     const tc = ctx as TurnCtx;
     const poll = (await q<PollRow>(`SELECT * FROM polls WHERE trip_id = $1 AND kind = $2 ORDER BY id DESC LIMIT 1`, [tc.trip.id, STAY_POLL_KIND]))[0];
-    if (!poll) throw new ToolError("no stay options were posted yet; call find_stays first");
     const want = str(args.option) ?? String(num(args.option) ?? "");
     const n = Number(want);
-    const idx = Number.isInteger(n) && n >= 1 && n <= poll.options.length ? n - 1 : poll.options.findIndex((o) => o.title.toLowerCase().includes(want.toLowerCase()) || want.toLowerCase().includes(String((o.ref as StayOption).name ?? "").toLowerCase()));
-    const option = poll.options[idx]?.ref as StayOption | undefined;
-    if (!option) throw new ToolError(`no stay option matches "${want}"`);
+    const idx = !poll ? -1 : Number.isInteger(n) && n >= 1 && n <= poll.options.length ? n - 1 : poll.options.findIndex((o) => o.title.toLowerCase().includes(want.toLowerCase()) || want.toLowerCase().includes(String((o.ref as StayOption).name ?? "").toLowerCase()));
+    const option = poll?.options[idx]?.ref as StayOption | undefined;
+    if (!option) {
+      // Not one of ours: a place they booked themselves.
+      if (!want || /^\d+$/.test(want)) throw new ToolError(poll ? `no stay option matches "${want}"` : "no stay options were posted yet; call find_stays first, or pass the name of the place they booked");
+      const name = stayName(want);
+      if (!(await recordOwnStay(tc, name, null))) throw new ToolError("the stay is already set (or there's no place yet)");
+      say(tc, `🏠 ${name} it is ✓`);
+      return { ok: true, next: "the stay is set and the food question goes out on its own; reply NO_REPLY" };
+    }
     await bookStay(tc, option);
     return { ok: true, next: "booked and the fund plan was posted; reply NO_REPLY" };
   },

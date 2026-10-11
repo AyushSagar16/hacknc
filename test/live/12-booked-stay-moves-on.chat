@@ -1,0 +1,12 @@
+# Real chat: "I booked mountain inn for 2 nights at 100 dollars a night" was logged as an expense
+# but never became the trip's stay, so Atlas didn't move on to food & things to do.
+today 2026-10-10 18:00
+members ayush sai sakshi
+atlas joins by ayush
+ayush: atlas we're doing gatlinburg nov 12-14, all of us driving from chapel hill
+expect atlas speaks
+ayush: I booked mountain inn for 2 nights at 100 dollars a night
+expect atlas ~ /mountain inn/i
+expect sql SELECT stages->>'stay' AS stage FROM trips = [{"stage":"decided"}]
+clock +1m
+expect atlas ~ /food/i
