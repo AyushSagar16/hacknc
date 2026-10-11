@@ -104,6 +104,19 @@ if (cfg.SERPAPI_API_KEY) {
   }
 } else add("serpapi", "warn", "no SERPAPI_API_KEY: prices are labeled catalog estimates");
 
+// Trip pages (Supabase + the deployed web/ site)
+if (cfg.SUPABASE_URL && cfg.SUPABASE_SERVICE_ROLE_KEY && cfg.SITE_BASE_URL) {
+  try {
+    const res = await fetch(`${cfg.SUPABASE_URL}/rest/v1/site_trips?select=id&limit=1`, {
+      headers: { apikey: cfg.SUPABASE_SERVICE_ROLE_KEY, Authorization: `Bearer ${cfg.SUPABASE_SERVICE_ROLE_KEY}` },
+      signal: AbortSignal.timeout(8_000),
+    });
+    add("trip pages (supabase)", res.ok, res.ok ? cfg.SITE_BASE_URL : `${res.status}: run supabase/migrations on the project`);
+  } catch (err) {
+    add("trip pages (supabase)", false, (err as Error).message);
+  }
+} else add("trip pages", "warn", "SUPABASE_URL / SUPABASE_SERVICE_ROLE_KEY / SITE_BASE_URL not all set: no trip pages or links");
+
 // Open-Meteo
 try {
   const res = await fetch("https://api.open-meteo.com/v1/forecast?latitude=35.9&longitude=-79.05&daily=weather_code&forecast_days=1", { signal: AbortSignal.timeout(8_000) });

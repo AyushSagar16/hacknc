@@ -40,6 +40,7 @@ export async function describeSituation(
   lines.push(`group chat with ${tc.members.map((m) => tc.label(m.id)).join(", ")} (${tc.members.length} people).${tc.chat.quiet_mode ? " quiet mode is ON: only reply when tagged." : ""}`);
   lines.push("");
   lines.push("# trip");
+  if (trip.title) lines.push(`name: ${trip.title}`);
   lines.push(`status: ${trip.status}`);
   lines.push(`destination: ${trip.destination_name ?? "not chosen"}`);
   lines.push(`dates: ${trip.start_date && trip.end_date ? `${trip.start_date} to ${trip.end_date}` : "not set"}`);

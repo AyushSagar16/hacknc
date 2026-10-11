@@ -18,7 +18,8 @@ Anyone can keep their budget private, and then Atlas only uses it pooled.
 
 **It turns maybes into a plan.** Three destinations that fit everyone's dates, diets, budgets and
 travel limits, each with a cost breakdown labeled live fare or estimate. Then a native iMessage
-poll. When a majority votes, the trip is locked, with dates, a rough plan and booking links.
+poll. When a majority votes, the trip is locked, with dates and booking links, and Atlas writes the
+day-by-day plan onto the trip's own web page, linked in the chat with a preview card.
 
 **It handles the money nobody wants to handle.** A payment plan timed to each person's paydays.
 During the trip, "i paid 64 for dinner" is all it takes to log an expense. Disputes go to the

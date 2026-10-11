@@ -16,6 +16,9 @@ export const FACT_KEYS = [
 ] as const;
 export type FactKey = (typeof FACT_KEYS)[number];
 
+/** Facts about one trip rather than the person: stamped with a trip, ignored on other trips. */
+export const TRIP_SCOPED_KEYS: ReadonlySet<FactKey> = new Set<FactKey>(["destination", "date_window", "trip_length", "budget_comment"]);
+
 export const DIETARY = ["vegetarian", "vegan", "halal", "kosher", "gluten_free", "dairy_free", "nut_allergy", "pescatarian"] as const;
 export const ACTIVITY_TAGS = [
   "beach", "food", "nightlife", "culture", "outdoors", "hiking", "mountains", "city", "music",

@@ -52,6 +52,11 @@ const schema = z.object({
 
   SERPAPI_API_KEY: optionalString,
 
+  /** Trip pages: Atlas publishes each trip to Supabase and links SITE_BASE_URL/t/<uuid> in the chat. */
+  SUPABASE_URL: optionalString,
+  SUPABASE_SERVICE_ROLE_KEY: optionalString,
+  SITE_BASE_URL: optionalString.transform((v) => v?.replace(/\/+$/, "")),
+
   /**
    * When a group goes quiet after a human message Atlas didn't answer, follow up after this many
    * seconds to move the plan forward. 0 turns it off. Default: 150 on a real line, off in the simulator.

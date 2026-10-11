@@ -10,6 +10,10 @@ export interface ChatRow {
   intro_sent_at: Date | null;
   timezone: string;
   created_at: Date;
+  /** The trip the chat is working on (see trips/state.ts). */
+  focus_trip_id: number | null;
+  /** The chat's hub page id (lists its trips). */
+  public_id: string;
 }
 
 export interface PersonRow {
@@ -38,6 +42,8 @@ export interface MessageRow {
   turn_id: number | null;
   speakable: boolean;
   extracted_at: Date | null;
+  /** The trip the chat was focused on when this message was stored. */
+  trip_id: number | null;
   sender_name?: string | null;
   sender_handle?: string | null;
 }
@@ -134,11 +140,14 @@ export interface NewMessage {
   turnId?: number | null;
 }
 
-/** Inserts a message; resolves undefined if this provider id was already stored (a redelivery). */
+/**
+ * Inserts a message, stamped with the chat's focused trip; resolves undefined if this provider
+ * id was already stored (a redelivery).
+ */
 export async function insertMessage(m: NewMessage, on: Queryable = db()): Promise<MessageRow | undefined> {
   return one<MessageRow>(
-    `INSERT INTO messages (chat_id, person_id, provider_message_id, direction, kind, text, reply_to_provider_id, meta, sent_at, received_at, speakable, turn_id)
-     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12)
+    `INSERT INTO messages (chat_id, person_id, provider_message_id, direction, kind, text, reply_to_provider_id, meta, sent_at, received_at, speakable, turn_id, trip_id)
+     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12, (SELECT focus_trip_id FROM chats WHERE id = $1))
      ON CONFLICT (chat_id, provider_message_id) DO NOTHING
      RETURNING *`,
     [

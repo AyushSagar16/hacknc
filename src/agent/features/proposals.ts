@@ -10,17 +10,15 @@ import { one, q } from "../../db/pool.ts";
 import { activeMembers, ensureMember, insertMessage, labelOf, upsertPerson, type MessageRow } from "../../db/repos/core.ts";
 import { enqueueJob, rescheduleSingleton } from "../../pipeline/jobs.ts";
 import { budgetRows } from "../../nessie/budgets.ts";
-import { interestWeights } from "../../profile/groupView.ts";
 import { destinationById, destinations, findDestination, resolveHome, type Destination, type Tag } from "../../trips/catalog.ts";
 import { applyGroupAsk, buildConstraints, type GroupAsk } from "../../trips/constraints.ts";
 import { hardFilter, hasTag, tripMonths, type Rejection } from "../../trips/filter.ts";
 import { estimateCost, travelPlan, type CostBreakdown } from "../../trips/estimate.ts";
-import { dayLabel, draftItinerary } from "../../trips/itinerary.ts";
 import { googleFlightsLink, googleHotelsLink } from "../../trips/links.ts";
 import { closedPollFor, closePoll, createPoll, pollById, lastDecidedPoll, openNativePolls, openPolls, recordVote, setVote, voteRows, votesFor, type PollRow } from "../../trips/pollStore.ts";
 import { priceOption, type PriceCache } from "../../trips/pricing.ts";
 import { applyVibe, bestReason, inferVibe, pickThree, scoreDestinations, vibeTags, type Scored } from "../../trips/score.ts";
-import { updateTrip } from "../../trips/state.ts";
+import { focusTrip, updateTrip } from "../../trips/state.ts";
 import { parseVote, reconcileVotes, tally, type ProviderVote } from "../../trips/votes.ts";
 import { formatRange } from "./planning.ts";
 import { fireTripLocked, type AppServices, type Feature, type TurnCtx } from "../feature.ts";
@@ -47,7 +45,7 @@ export function setPricingFetch(f: typeof fetch): void {
   pricingFetch = f;
 }
 
-interface StoredOption {
+export interface StoredOption {
   destId: string;
   name: string;
   avgCents: number;
@@ -369,6 +367,8 @@ export function tieMessage(names: string[], counts: number[], leader: number, pr
 
 /** Tally and, when the poll is decided, lock it in (proactively: nobody has to ask). True if decided. */
 async function afterVote(poll: PollRow, tc: TurnCtx, voterId: number | null, source: "native" | "tapback" | "text" | "agent" | "sync", msg: MessageRow | null): Promise<boolean> {
+  // Voting on another trip's poll makes that trip the one the chat is working on.
+  if (poll.trip_id !== tc.trip.id) tc.trip = await focusTrip(tc.chat.id, poll.trip_id);
   const votes = await votesFor(poll.id);
   const result = tallyPoll(poll, votes, tc.members.length);
   if (result.decided && result.winner !== null) {
@@ -397,6 +397,7 @@ async function afterVote(poll: PollRow, tc: TurnCtx, voterId: number | null, sou
 /** Close a decided poll and act on it: lock a destination, announce a custom result, or hand to the feature that owns it. */
 async function decidePoll(poll: PollRow, winner: number, count: number, tc: TurnCtx, how?: string): Promise<void> {
   await tc.nonCancellable();
+  if (poll.trip_id !== tc.trip.id) tc.trip = await focusTrip(tc.chat.id, poll.trip_id);
   await closePoll(poll.id, winner, tc.now);
   let handled = false;
   if (poll.kind === "destination") handled = await lockFromPoll(poll, winner, count, tc, how);
@@ -569,13 +570,16 @@ async function lockFromPoll(poll: PollRow, winner: number, count: number, tc: Tu
   return true;
 }
 
-/** Lock the destination + dates, draft the itinerary, post links, fire trip-locked hooks. */
+/**
+ * Lock the destination + dates, post booking links, fire trip-locked hooks. The day-by-day plan
+ * is Atlas's to write next (update_itinerary); a plan for a different place is cleared.
+ */
 export async function lockDestination(tc: TurnCtx, dest: Destination, headline: string): Promise<void> {
   await tc.nonCancellable();
   const view = await tc.view();
   const start = tc.trip.start_date ?? view.dates?.start ?? null;
   const end = tc.trip.end_date ?? view.dates?.end ?? null;
-  const itinerary = start && end ? draftItinerary(dest, start, end, interestWeights(view)) : [];
+  const itinerary = tc.trip.destination_id === dest.id ? tc.trip.itinerary : [];
   tc.trip = await updateTrip(tc.trip.id, {
     status: "locked",
     destination_id: dest.id,
@@ -587,11 +591,8 @@ export async function lockDestination(tc: TurnCtx, dest: Destination, headline: 
     itinerary: itinerary as never,
     locked_at: tc.now,
   });
-  for (const p of await openPolls(tc.chat.id)) if (p.kind === "destination") await closePoll(p.id, null, tc.now);
+  for (const p of await openPolls(tc.chat.id, tc.trip.id)) if (p.kind === "destination") await closePoll(p.id, null, tc.now);
   say(tc, `${headline}\n${start && end ? `locked in for ${formatRange(start, end)}` : "locked in. now we just need dates"}`);
-  if (itinerary.length) {
-    say(tc, `rough plan 🗺️\n${itinerary.map((d) => `${dayLabel(d.date)}: ${d.items.map((i) => i.name.toLowerCase()).join(", ") || "free day, do whatever"}`).join("\n")}`);
-  }
   if (start && end) {
     // Flight links only for people who fly there (drivers and anyone who can't fly get none).
     const proposal = await one<{ options: StoredOption[] }>(`SELECT options FROM proposals WHERE trip_id = $1 ORDER BY id DESC LIMIT 1`, [tc.trip.id]);
@@ -612,8 +613,12 @@ export async function lockDestination(tc: TurnCtx, dest: Destination, headline: 
           .filter((x): x is string => Boolean(x) && x !== dest.iata),
       ),
     ];
-    const flights = iatas.slice(0, 3).map((o) => `✈️ from ${o.toLowerCase()}: ${googleFlightsLink(o, dest.iata, start, end)}`);
-    say(tc, [`ready to book? links 👇`, ...flights, `🏠 stays: ${googleHotelsLink(dest.name, start, end, Math.min(tc.members.length, 4))}`].join("\n"));
+    const flights = iatas.slice(0, 3).map((o) => ({ from: o, url: googleFlightsLink(o, dest.iata, start, end) }));
+    const stays = googleHotelsLink(dest.name, start, end, Math.min(tc.members.length, 4));
+    say(tc, [`ready to book? links 👇`, ...flights.map((f) => `✈️ from ${f.from.toLowerCase()}: ${f.url}`), `🏠 stays: ${stays}`].join("\n"));
+    // The trip page lists the same links.
+    const booking = [...flights.map((f) => ({ label: `flights from ${f.from}`, url: f.url })), { label: "stays", url: stays }];
+    tc.trip = await updateTrip(tc.trip.id, { booking });
   }
   await fireTripLocked(tc.trip, tc);
 }
@@ -738,7 +743,7 @@ const recordVoteTool: Tool = {
   },
   async run(args, ctx) {
     const tc = ctx as TurnCtx;
-    const poll = (await openPolls(tc.chat.id)).find((p) => p.kind === "destination");
+    const poll = (await openPolls(tc.chat.id, tc.trip.id)).find((p) => p.kind === "destination");
     if (!poll) throw new ToolError("no destination poll is open");
     const who = tc.resolve(str(args.member) ?? "");
     const n = num(args.option_number);
@@ -754,19 +759,26 @@ const lockTool: Tool = {
   decl: {
     name: "lock_destination",
     description:
-      "Lock in a destination when the group (\"we\", \"everyone\", a majority) has clearly decided, even outside the poll. Posts the lock-in, rough plan and booking links itself. Works on an already-locked trip too (re-locks and redoes the plan); if only one person wants to switch, use reopen_destination for a quick re-vote instead.",
+      "Lock in a destination when the group (\"we\", \"everyone\", a majority) has clearly decided, even outside the poll. Posts the lock-in and booking links itself; write the day-by-day plan right after with update_itinerary. Works on an already-locked trip too (re-locks; a new place needs a new plan); if only one person wants to switch, use reopen_destination for a quick re-vote instead.",
     parameters: { type: "object", properties: { destination: { type: "string", description: "option number or place name" } }, required: ["destination"] },
   },
   async run(args, ctx) {
     const tc = ctx as TurnCtx;
     const input = str(args.destination) ?? "";
-    const poll = (await openPolls(tc.chat.id)).find((p) => p.kind === "destination");
+    const poll = (await openPolls(tc.chat.id, tc.trip.id)).find((p) => p.kind === "destination");
     let dest: Destination | undefined;
     if (/^\d+$/.test(input) && poll) dest = destinationById(String(poll.options[Number(input) - 1]?.ref ?? ""));
     dest ??= findDestination(input);
     if (!dest) throw new ToolError(`"${input}" isn't a place i have data for`);
+    // This agent turn writes the plan itself, so no follow-up is needed for it.
+    tc.notes.set("itinerary.byAgent", true);
     await lockDestination(tc, dest, `🎉 ${dest.name.toLowerCase()} it is!`);
-    return { ok: true, next: "locked; the lock-in message and plan were posted" };
+    return {
+      ok: true,
+      next: tc.trip.start_date
+        ? "locked; the lock-in and booking links were posted. now call update_itinerary with a day-by-day plan (ideas are in the situation under trip page), then at most a one-line lead-in"
+        : "locked; the lock-in was posted. dates aren't set, so ask for them before writing the plan",
+    };
   },
 };
 
@@ -789,6 +801,8 @@ export const proposalsFeature: Feature = {
 
   async fastPath(msg, tc) {
     if (msg.person_id === null) return false;
+    // Native and tapback votes name their poll, so they match any trip's poll in the chat;
+    // a typed vote ("2") goes to the focused trip's poll.
     const polls = await openPolls(tc.chat.id);
     if (polls.length === 0) return lateVote(msg, tc);
 
@@ -819,11 +833,14 @@ export const proposalsFeature: Feature = {
       return true;
     }
     if (msg.kind === "text" && msg.speakable) {
+      // Typed votes, "pick for us" and "skip" are about the trip the chat is working on.
+      const mine = polls.filter((p) => p.trip_id === tc.trip.id);
       // "pick for us" on a tied poll: Atlas breaks the tie (cheaper option).
-      if (await resolveTieByAsk(msg, tc, polls)) return true;
+      if (await resolveTieByAsk(msg, tc, mine)) return true;
       // "skip": go with the votes that are in.
-      if (await skipPoll(msg, tc, polls)) return true;
-      const poll = polls.find((p) => p.kind === "destination") ?? polls[0]!;
+      if (await skipPoll(msg, tc, mine)) return true;
+      const poll = mine.find((p) => p.kind === "destination") ?? mine[0];
+      if (!poll) return false;
       const titles = poll.options.map((o) => o.title.split(" (")[0]!);
       const idx = parseVote(msg.text, titles);
       if (idx !== null) {
@@ -857,7 +874,7 @@ export const proposalsFeature: Feature = {
 
   async hints(tc) {
     const out: string[] = [];
-    for (const p of await openPolls(tc.chat.id)) {
+    for (const p of await openPolls(tc.chat.id, tc.trip.id)) {
       const hours = (tc.now.getTime() - p.created_at.getTime()) / 3_600_000;
       const votes = await votesFor(p.id);
       const voters = new Set(votes.filter((v) => v.selected).map((v) => v.personId)).size;
@@ -868,7 +885,7 @@ export const proposalsFeature: Feature = {
 
   async situation(tc) {
     const lines: string[] = [];
-    for (const p of await openPolls(tc.chat.id)) {
+    for (const p of await openPolls(tc.chat.id, tc.trip.id)) {
       const votes = await votesFor(p.id);
       const by = (i: number) => votes.filter((v) => v.optionIdx === i && v.selected).map((v) => tc.label(v.personId));
       lines.push(`open poll "${p.title}" (${p.rendered_as}): ${p.options.map((o, i) => `${i + 1}. ${o.title} [${by(i).join(", ") || "no votes"}]`).join("; ")}`);
@@ -885,7 +902,7 @@ export const proposalsFeature: Feature = {
 
   async summary(tc) {
     const out: string[] = [];
-    for (const p of await openPolls(tc.chat.id)) {
+    for (const p of await openPolls(tc.chat.id, tc.trip.id)) {
       const votes = await votesFor(p.id);
       out.push(`poll open: ${p.options.map((o, i) => `${o.title.split(" (")[0]} ${votes.filter((v) => v.optionIdx === i && v.selected).length}`).join(", ")}`);
     }

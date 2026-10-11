@@ -12,6 +12,8 @@ import { groupView, interestWeights } from "../../profile/groupView.ts";
 import { profilesFor } from "../../profile/store.ts";
 import { destinationById, normalizeTag } from "../../trips/catalog.ts";
 import { closePoll, createPoll, type PollRow } from "../../trips/pollStore.ts";
+import { requestAnnounce } from "../../site/publish.ts";
+import { announceSection } from "./site.ts";
 import { updateTrip, type ItineraryDay, type TripRow, type TripStatus } from "../../trips/state.ts";
 import type { Action } from "../../transport/outbound.ts";
 import { nextCheckAt, shouldAlert, type AlertRecord } from "../../weather/cadence.ts";
@@ -223,8 +225,11 @@ function swapRef(ref: unknown): SwapRef | null {
   return { apply: r.apply, proposal: p as SwapProposal };
 }
 
-async function openSwapPoll(chatId: number): Promise<PollRow | undefined> {
-  return one<PollRow>(`SELECT * FROM polls WHERE chat_id = $1 AND kind = $2 AND status = 'open' ORDER BY id DESC LIMIT 1`, [chatId, WEATHER_POLL_KIND]);
+async function openSwapPoll(chatId: number, tripId?: number): Promise<PollRow | undefined> {
+  return one<PollRow>(
+    `SELECT * FROM polls WHERE chat_id = $1 AND kind = $2 AND status = 'open' AND ($3::bigint IS NULL OR trip_id = $3) ORDER BY id DESC LIMIT 1`,
+    [chatId, WEATHER_POLL_KIND, tripId ?? null],
+  );
 }
 
 function pollProposal(poll: PollRow): SwapProposal | null {
@@ -280,7 +285,7 @@ export async function checkTripWeather(
           });
     let message = proposal ? proposal.message : headsUp(lead, itinerary);
     if (lead.kind === "cleared_up") {
-      const open = await openSwapPoll(trip.chat_id);
+      const open = await openSwapPoll(trip.chat_id, trip.id);
       if (open && pollProposal(open)?.day === lead.day) {
         await closePoll(open.id, null, t);
         message += ", so no need to swap";
@@ -399,8 +404,12 @@ async function decideSwap(poll: PollRow, winnerIdx: number, tc: TurnCtx): Promis
   if (result.status === "already") return { applied: true, posted: [] };
   if (result.status === "stale") return { applied: false, posted: say(tc, "the plan changed since i suggested that, so i left it as is") };
   const updated = await updateTrip(trip.id, { itinerary: result.itinerary });
-  if (tc.trip.id === updated.id) tc.trip = updated;
-  return { applied: true, posted: say(tc, swapConfirmation(ref.proposal)) };
+  const posted = say(tc, swapConfirmation(ref.proposal));
+  if (tc.trip.id === updated.id) {
+    tc.trip = updated;
+    await announceSection(tc, "itinerary");
+  } else await requestAnnounce(tc.cfg, updated, "itinerary");
+  return { applied: true, posted };
 }
 
 const applyWeatherSwap: Tool = {

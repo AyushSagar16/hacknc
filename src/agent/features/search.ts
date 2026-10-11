@@ -17,6 +17,7 @@ import { LlmError, type GenerateResult, type Llm, type LlmSource } from "../llm.
 import { say, str, type Tool, type ToolCtx } from "../tools.ts";
 import { cleanAnswer, dietLabel, formatList, MAX_ITEMS, MIN_ITEMS, rangeLabel, stripArtifacts, type ListItem } from "../../search/format.ts";
 import { groundItems } from "../../search/verify.ts";
+import { saveLookupToTrip } from "./research.ts";
 import { ddgSearch, SearchBlockedError, excerpt, fetchPage, isGroundingRedirect, keywords, linkable, resolveRedirect, type Fetch, type Page, type WebResult } from "../../search/web.ts";
 
 export const PURPOSES = ["things_to_do", "food", "events", "dates", "facts"] as const;
@@ -534,6 +535,8 @@ const webSearch: Tool = {
       log.warn({ chatId: ctx.chat.id, purpose, kind, err: (err as Error).message.slice(0, 160) }, "web_search failed");
       return { ok: false, error: kind === "no_key" ? NOT_CONNECTED : BUSY };
     }
+    // What Atlas finds for a trip also goes on the trip page's research section.
+    if (found.kind !== "dates" && ctx.chat.is_group) await saveLookupToTrip(ctx.cfg, ctx.trip, found.kind === "list" ? found.heading : query, found);
     if (found.kind === "list") {
       const items = found.items.map((it) => (it.start ? { ...it, detail: `${rangeLabel(it.start, it.end)}${it.detail ? `: ${it.detail}` : ""}` } : it));
       const bubble = formatList(found.heading, items);

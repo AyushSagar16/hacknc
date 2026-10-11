@@ -81,8 +81,9 @@ export function createBrain(deps: BrainDeps): TurnHandler & { settle(): Promise<
     const label = (id: number | null) => (id === null ? agentName.toLowerCase() : labelOf(byId.get(id) ?? { display_name: null, handle: null }));
     const firstNames = new Map<number, string>(members.map((m) => [m.id, label(m.id).toLowerCase().split(/\s+/)[0] ?? ""]));
 
-    // A promise, so callers racing in parallel (situation, hints) share one query.
-    let profilesCache: ReturnType<typeof profilesFor> | undefined;
+    // A promise, so callers racing in parallel (situation, hints) share one query. Keyed by trip:
+    // a tool that starts or switches trips mid-turn changes which facts count.
+    let profilesCache: { tripId: number; promise: ReturnType<typeof profilesFor> } | undefined;
     const figures = new Figures();
     const tc: TurnCtx = {
       cfg,
@@ -110,7 +111,10 @@ export function createBrain(deps: BrainDeps): TurnHandler & { settle(): Promise<
       history,
       consumed: new Set(),
       features,
-      profiles: () => (profilesCache ??= profilesFor(members.map((m) => m.id))),
+      profiles: () => {
+        if (profilesCache?.tripId !== tc.trip.id) profilesCache = { tripId: tc.trip.id, promise: profilesFor(members.map((m) => m.id), { tripId: tc.trip.id }) };
+        return profilesCache.promise;
+      },
       view: async () => {
         const profiles = await tc.profiles();
         return groupView(
@@ -301,9 +305,12 @@ export function createBrain(deps: BrainDeps): TurnHandler & { settle(): Promise<
     if (!settled) {
       // The situation went out with the profiles from before this batch; tools (who's still missing
       // what, dates) read them after extraction lands, so nobody is asked for what they just said.
-      const fresh = () => profilesFor(members.map((m) => m.id));
+      const fresh = () => profilesFor(members.map((m) => m.id), { tripId: tc.trip.id });
       profilesCache = undefined;
-      tc.profiles = () => (profilesCache ??= extraction.then(fresh, fresh));
+      tc.profiles = () => {
+        if (profilesCache?.tripId !== tc.trip.id) profilesCache = { tripId: tc.trip.id, promise: extraction.then(fresh, fresh) };
+        return profilesCache.promise;
+      };
     }
     const agentRun = () => runAgent({ llm, model: cfg.GEMINI_MODEL_AGENT, situation, tools, ctx: tc, signal: input.signal, agentName, mustAnswer: explicitlyAddressed || Boolean(needsAtlas) });
     let out = await agentRun();

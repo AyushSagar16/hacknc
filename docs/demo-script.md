@@ -87,7 +87,8 @@ synthetic history. There's no linking step."
 Maya and Leo vote for Savannah in the poll.
 
 > **Atlas:** savannah wins (2 of 3). savannah is locked in for nov 12–16 🎉
-> **Atlas:** rough plan: … / to book: …
+> **Atlas:** ready to book? links 👇 …
+> **Atlas:** (trip page link: the day-by-day plan Atlas just wrote, as an iMessage preview card)
 > **Atlas:** payment plan for everyone's share…set up as nessie bills timed to your paydays…
 
 **Say:** "Cancún never appears; it was vetoed. Every option is drivable for Priya and works for
