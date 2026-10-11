@@ -1,7 +1,9 @@
-// Budgets from Nessie demo spending profiles: automatic linking when someone is first seen,
-// per-person suggestions with a formula you can explain in three lines, adjust by text,
-// "keep my budget private" (pooled-only from then on), a private breakdown over DM, and the
-// pooled figure for the group. Every figure is registered for the money guard with its source.
+// Budgets from each person's Nessie account (shown in chat as their connected Capital One):
+// automatic linking when someone is first seen, per-person suggestions with a formula you can
+// explain in three lines, adjust by text, a private breakdown over DM, and the pooled figure for
+// the group. Budgets are private by default: the group only sees pooled numbers unless a person
+// says "share my budget" ("keep my budget private" switches back). Every figure is registered
+// for the money guard with its source.
 import { now } from "../../clock.ts";
 import { formatUsd } from "../../money/cents.ts";
 import { one, q } from "../../db/pool.ts";
@@ -18,14 +20,15 @@ import type { Feature, TurnCtx } from "../feature.ts";
 import { nameList } from "./planning.ts";
 import type { Figure } from "../figures.ts";
 import { ToolError, num, say, type Tool } from "../tools.ts";
+import { parseCommand } from "../commands.ts";
 
-const DISCLAIMER = "based on demo spending profiles (synthetic sandbox data, not your real bank)";
+const DISCLAIMER = "based on your last few months of spending";
 
 function sourceTag(r: BudgetRow): string {
   const s = r.inputs.source;
   if (s === "nessie") return `nessie:${r.inputs.customerId ?? "customer"}`;
   if (s === "nessie-cache") return `nessie-cache:${r.inputs.customerId ?? "customer"}`;
-  return "estimate:offline demo profile";
+  return "estimate:spending profile";
 }
 
 export function budgetFigures(rows: BudgetRow[], label: (id: number) => string): Figure[] {
@@ -44,7 +47,7 @@ export function budgetFigures(rows: BudgetRow[], label: (id: number) => string):
   return figures;
 }
 
-const SOURCE_NOTE = "(from demo spending profiles, not your real bank)";
+const SOURCE_NOTE = "(based on everyone's last few months of spending, from your connected accounts)";
 
 /** Who the locked plan bills more than their budget. Names only: never a private number. */
 export function overBudgetNames(rows: BudgetRow[], planTotals: Map<number, number> | undefined, label: (id: number) => string): string[] {
@@ -70,18 +73,25 @@ export function budgetMessage(rows: BudgetRow[], label: (id: number) => string, 
       ? "and the locked plan fits everyone's budget"
       : `so i'll plan around ${formatUsd(p.ceilingCents)} each, which works for everyone`;
   if (!p.anyPrivate) {
+    // Everyone chose to share: the list, then the number Atlas plans around.
     const each = rows.map((r) => `${label(r.person_id).toLowerCase()}: ${formatUsd(effectiveCents(r)!)}`).join("\n");
     out.push(`💰 trip budgets\n${each}`);
     if (p.count >= 2 || over.length) out.push(`${verdict}${note}`);
     else if (note) out.push(SOURCE_NOTE);
   } else if (p.count >= 3) {
     const pooled = `everyone's good up to ${formatUsd(p.ceilingCents)} each`;
-    out.push(`💰 someone's keeping their budget private, so here's just the pooled number:\n${pooled}${over.length ? `\n${verdict}` : ""}${note}`);
+    out.push(`💰 budgets stay private, so here's just the pooled number:\n${pooled}${over.length ? `\n${verdict}` : ""}${note}`);
+  } else if (p.count === 2) {
+    out.push(`budgets stay private between you two${opts.firstTime ? ` (${DISCLAIMER})` : ""}. ${over.length ? `${verdict}` : "i'll flag anything over what you can both do"}`);
   } else {
-    out.push(`budgets stay pooled between you two${opts.firstTime ? ` (${DISCLAIMER})` : ""}. ${over.length ? `${verdict}` : "i'll flag anything over what you can both do"}`);
+    // A one-person chat: nothing to pool, and their own number stays out of the group thread.
+    out.push(`got your budget${opts.firstTime ? ` (${DISCLAIMER})` : ""}. it stays private, text me directly to see it`);
   }
   if (opts.firstTime) {
-    out.push(`how i got these: what you earn, minus bills and everyday spending, for each month until the trip, then half of that\nwant a different number? say "set my budget to ___" or "keep my budget private"`);
+    const change = p.anyPrivate
+      ? `say "set my budget to ___". yours stays private unless you say "share my budget", and you can text me to see it`
+      : `say "set my budget to ___" or "keep my budget private"`;
+    out.push(`how i got these: what you earn, minus bills and everyday spending, for each month until the trip, then half of that\nwant a different number? ${change}`);
   }
   return out;
 }
@@ -99,7 +109,7 @@ function tooLowReply(name: string, cents: number): string {
   return `${formatUsd(cents)} won't get anyone out of town 😅 ${name}, what's a real number? anything ${formatUsd(MIN_BUDGET_CENTS)}+ works`;
 }
 
-const LOADING_TEXT = "pulling demo spending profiles for";
+const LOADING_TEXT = "pulling recent spending for";
 
 /** Atlas already said it's pulling profiles a moment ago; saying it again reads like a stuck bot. */
 function saidLoadingRecently(tc: TurnCtx): boolean {
@@ -116,10 +126,10 @@ async function postBudgets(tc: TurnCtx, opts: { asked?: boolean } = {}): Promise
     await enqueueJob("budgets.announce", { chatId: tc.chat.id, attempt: 0 }, { singletonKey: `budgets:${tc.chat.id}`, dueAt: new Date(tc.now.getTime() + 5_000) });
     if (saidLoadingRecently(tc)) {
       // Someone asked outright: answer, briefly. From a tool, say nothing and let the model talk.
-      if (opts.asked) say(tc, "still pulling the demo profiles, everyone's budget will land here in a sec");
+      if (opts.asked) say(tc, "still pulling everyone's recent spending, budgets will land here in a sec");
       return;
     }
-    say(tc, `one sec, ${LOADING_TEXT} ${nameList(pending.map((id) => label(id).toLowerCase()))} from the nessie sandbox. i'll post everyone's budget right after`);
+    say(tc, `one sec, ${LOADING_TEXT} ${nameList(pending.map((id) => label(id).toLowerCase()))} from your connected accounts. i'll post the budgets right after`);
     return;
   }
   const firstTime = rows.some((r) => r.announced_at === null);
@@ -139,7 +149,7 @@ const showBudgets: Tool = {
   soloPost: true,
   decl: {
     name: "show_budgets",
-    description: "Post everyone's suggested trip budget (from their Nessie demo spending profiles) and the pooled per-person figure. Respects private budgets. Use when budgets come up or before proposing options.",
+    description: "Post the group's trip budgets, worked out from each person's connected account (their last few months of spending): the pooled per-person figure, plus individual budgets only for people who chose to share theirs. Use when budgets come up or before proposing options.",
     parameters: { type: "object", properties: {} },
   },
   async run(_args, ctx) {
@@ -182,9 +192,11 @@ async function privateBreakdown(personId: number): Promise<string[] | null> {
   if (!row?.inputs.result) return null;
   const r = row.inputs.result;
   const lines = [
-    `your trip budget: ${formatUsd(effectiveCents(row)!)}${row.adjusted_cents !== null ? ` (you set it; the profile suggested ${formatUsd(row.suggested_cents!)})` : ""}. ${DISCLAIMER}`,
+    `your trip budget: ${formatUsd(effectiveCents(row)!)}${row.adjusted_cents !== null ? ` (you set it; your spending suggested ${formatUsd(row.suggested_cents!)})` : ""}, ${DISCLAIMER}`,
     ...r.explanation,
-    `it's ${row.visibility}. "keep my budget private" / "make my budget public" switches it`,
+    row.visibility === "private"
+      ? `it's private: the group only sees pooled numbers. say "share my budget" if you want them to see yours`
+      : `you're sharing it with the group. "keep my budget private" switches it back`,
   ];
   return lines;
 }
@@ -237,7 +249,7 @@ export const budgetsFeature: Feature = {
     budget_public: async (msg, tc) => {
       if (msg.person_id === null) return;
       await setVisibility(msg.person_id, tc.trip.id, "public");
-      say(tc, "ok, your budget is public again 👍");
+      say(tc, `ok ${tc.label(msg.person_id).toLowerCase()}, i'll share your budget with the group 👍 "keep my budget private" switches it back`);
     },
     budget_set: async (msg, tc, cmd) => {
       if (msg.person_id === null || cmd.kind !== "budget_set") return;
@@ -270,35 +282,36 @@ export const budgetsFeature: Feature = {
     for (const m of tc.members) {
       const r = rows.get(m.id);
       const cents = r ? effectiveCents(r) : null;
-      if (!r || cents === null) lines.push(`- ${tc.label(m.id)}: no budget yet (demo profile not linked or not computed; show_budgets computes it)`);
-      else if (r.visibility === "private") lines.push(`- ${tc.label(m.id)}: PRIVATE — never mention it; pooled figures only`);
-      else lines.push(`- ${tc.label(m.id)}: ${formatUsd(cents)}${r.adjusted_cents !== null ? " (set by them)" : " (suggested)"}, ${r.inputs.source === "offline-profile" ? "offline demo profile" : "nessie demo profile"}${r.announced_at ? "" : " — not shown to the group yet"}`);
+      if (!r || cents === null) lines.push(`- ${tc.label(m.id)}: no budget yet (account not linked or not computed; show_budgets computes it)`);
+      else if (r.visibility === "private") lines.push(`- ${tc.label(m.id)}: PRIVATE (the default) — never mention it; pooled figures only`);
+      else lines.push(`- ${tc.label(m.id)}: ${formatUsd(cents)}${r.adjusted_cents !== null ? " (set by them)" : " (suggested)"}, shared by them${r.announced_at ? "" : " — not shown to the group yet"}`);
     }
     const valid = [...rows.values()].filter((r) => effectiveCents(r) !== null);
     if (valid.length >= 2) lines.push(`pooled: everyone's comfortable up to ${formatUsd(pool(valid).ceilingCents)} per person`);
-    return { title: "budgets (demo spending profiles from the nessie sandbox; say so when you mention them)", lines };
+    return { title: "budgets (from each person's connected account, based on their last few months of spending; private unless they said \"share my budget\")", lines };
   },
 
   async summary(tc) {
     const rows = (await budgetRows(tc.trip.id)).filter((r) => effectiveCents(r) !== null);
     if (rows.length < 2) return [];
-    return [`budget: everyone's comfortable up to ${formatUsd(pool(rows).ceilingCents)} per person (demo profiles)`];
+    return [`budget: everyone's comfortable up to ${formatUsd(pool(rows).ceilingCents)} per person`];
   },
 
   async directMessage(msg: MessageRow, tc) {
     if (msg.person_id === null) return false;
     const t = msg.text.toLowerCase();
-    if (/keep my budget private|make my budget private/.test(t) || /make my budget public/.test(t)) {
-      const vis = /public/.test(t) ? "public" : "private";
+    const cmd = parseCommand(msg.text, { addressed: true });
+    if (cmd?.kind === "budget_private" || cmd?.kind === "budget_public") {
+      const vis = cmd.kind === "budget_public" ? "public" : "private";
       const trips = await q<{ trip_id: number }>(`SELECT DISTINCT t.id AS trip_id FROM trips t JOIN chat_members m ON m.chat_id = t.chat_id WHERE m.person_id = $1`, [msg.person_id]);
       for (const r of trips) await setVisibility(msg.person_id, r.trip_id, vis);
-      say(tc, vis === "private" ? "done, your budget is private everywhere. groups only see pooled numbers" : "done, your budget is public again");
+      say(tc, vis === "private" ? "done, your budget is private everywhere. groups only see pooled numbers" : "done, your groups can see your budget now");
       return true;
     }
     if (/\b(my budget|what can i (spend|afford)|budget breakdown)\b/.test(t)) {
       const lines = await privateBreakdown(msg.person_id);
       if (!lines) {
-        say(tc, "i don't have a budget for you yet. once you're in a group chat with me and budgets come up, i'll compute it from your demo spending profile");
+        say(tc, "i don't have a budget for you yet. once you're in a group chat with me and budgets come up, i'll work it out from your connected account");
         return true;
       }
       const row = await one<BudgetRow>(`SELECT * FROM budgets WHERE person_id = $1 AND suggested_cents IS NOT NULL ORDER BY updated_at DESC LIMIT 1`, [msg.person_id]);

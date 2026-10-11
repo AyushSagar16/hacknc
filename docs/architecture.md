@@ -50,15 +50,18 @@ schedules are deterministic code.
    which goes through the signature check, `webhook_events`, the Spectrum `addMember` record and
    the inbox. That runs a turn and sends the **intro** once. Members Atlas hasn't heard from are
    learned with `GET /chats/{id}`. Each new person gets a **Nessie link job**, which seeds a
-   persona-varied demo profile.
+   persona-varied generated profile (their first name, a generated last name, realistic payees and
+   merchants). The chat calls it their connected Capital One account and never says Nessie,
+   sandbox or demo.
 2. Friends talk. Each burst becomes one turn. **Extraction** runs on every batch in parallel with
    the **speak gate**, so Atlas learns even when it stays silent. Facts land with quotes; the
    aggregator resolves the current truth.
 3. Atlas asks for missing dates and home cities **once per person** (`asks`). Once a majority has
    shared, it moves on.
 4. "what's our budget" runs deterministically: budgets from each person's Nessie data, the formula
-   in three lines, "based on demo spending profiles", the pooled range. Private budgets only appear
-   pooled.
+   in three lines, "based on everyone's last few months of spending". Budgets are **private by
+   default**: the group sees only the pooled per-person number (none at all with two people);
+   individual numbers appear only for people who said "share my budget", and in each person's DM.
 5. "atlas give us some options" goes through constraints, the hard filter, scoring, live pricing
    for the top five, three options with per-person breakdowns, and a **native poll**.
 6. Votes come in (native, tapback or text), reconciled against Linq's voter list. A majority (or
@@ -172,7 +175,7 @@ Research and trade-offs: `docs/memory-research.md`.
   `app.messages` ever ends.
 - Money side effects mark the turn non-cancellable and are keyed by source message, so redeliveries
   and retries never double-log or double-send.
-- Nessie: last-good cache for reads, circuit breaker, offline demo profiles when no key is set,
+- Nessie: last-good cache for reads, circuit breaker, offline generated profiles when no key is set,
   and every call audited.
 - SerpApi failures fall back to labeled estimates per cost component. Open-Meteo failures retry
   with backoff, and rehearsal overrides skip the network.

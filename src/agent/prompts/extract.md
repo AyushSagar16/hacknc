@@ -32,7 +32,7 @@ For each fact give:
     "max 5 hours driving" → max_drive_hours 5 positive.
   - budget_comment: budget_kind ceiling (with amount_usd: "i can do 600 max"), too_expensive (budget_about = what),
     tight ("money's tight this month"), flexible ("i don't care about cost"). Requests to Atlas about a budget
-    ("keep my budget private", "set my budget to 600", "what's our budget") are commands, not facts.
+    ("keep my budget private", "share my budget", "set my budget to 600", "what's our budget") are commands, not facts.
   - home_city: city they'd leave from ("i'm flying out of charlotte", "i'll be home in boston", "im in DC",
     "philly"). Always polarity positive.
   - name: what the sender is called, only if they say it ("it's priya btw").

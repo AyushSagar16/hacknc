@@ -1,5 +1,6 @@
-# Budgets come from demo spending profiles; one friend keeps theirs private, so the group only
-# ever sees the pooled number; privately (DM) they get their full breakdown.
+# Budgets come from everyone's connected account and are private by default: the group only ever
+# sees the pooled number. People can opt in with "share my budget" (and back out with "keep my
+# budget private"); privately (DM) each person gets their full breakdown.
 today 2026-10-10 14:00
 members maya leo priya
 atlas joins
@@ -11,10 +12,27 @@ leo: hi
 priya: yo
 jobs
 leo: what's our budget
-expect atlas ~ "from demo spending profiles, not your real bank"
+expect atlas ~ "budgets stay private, so here's just the pooled number"
+expect atlas ~ "based on everyone's last few months of spending, from your connected accounts"
 expect atlas ~ "how i got these: what you earn, minus bills"
+expect atlas ~ "share my budget"
+expect atlas !~ /(maya|leo|priya): \$/
+expect atlas !~ /demo|sandbox|nessie|real bank/
 expect sql SELECT count(*)::int AS n FROM nessie_links WHERE seed_status = 'ready' = [{"n":3}]
 expect sql SELECT count(DISTINCT persona)::int AS n FROM nessie_links = [{"n":3}]
+expect sql SELECT count(*)::int AS n FROM budgets WHERE visibility = 'private' = [{"n":3}]
+maya: share my budget
+expect atlas ~ "i'll share your budget with the group"
+leo: share my budget
+expect atlas ~ "i'll share your budget with the group"
+maya: what's our budget?
+expect atlas ~ "here's just the pooled number"
+expect atlas !~ /(maya|leo|priya): \$/
+priya: share my budget
+expect atlas ~ "i'll share your budget with the group"
+leo: what's our budget?
+expect atlas ~ "💰 trip budgets"
+expect atlas ~ /priya: \$/
 priya: keep my budget private
 expect atlas ~ "your budget stays private"
 maya: what's our budget?
@@ -24,8 +42,10 @@ expect sql SELECT visibility FROM budgets b JOIN people p ON p.id = b.person_id 
 dm priya
 priya: what's my budget?
 expect atlas ~ "your trip budget"
-expect atlas ~ "based on demo spending profiles"
+expect atlas ~ "based on your last few months of spending"
 expect atlas ~ "you typically bring in"
+expect atlas ~ "it's private"
 group
-priya: make my budget public
-expect atlas ~ "public again"
+priya: share my budget
+expect atlas ~ "i'll share your budget with the group"
+expect sql SELECT visibility FROM budgets b JOIN people p ON p.id = b.person_id WHERE p.display_name = 'Priya' = [{"visibility":"public"}]

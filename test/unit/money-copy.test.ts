@@ -64,8 +64,33 @@ describe("budget message", () => {
 
   it("says where the numbers come from once, not on every re-post", () => {
     const rows = [row(1, 900_00, "public", false), row(2, 700_00, "public", false)];
-    expect(budgetMessage(rows, label, { firstTime: true }).join("\n")).toContain("not your real bank");
-    expect(budgetMessage(rows, label, { firstTime: false }).join("\n")).not.toContain("not your real bank");
+    expect(budgetMessage(rows, label, { firstTime: true }).join("\n")).toContain("last few months of spending");
+    expect(budgetMessage(rows, label, { firstTime: false }).join("\n")).not.toContain("last few months of spending");
+  });
+
+  it("private by default: the group sees only the pooled number, never a name with a figure", () => {
+    const three = [row(1, 900_00, "private", false), row(2, 700_00, "private", false), row(3, 450_00, "private", false)];
+    const text = budgetMessage(three, label, { firstTime: true }).join("\n");
+    expect(text).toContain("💰 budgets stay private, so here's just the pooled number:\neveryone's good up to $450 each");
+    expect(text).toContain('"share my budget"');
+    expect(text).not.toMatch(/\$900|\$700/);
+    expect(text).not.toMatch(/[a-z]+: \$/);
+  });
+
+  it("with only two people (or one) even the pooled number would give a budget away", () => {
+    const two = budgetMessage([row(1, 900_00, "private"), row(2, 700_00, "private")], label, { firstTime: false }).join("\n");
+    expect(two).toContain("budgets stay private between you two");
+    expect(two).not.toContain("$");
+    const one = budgetMessage([row(1, 900_00, "private")], label, { firstTime: false }).join("\n");
+    expect(one).toContain("it stays private");
+    expect(one).not.toContain("$");
+  });
+
+  it("one person sharing doesn't expose the rest: still pooled only", () => {
+    const rows = [row(1, 900_00, "public"), row(2, 700_00, "private"), row(3, 450_00, "private")];
+    const text = budgetMessage(rows, label, { firstTime: false }).join("\n");
+    expect(text).toContain("here's just the pooled number");
+    expect(text).not.toMatch(/\$900|\$700/);
   });
 
   it("never claims the locked plan works for everyone when it's over someone's budget", () => {
