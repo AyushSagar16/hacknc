@@ -59,16 +59,20 @@ expect atlas ~ /say "add 2" \(or the name\) and i'll put it on the plan/
 expect sql SELECT stages->>'food_activities' AS food FROM trips = [{"food":"in_progress"}]
 expect sql SELECT kind, count(*)::int AS n FROM trip_places WHERE status = 'suggested' GROUP BY kind ORDER BY kind = [{"kind":"activity","n":5},{"kind":"food","n":5}]
 expect sql SELECT count(*)::int AS n FROM trip_places WHERE name ILIKE '%steak%' OR name ILIKE '%barbecue%' = [{"n":0}]
-# picking by number puts them on the itinerary
+# picking by number puts them on the itinerary; somewhere to eat and something to do means
+# onboarding is done, so atlas writes the day-by-day plan on its own
 leo: add 1 and 6
-expect atlas says 1
+expect atlas says 2
+expect atlas ~ "putting the day-by-day plan together now"
+expect sql SELECT stages->>'food_activities' AS food FROM trips = [{"food":"decided"}]
+expect sql SELECT count(*)::int AS n FROM jobs WHERE kind = 'site.itinerary_nudge' = [{"n":1}]
 expect atlas ~ /✓ added .+ \((wed|thu|fri|sat|sun) 11\/1\d, dinner\) and .+ \((thu|fri|sat) 11\/1\d, morning\) to the plan/
 expect sql SELECT idx, status, day IS NOT NULL AS on_plan FROM trip_places WHERE status = 'picked' ORDER BY idx = [{"idx":1,"status":"picked","on_plan":true},{"idx":6,"status":"picked","on_plan":true}]
 expect sql SELECT count(*)::int AS n FROM trips, jsonb_array_elements(itinerary) d, jsonb_array_elements(d->'items') i WHERE i->>'activityId' LIKE 'place:%' = [{"n":2}]
 expect sql SELECT i->>'notes' AS notes FROM trips, jsonb_array_elements(itinerary) d, jsonb_array_elements(d->'items') i WHERE i->>'time' = 'dinner' ~ "★"
 # a 👍 on someone naming a shortlisted place adds it
 priya: mamacita's taqueria looks so good
-maya react like m21
+maya react like m22
 expect atlas ~ "✓ added mamacita's taqueria"
 expect sql SELECT p.display_name AS who FROM trip_places t JOIN people p ON p.id = t.picked_by WHERE t.name = 'Mamacita''s Taqueria' = [{"who":"Maya"}]
 # picking one twice
@@ -78,5 +82,5 @@ expect atlas ~ "chai pani is already on it"
 maya: we're good
 expect atlas ~ "food & activities are set ✓ 3 places on the plan"
 expect sql SELECT stages->>'food_activities' AS food FROM trips = [{"food":"decided"}]
-# only now is atlas asked to write the rest of the day-by-day plan
+# still one request to write the plan
 expect sql SELECT count(*)::int AS n FROM jobs WHERE kind = 'site.itinerary_nudge' = [{"n":1}]

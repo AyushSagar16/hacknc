@@ -440,7 +440,8 @@ export async function pickPlaces(trip: TripRow, refs: string[], by: number | nul
     outcome.added.push({ row, date: placed?.date ?? null, time: placed?.time ?? null });
   }
   if (itinerary !== trip.itinerary) trip = await updateTrip(trip.id, { itinerary });
-  if (outcome.added.length) await setStage(trip.id, "food_activities", "in_progress");
+  // A pick after the stage settled (the plan is being written) doesn't reopen it.
+  if (outcome.added.length && (await getStages(trip.id)).food_activities !== "decided") await setStage(trip.id, "food_activities", "in_progress");
   return { outcome, trip };
 }
 
@@ -467,8 +468,27 @@ async function pickAndSay(tc: TurnCtx, refs: string[], by: number | null): Promi
   pickedThisTurn.set(tc, new Set([...earlier, ...outcome.added.map((a) => a.row.id)]));
   const text = pickText({ ...outcome, already: outcome.already.filter((r) => !earlier.has(r.id)) });
   if (text) say(tc, text);
-  if (outcome.added.length) await requestSync(tc.cfg, tc.trip).catch(() => undefined);
+  if (outcome.added.length) {
+    await requestSync(tc.cfg, tc.trip).catch(() => undefined);
+    await planOnceCovered(tc);
+  }
   return outcome;
+}
+
+/**
+ * Somewhere to eat and something to do are both on the plan: onboarding is done, so the stage
+ * settles and Atlas writes the day-by-day plan on its own (the trip page link follows it). Later
+ * picks still go on the plan.
+ */
+async function planOnceCovered(tc: TurnCtx): Promise<void> {
+  if ((await getStages(tc.trip.id)).food_activities === "decided") return;
+  const picked = (await placesFor(tc.trip.id)).filter((r) => r.status === "picked");
+  if (!picked.some((r) => r.kind === "food") || !picked.some((r) => r.kind === "activity")) return;
+  await setStage(tc.trip.id, "food_activities", "decided");
+  if (tc.trip.start_date && !tc.trip.plan_written_at) {
+    say(tc, "that covers food & things to do ✓ putting the day-by-day plan together now");
+    await requestItinerary(tc.trip, "picked");
+  }
 }
 
 /** The stage is done: settle it and link the itinerary. */
@@ -647,7 +667,7 @@ async function reactionFastPath(msg: MessageRow, tc: TurnCtx): Promise<boolean> 
 async function doneFastPath(msg: MessageRow, tc: TurnCtx): Promise<boolean> {
   if (msg.kind !== "text" || msg.person_id === null || !msg.speakable || !DONE.test(msg.text)) return false;
   const stages = await getStages(tc.trip.id);
-  if (stages.food_activities !== "in_progress") return false;
+  if (stages.food_activities === "open") return false;
   if (!(await placesFor(tc.trip.id)).some((r) => r.status === "picked")) return false;
   // Only right after Atlas's shortlist or a pick confirmation, so "we're good" about anything else isn't taken.
   const last = await lastAtlasText(tc.chat.id);

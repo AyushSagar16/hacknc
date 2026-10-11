@@ -50,7 +50,9 @@ export async function publishTrip(cfg: Config, tripId: number, chat: ChatRow, se
   const site = siteFor(cfg);
   // A private chat is published only when its person asked for the page, and only the trip itself:
   // the one-on-one conversation (budgets, balances) is never copied to the page.
-  if (!site || (!chat.is_group && !opts.privateChat)) return null;
+  // Private chats get the trip too (destination, dates, plan); their messages never go on the page.
+  void opts.privateChat;
+  if (!site) return null;
   const bumped = await one<{ site_version: number }>(`UPDATE trips SET site_version = site_version + 1 WHERE id = $1 RETURNING site_version`, [tripId]);
   const trip = await tripById(tripId);
   if (!bumped || !trip) return null;
