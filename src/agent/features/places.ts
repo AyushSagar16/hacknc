@@ -94,10 +94,12 @@ export function cuisineSummary(view: GroupView): string {
 }
 
 export const FOOD_QUESTION = "what kind of food is everyone into for this trip? cuisines, a spot you've heard of, anything you're craving";
+const SOLO_FOOD_QUESTION = "what kind of food are you into for this trip? cuisines, a spot you've heard of, anything you're craving";
 
 /** The food question, once per trip, after the stay is booked. */
-export function foodAskText(stayName: string | undefined, waitingOn: string[]): string {
+export function foodAskText(stayName: string | undefined, waitingOn: string[], opts: { solo?: boolean } = {}): string {
   const lead = stayName ? `🍽️ ${stayName.toLowerCase()} is locked in, so now food and things to do.` : "🍽️ now food and things to do.";
+  if (opts.solo) return `${lead}\n${SOLO_FOOD_QUESTION}?`;
   return `${lead}\n${waitingOn.length && waitingOn.length <= 3 ? `${nameList(waitingOn)}, ` : ""}${FOOD_QUESTION}?`;
 }
 
@@ -561,7 +563,7 @@ export const placesFeature: Feature = {
   async afterTurn(tc) {
     // Right after the stay is booked: the food question follows on its own, once; the shortlist
     // follows once most of the group has answered it.
-    if (!tc.chat.is_group || !stayBooked(tc.trip)) return;
+    if (!stayBooked(tc.trip)) return;
     const stages = await getStages(tc.trip.id);
     if (stages.stay !== "decided" || stages.food_activities === "decided") return;
     if ((await placesFor(tc.trip.id)).length) return;
@@ -603,7 +605,9 @@ export async function suggestFromJob(svc: Pick<AppServices, "post">, tripId: num
     const waiting = view.members.filter((m) => !answered.has(m.personId));
     for (const m of view.members) await recordAsk(m.personId, trip.chat_id, foodAskField(trip.id), at);
     await setStage(trip.id, "food_activities", "in_progress");
-    await svc.post(trip.chat_id, guid, [{ type: "say", text: foodAskText(trip.stay?.name, answered.size ? waiting.map((m) => first(m.label)) : []) }]);
+    const chat = await one<{ is_group: boolean }>(`SELECT is_group FROM chats WHERE id = $1`, [trip.chat_id]);
+    const text = foodAskText(trip.stay?.name, answered.size ? waiting.map((m) => first(m.label)) : [], { solo: chat?.is_group === false });
+    await svc.post(trip.chat_id, guid, [{ type: "say", text }]);
     return { rescheduleAt: new Date(at.getTime() + FOOD_WAIT_MS), payload: { tripId: trip.id, asked: true } };
   }
   let list: Shortlist;
