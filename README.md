@@ -311,6 +311,7 @@ src/site        trip pages: snapshot (the privacy boundary), Supabase store, pub
 src/console     the judge console
 web             the trip-page site (Next.js on Vercel, reads Supabase server-side)
 supabase        the site's Supabase schema
+video           the launch video (Remotion; see video/README.md)
 scripts         sim, e2e, up, live, persona-server, doctor, demo, ops, nessie-probe, migrate, site-seed
 ```
 
