@@ -8,9 +8,11 @@
 import { now } from "../../clock.ts";
 import { childLog } from "../../log.ts";
 import { one } from "../../db/pool.ts";
-import type { ChatRow } from "../../db/repos/core.ts";
+import { activeMembers, labelOf, type ChatRow } from "../../db/repos/core.ts";
 import { enqueueJob } from "../../pipeline/jobs.ts";
-import { interestWeights } from "../../profile/groupView.ts";
+import { groupView, interestWeights } from "../../profile/groupView.ts";
+import { profilesFor } from "../../profile/store.ts";
+import { draftItinerary } from "../../trips/itinerary.ts";
 import { itineraryInput, itineraryText, mergeItinerary, problem, summaryInput } from "../../site/content.ts";
 import { ANNOUNCE_JOB, SYNC_JOB, hubUrl, linkAction, pageUrl, publishTrip, requestAnnounce, requestSync } from "../../site/publish.ts";
 import { siteFor } from "../../site/store.ts";
@@ -195,10 +197,12 @@ export const siteFeature: Feature = {
         if (!trip || hasPlan(trip) || trip.status !== "locked") return;
         const focused = await one<{ focus_trip_id: number | null }>(`SELECT focus_trip_id FROM chats WHERE id = $1`, [trip.chat_id]);
         if (focused?.focus_trip_id !== trip.id) return;
+        const attempt = Number(payload.attempt ?? 1);
+        // Atlas never got to it (busy chat, models out of quota): a drafted plan beats an empty page.
+        if (attempt > NUDGE_TRIES) return draftFallback(svc, trip);
         await svc.nudge(trip.chat_id, `${trip.destination_name ?? "the trip"} just got locked in by the vote. write the day-by-day plan now with update_itinerary (ideas under trip page), then at most one short line`);
         // A nudge is skipped while another turn is running; check back until the plan exists.
-        const attempt = Number(payload.attempt ?? 1);
-        if (attempt < NUDGE_TRIES) return { rescheduleAt: new Date(now().getTime() + 90_000), payload: { tripId: trip.id, attempt: attempt + 1 } };
+        return { rescheduleAt: new Date(now().getTime() + 90_000), payload: { tripId: trip.id, attempt: attempt + 1 } };
       },
       [ANNOUNCE_JOB]: async (payload, { jobId }) => {
         const trip = await tripById(Number(payload.tripId));
@@ -211,6 +215,23 @@ export const siteFeature: Feature = {
     };
   },
 };
+
+/** The catalog's day-by-day draft for the group's interests, saved and linked like Atlas's own. */
+async function draftFallback(svc: AppServices, trip: TripRow): Promise<void> {
+  const dest = trip.destination_id ? destinationById(trip.destination_id) : undefined;
+  if (!dest || !trip.start_date || !trip.end_date) return;
+  const members = await activeMembers(trip.chat_id);
+  const profiles = await profilesFor(members.map((m) => m.id), { tripId: trip.id });
+  const view = groupView(
+    members.map((m) => ({ personId: m.id, label: labelOf(m), profile: profiles.get(m.id)! })),
+    trip.start_date,
+  );
+  const itinerary = draftItinerary(dest, trip.start_date, trip.end_date, interestWeights(view));
+  if (!itinerary.some((d) => d.items.length)) return;
+  await updateTrip(trip.id, { itinerary: itinerary as never });
+  log.info({ tripId: trip.id }, "no plan from atlas after the nudges; saved the catalog draft");
+  await announceFromJob(svc, trip.id, "itinerary", `site-plan-${trip.id}`);
+}
 
 /** For background jobs that changed a trip (research done, weather swap) and want its link posted. */
 export async function announceFromJob(svc: Pick<AppServices, "cfg" | "post">, tripId: number, section: SiteSection, guid: string): Promise<void> {

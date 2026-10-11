@@ -16,8 +16,8 @@
 //   maya leaves | sam joins
 //   clock +3d | jobs | wait
 //   ~gate SPEAK reason | ~extract [{...}] | ~agent text: words | ~agent call tool {"json":1}
-//   ~research text: SUMMARY: ...\n\nnote (one grounded research answer)
-//   expect atlas ~ "words" | !~ "words" | quiet | says 2 | reacted like
+//   expect atlas ~ "words" | !~ "words" | ~ /regex/ | !~ /regex/ | quiet | speaks | says 2 | reacted like
+//   expect transcript !~ /regex/     (any atlas message in the whole chat)
 //   expect poll ~ "lisbon" | expect thread ~ "words"
 //   expect sql SELECT ... = <json> | expect sql SELECT ... ~ "words"
 //   expect trip.status = "locked"
@@ -115,7 +115,7 @@ export class ScenarioRunner {
       this.need().capabilities = m[1] === "local" ? LOCAL_LIKE : LINQ_LIKE;
       return;
     }
-    if ((m = /^~(gate|extract|agent|summary|research)\s+(.+)$/.exec(text))) {
+    if ((m = /^~(gate|extract|agent|summary)\s+(.+)$/.exec(text))) {
       if (!this.opts.live) session.llm.push(m[1] as LlmRole, parseScripted(m[1] as LlmRole, m[2]!));
       return;
     }
@@ -202,6 +202,19 @@ export class ScenarioRunner {
     }
     if ((m = /^atlas reacted (\w+)$/.exec(spec))) {
       if (!replies.some((r) => r.kind === "reaction" && r.text.startsWith(m![1]!))) throw new Error(`expected a ${m[1]} tapback, got:\n${show()}`);
+      return;
+    }
+    if (spec === "atlas speaks") {
+      if (!replies.some((r) => r.kind !== "reaction")) throw new Error(`expected atlas to reply, got:\n${show()}`);
+      return;
+    }
+    // Live-model wording varies: /regex/ forms match the latest replies or the whole chat.
+    if ((m = /^(atlas|transcript) (!?~) \/(.+)\/([a-z]*)$/.exec(spec))) {
+      const re = new RegExp(m[3]!, m[4]!.includes("i") ? m[4]! : `${m[4]}i`);
+      const pool = m[1] === "atlas" ? texts : this.need().transcript.filter((e) => e.from === "atlas").map((e) => e.text);
+      const hit = pool.find((t) => re.test(t));
+      if (m[2] === "~" && !hit) throw new Error(`expected ${m[1]} to match ${re}, got:\n${show()}`);
+      if (m[2] === "!~" && hit) throw new Error(`expected ${m[1]} NOT to match ${re}, but atlas said:\n  ${hit}`);
       return;
     }
     if ((m = /^atlas (!?~) (.+)$/.exec(spec))) {

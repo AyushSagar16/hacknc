@@ -67,13 +67,16 @@ export interface Tally {
   winner: number | null;
   /** More than one option shares the top count. */
   tie: boolean;
+  /** Everyone voted and the top is tied: nobody wins until someone switches or the group says "pick for us". */
+  deadlocked: boolean;
 }
 
 /**
  * Count votes in arrival order. Each person counts at most once per option and their latest
  * selected state wins; selecting several options is allowed. The poll is decided when the
- * leader has a strict majority of the group or every member has voted. Ties go to the lowest
- * cost when costs are given, else the lowest index. No votes, no winner.
+ * leader has a strict majority of the group or every member has voted without a tie. A tie with
+ * everyone voted is deadlocked (no winner); `leader` is then the cheapest tied option (else the
+ * lowest index), which is what "pick for us" resolves to. No votes, no winner.
  */
 export function tally(
   options: number,
@@ -102,11 +105,74 @@ export function tally(
   }
 
   const top = counts.length ? Math.max(...counts) : 0;
-  if (top === 0) return { counts, voters, leader: null, decided: false, winner: null, tie: false };
+  if (top === 0) return { counts, voters, leader: null, decided: false, winner: null, tie: false, deadlocked: false };
 
   const leaders = counts.flatMap((c, i) => (c === top ? [i] : []));
   const costOf = (i: number): number => costs?.[i] ?? Number.POSITIVE_INFINITY;
   const leader = leaders.reduce((best, i) => (costOf(i) < costOf(best) ? i : best));
-  const decided = top * 2 > groupSize || voters >= groupSize;
-  return { counts, voters, leader, decided, winner: decided ? leader : null, tie: leaders.length > 1 };
+  const tie = leaders.length > 1;
+  const everyone = voters >= groupSize;
+  const decided = top * 2 > groupSize || (everyone && !tie);
+  return { counts, voters, leader, decided, winner: decided ? leader : null, tie, deadlocked: everyone && tie && !decided };
+}
+
+export interface StoredVote extends VoteEvent {
+  source: string;
+  votedAt: Date;
+}
+
+export interface ProviderVote {
+  personId: number;
+  optionIdx: number;
+  /** When the provider says they voted (absent if it didn't say). */
+  votedAt?: Date;
+}
+
+export interface VoteChange {
+  personId: number;
+  optionIdx: number;
+  selected: boolean;
+  source: string;
+  at: Date;
+}
+
+/**
+ * Bring stored votes in line with a native poll's authoritative voter list. Pure and idempotent:
+ * applying the changes and running it again yields no changes.
+ *  - A provider vote missing locally is added (source native), unless the person took that
+ *    option back here more recently than the provider's timestamp (a later text pick or removal).
+ *  - A local native vote the provider no longer lists is taken back, once it's older than
+ *    `graceMs` (the poll API can lag the webhook that recorded it).
+ *  - Someone the provider lists stops counting for a different option they picked by text,
+ *    tapback or agent before their latest native vote, so voting both ways never double-counts.
+ */
+export function reconcileVotes(stored: readonly StoredVote[], provider: readonly ProviderVote[], opts: { now: Date; graceMs?: number }): VoteChange[] {
+  const grace = opts.graceMs ?? 60_000;
+  const key = (p: number, o: number) => `${p}:${o}`;
+  const local = new Map<string, StoredVote>();
+  for (const v of stored) local.set(key(v.personId, v.optionIdx), v);
+  const listed = new Map<string, ProviderVote>();
+  for (const v of provider) listed.set(key(v.personId, v.optionIdx), v);
+
+  const changes: VoteChange[] = [];
+  for (const v of listed.values()) {
+    const mine = local.get(key(v.personId, v.optionIdx));
+    if (mine?.selected) continue;
+    if (mine && (!v.votedAt || mine.votedAt.getTime() > v.votedAt.getTime())) continue;
+    changes.push({ personId: v.personId, optionIdx: v.optionIdx, selected: true, source: "native", at: v.votedAt ?? opts.now });
+  }
+  for (const mine of local.values()) {
+    if (!mine.selected || mine.source !== "native" || listed.has(key(mine.personId, mine.optionIdx))) continue;
+    if (opts.now.getTime() - mine.votedAt.getTime() < grace) continue;
+    changes.push({ personId: mine.personId, optionIdx: mine.optionIdx, selected: false, source: "native", at: opts.now });
+  }
+  const latestNative = new Map<number, number>();
+  for (const v of provider) if (v.votedAt) latestNative.set(v.personId, Math.max(latestNative.get(v.personId) ?? 0, v.votedAt.getTime()));
+  for (const mine of local.values()) {
+    if (!mine.selected || mine.source === "native" || listed.has(key(mine.personId, mine.optionIdx))) continue;
+    const latest = latestNative.get(mine.personId);
+    if (latest === undefined || mine.votedAt.getTime() > latest) continue;
+    changes.push({ personId: mine.personId, optionIdx: mine.optionIdx, selected: false, source: mine.source, at: opts.now });
+  }
+  return changes;
 }

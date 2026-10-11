@@ -64,13 +64,15 @@ export function planInstallments(input: InstallmentInput): Installment[] {
   const { today, deadline } = input;
 
   // Earliest slots first so money is collected early; every slot is already <= deadline.
-  const slots = [...new Set(input.paydays.filter((d) => ISO_DAY.test(d)).map((d) => addDays(d, 1)))]
+  let slots = [...new Set(input.paydays.filter((d) => ISO_DAY.test(d)).map((d) => addDays(d, 1)))]
     .filter((due) => due > today && due <= deadline)
     .sort()
     .slice(0, maxCount);
   if (slots.length === 0) {
-    const tomorrow = addDays(today, 1);
-    return [{ dueDate: tomorrow < deadline ? tomorrow : deadline, amountCents: share }];
+    // No paycheck rhythm known (no demo profile yet): every two weeks from a week out, rather than
+    // the whole share due tomorrow. A deadline under a week away is one payment on the deadline.
+    for (let due = addDays(today, 7); due <= deadline && slots.length < maxCount; due = addDays(due, 14)) slots.push(due);
+    if (slots.length === 0) return [{ dueDate: deadline, amountCents: share }];
   }
 
   // Fewer, larger installments instead of any below the minimum (a lone small share stays whole).

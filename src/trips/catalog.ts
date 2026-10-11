@@ -11,9 +11,20 @@ export type Region = (typeof REGIONS)[number];
 
 export const TAGS = [
   "beach", "food", "nightlife", "culture", "outdoors", "hiking", "mountains", "city", "music", "relaxing",
-  "adventure", "shopping", "history", "snow", "walkable", "budget_friendly", "luxury",
+  "adventure", "shopping", "history", "snow", "walkable", "budget_friendly", "luxury", "holiday",
 ] as const;
 export type Tag = (typeof TAGS)[number];
+
+/** Tags that describe where a trip is (the setting), not what you do there. A group asking for one means it. */
+export const SETTING_TAGS = ["beach", "mountains", "snow", "city"] as const satisfies readonly Tag[];
+export type SettingTag = (typeof SETTING_TAGS)[number];
+
+export function isSettingTag(tag: string): tag is SettingTag {
+  return (SETTING_TAGS as readonly string[]).includes(tag);
+}
+
+/** Holiday markets and lights only exist in late Nov–Dec. */
+export const HOLIDAY_MONTHS = [11, 12] as const;
 
 export const DIETARY_NEEDS = ["vegetarian", "vegan", "halal", "kosher", "gluten_free"] as const;
 export type DietaryNeed = (typeof DIETARY_NEEDS)[number];
@@ -30,6 +41,8 @@ export interface Activity {
   costCents: number;
   durationHours: number;
   mobility: Mobility;
+  /** Months (1–12) it runs; absent means year-round unless it's a water activity (see itinerary.ts). */
+  months?: number[];
 }
 
 export interface FlightBand {
@@ -229,4 +242,10 @@ const TAG_SYNONYMS: Record<string, Tag> = {
   walking: "walkable",
   budget: "budget_friendly", cheap: "budget_friendly", affordable: "budget_friendly",
   fancy: "luxury", bougie: "luxury", upscale: "luxury",
+  beachy: "beach", "beach trip": "beach", "beach town": "beach", "the beach": "beach", tropical: "beach",
+  "the mountains": "mountains", "mountain town": "mountains", cabin: "mountains", cabins: "mountains", smokies: "mountains",
+  snowy: "snow", "ski trip": "snow", slopes: "snow", snowboard: "snow",
+  "big city": "city", "city trip": "city", downtown: "city",
+  holidays: "holiday", christmas: "holiday", "christmas market": "holiday", "christmas markets": "holiday", "holiday markets": "holiday",
+  "holiday market": "holiday", "christmas lights": "holiday", "holiday lights": "holiday", festive: "holiday", "winter wonderland": "holiday",
 };

@@ -9,15 +9,16 @@ schedules are deterministic code.
 | Component | Files | Responsibility |
 |---|---|---|
 | Transport | `src/transport/*` | Spectrum app per `IMESSAGE_MODE`. The custom Linq platform (webhook server, signature check, durable event log, ordered queue, send dispatcher incl. native polls). The simulator platform. Normalized inbound events. The outbound action model with text fallbacks |
-| Pipeline | `src/pipeline/*` | Inbox (dedupe per chat); per-chat debounce (2.5 s quiet window, 8 s cap); in-flight cancellation and carry-forward; outbox with stable client GUIDs and resume; Postgres job runner on the app clock; `job_failures` |
+| Pipeline | `src/pipeline/*` | Inbox (dedupe per chat); per-chat debounce (2.5 s quiet window, 1.5 s when Atlas is named, 8 s cap); typing indicator and length-scaled pauses between bubbles; in-flight cancellation and carry-forward; outbox with stable client GUIDs and resume; Postgres job runner on the app clock; `job_failures` |
 | Brain | `src/agent/brain.ts` | One turn in a fixed order (below). Composes feature modules |
-| Features | `src/agent/features/*` | trips, planning, budgets, proposals, money, weather, memory, research, site: each adds tools, fast paths, commands, hints, situation sections, money-guard figures, jobs and lifecycle hooks |
-| Profile | `src/profile/*` | Fact schema, Gemini extraction (validated), deterministic aggregation, group view |
+| Features | `src/agent/features/*` | trips, planning, budgets, proposals, money, weather, memory, self-memory, search, presence, research, site: each adds tools, fast paths, commands, hints, situation sections, money-guard figures, jobs and lifecycle hooks |
+| Profile | `src/profile/*` | Fact schema, Gemini extraction (validated; who reported each fact; refusal words for vetoes, numbers for ceilings; "same dates" resolved), deterministic aggregation, group view |
 | Money | `src/money/*`, `src/trips/ledger.ts` | Cents, splits, exact minimum settle-up, budget engine, paycheck cadence and payment plans, trip ledger |
 | Nessie | `src/nessie/*` | Client (https, audit, last-good cache, circuit breaker), probe-driven capabilities, personas, resumable seeding, ledger replay, budgets |
-| Trips | `src/trips/*` | Catalog (41 destinations, 105 home airports), constraints, hard filter, scoring, SerpApi pricing with cache and fallback, votes, itinerary, booking links |
-| Weather | `src/weather/*`, `features/weather.ts` | Open-Meteo, classification, change detection, cadence, cooldown, swaps |
-| Memory | `src/memory/*`, `features/memory.ts` | Embedding writer, scoped and privacy-filtered recall with recency rerank |
+| Trips | `src/trips/*` | Catalog (destinations with vibe tags incl. `holiday`, 105 home airports), per-person drive times, constraints (no-fly and max-drive enforced per person), hard filter, scoring with a required vibe, SerpApi pricing with cache and fallback, votes (ties don't lock), itinerary (no repeats, seasonal), booking links |
+| Weather | `src/weather/*`, `features/weather.ts` | Open-Meteo forecast and 3-year climatology (`get_weather`), classification, change detection, cadence, cooldown, swaps |
+| Search | `src/search/*`, `features/search.ts` | `web_search`: result pages read in code, Gemini answers from them, every posted item verified against the source; Wikivoyage fallback |
+| Memory | `src/memory/*`, `features/memory.ts` | Embedding writer, hybrid BM25 + diskann recall (RRF) with recency and importance rerank, `atlas_log` of Atlas's own words |
 | Console | `src/console/server.ts` | Localhost judge view of all of the above |
 | Trip pages | `src/site/*`, `features/site.ts`, `web/`, `supabase/` | Per-trip snapshot (first names only, no money), Supabase store, publish-then-link; the Next.js site that renders each section and its iMessage preview |
 
@@ -31,7 +32,7 @@ schedules are deterministic code.
   `superseded_by`), `asks` (ask-once).
 - **Trip:** `trips` (several per chat; `chats.focus_trip_id` is the one being planned, `public_id`
   is the page URL), `proposals`, `polls` (one open per kind per trip), `votes`, `confirmations`,
-  `trip_research` (one grounded note per topic, with sources). `messages.trip_id` and trip-scoped
+  `trip_research` (one note per topic from the web search, with its source). `messages.trip_id` and trip-scoped
   `facts.trip_id` (destination, date window, trip length, budget talk) record which trip they were
   about; facts about the person carry across trips.
 - **Money:** `budgets` (formula inputs + Nessie ids + visibility), `installments` (Nessie bill ids),
@@ -60,8 +61,12 @@ schedules are deterministic code.
    pooled.
 5. "atlas give us some options" goes through constraints, the hard filter, scoring, live pricing
    for the top five, three options with per-person breakdowns, and a **native poll**.
-6. Votes come in (native, tapback or text). A majority **locks** the trip: destination, dates,
-   itinerary and booking links. That fires `onTripLocked`: a **payment plan** (Nessie bills on each
+6. Votes come in (native, tapback or text), reconciled against Linq's voter list. A majority (or
+   everyone voting, without a tie) **locks** the trip: destination, dates, itinerary and booking
+   links. A tie is called out once ("pick for us" takes the cheaper option). If at least half the
+   group has voted and nobody votes for 30 s, Atlas names who hasn't, once per poll
+   (`poll.remind` job); "skip" closes the poll with the votes in. "can we do X instead?" after a lock
+   reopens it as a two-option poll. That fires `onTripLocked`: a **payment plan** (Nessie bills on each
    person's paydays), a recurring **weather.check** job, and a decision memory.
 7. During the trip, "i paid 64 for dinner" becomes a Nessie purchase on the payer's account, a
    ledger row and a spend event. Disputes from anyone but the payer wait for the payer's "yes".
@@ -80,12 +85,17 @@ remaining messages:
   addressed?  @atlas / "hey atlas" / starts with "atlas" (not "atlas seems…") / "…, atlas?" /
               threaded reply to an Atlas message id / answer to Atlas's open question (≤3 msgs, 15 min, aimed person only)
   quiet mode and not addressed → stop
-  not addressed → speak gate (gemini-3.5-flash-lite, temp 0, 3.5 s timeout, JSON {decision, reason}, fails closed)
+  a trip/money question to the room, an objection or a change of mind → agent, no gate call
+  untagged chatter with no trip or money words → stop, no gate call (extraction still reads it)
+  otherwise not addressed → speak gate (gemini-3.5-flash-lite, temp 0, 3.5 s timeout, JSON {decision, reason}, deterministic fallback on quota errors)
                   input: last 12 messages, stage, facts, deterministic hints (stuck poll, date conflict,
                   majority shared, installments due, trip over), minutes since Atlas spoke, unprompted count
   extraction result: a fresh disagreement can trigger one unprompted line (≤12 unprompted/hour)
   agent (gemini-3.5-flash-lite, ≤4 tool rounds): stateless situation (trip, resolved profiles with quotes,
          feature sections, allowed figures, recalled memories, last 30 messages, new messages)
+  output guards: a promise with no tool call gets one more round; a claim about someone's dates or
+         city that nobody gave is cut; an unprompted bubble that restates a recent ask or nudge
+         (atlas_log, pg_trgm > 0.6) is dropped
   money guard: every $ figure must match a registered figure the audience may see, or the text is dropped
 outbox → ordered sends with client GUIDs → text fallbacks
 
@@ -109,9 +119,11 @@ are reachable only by UUID).
   `update_itinerary` (days → items with time, setting and a note; each given day replaces that day)
   and `set_trip_summary` (2–3 sentences, optional rename). `src/site/content.ts` validates it with
   zod: dates inside the trip, length limits, and no dollar figures (costs come from the catalog
-  when an item names a catalog activity). Locking in no longer drafts a plan in code: the lock tool
+  when an item names a catalog activity). Locking in doesn't post a code-drafted plan: the lock tool
   tells the agent to write it in the same turn, and a lock decided by a vote queues
-  `site.itinerary_nudge`, a follow-up turn that asks Atlas to write it.
+  `site.itinerary_nudge`, a follow-up turn that asks Atlas to write it. If three nudges get no plan
+  (a busy chat, models out of quota), the catalog draft (`draftItinerary`) is saved and linked so the
+  page is never empty.
 - **Publish, then link.** iMessage fetches a link's preview when it lands, so the page is written
   first. On a meaningful change (`start_trip`/`switch_trip`, `update_itinerary`, a weather swap) the turn
   publishes and appends a `link` action after its own replies; research publishes from its job. If
@@ -121,24 +133,36 @@ are reachable only by UUID).
 - **Previews.** Each section (`/t/<id>`, `/itinerary`, `/research`, `/chat`) has its own
   `og:title`/`og:description` and a text-only 1200×630 `opengraph-image`. Links carry
   `?v=<site_version>` because iMessage caches previews by URL.
-- **Research.** `research_trip` (and every lock-in, for five default topics) queues `research.run`:
-  one Gemini call per topic with Google Search grounding, sources from `groundingMetadata`, saved to
-  `trip_research`, then a one-line-per-topic summary and the research link in the chat.
+- **Research.** Every lock-in queues `research.run`: three lookups through `web_search`'s pipeline
+  (things to do, food, events on the trip dates; keyless search, pages read, every item checked
+  against its page), each saved to `trip_research` with its source, then a one-line-per-topic
+  summary and the research link in the chat. Every `web_search` Atlas runs for a trip during the
+  chat (lists and facts) is saved to the page too.
 - **Privacy.** `src/site/snapshot.ts` is the boundary: first names only (no handles), no budgets,
   balances or payment plans, and DMs are never published.
 
 ## Memory design
 
+Research and trade-offs: `docs/memory-research.md`.
+
 - **Write:** after each turn a `memory.embed` job embeds message windows (≤2,400 chars,
   speaker-labeled, pure acknowledgements skipped) and resolved facts (budget amounts omitted).
   Decisions are written when a trip locks. Rows record chat, person, kind, visibility and source
   message ids, and writes are idempotent.
-- **Read:** before every agent reply, the query is the new messages. Candidates are this chat's
-  history and decisions plus current members' facts from any chat, filtered by visibility (private
-  only in that person's DM). They come from `ORDER BY embedding <=> $q LIMIT 50` over `diskann`
-  with search-list and rescore settings tuned so the top hits match an exact scan. They're then
-  reranked by `similarity × (0.85 + 0.15·e^(−age/14d))`, keeping the top 8 and excluding the last
-  6 hours (already in context).
+- **Read (hybrid):** one SQL statement ranks this chat's history and decisions twice, by BM25
+  (`pg_textsearch`, `memory_chunks_bm25`) and by vector distance (pgvectorscale `diskann`), and
+  fuses the ranks with reciprocal rank fusion (k = 60). A word match always counts; a vector-only
+  neighbour must reach cosine 0.70 with Gemini embeddings. Results are reranked by
+  `similarity × (0.85 + 0.15·e^(−age/14d)) × importance` (decisions 1.2), top 8. Only chunks made
+  entirely of lines the agent can already see (the last 30 + this batch) are skipped. A query
+  with no content words ("ok yes") recalls nothing, and a one-word query ("gatlinburg?") is a free
+  BM25 search with no embedding call. Facts aren't recalled from chunks: every member's resolved
+  facts are in the situation each turn, and old fact chunks go stale.
+- **Atlas's own words (`atlas_log` hypertable):** every bubble Atlas sends is classified with no
+  model call (ask, nudge, proposal, decision, money, answer), along with who it named and which
+  details it asked for. The agent sees "what you already said" with who's still quiet since each
+  ask. An unprompted bubble whose `pg_trgm` similarity to an ask or nudge from the last 6 hours
+  is over 0.6 is dropped before it's sent, so Atlas doesn't nag with the same line twice.
 
 ## Reliability rules
 

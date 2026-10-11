@@ -57,3 +57,25 @@ export function buildConstraints(
   const tier = opts.tier ?? (ceilings.length && Math.min(...ceilings) >= 160_000 ? "mid" : "budget");
   return { group: { members, startDate: dates?.start, endDate: dates?.end, nights, tier }, prefs, dates, notes };
 }
+
+/** Limits the group asked for out loud this time ("anything drivable", "under 800 each"). */
+export interface GroupAsk {
+  /** Everyone drives (implied by maxDriveHours). */
+  driveOnly?: boolean;
+  maxDriveHours?: number;
+  maxPerPersonUsd?: number;
+}
+
+/** Fold a group-wide ask into every member's own limits (the tighter one wins). */
+export function applyGroupAsk(group: GroupConstraints, ask: GroupAsk): GroupConstraints {
+  const driveOnly = Boolean(ask.driveOnly) || (ask.maxDriveHours !== undefined && ask.maxDriveHours > 0);
+  const capCents = ask.maxPerPersonUsd && ask.maxPerPersonUsd > 0 ? Math.round(ask.maxPerPersonUsd * 100) : undefined;
+  const members = group.members.map((m): MemberConstraints => {
+    const next = { ...m };
+    if (driveOnly) next.noFlying = true;
+    if (ask.maxDriveHours && ask.maxDriveHours > 0) next.maxDriveHours = Math.min(m.maxDriveHours ?? Number.POSITIVE_INFINITY, ask.maxDriveHours);
+    if (capCents !== undefined) next.budgetCeilingCents = Math.min(m.budgetCeilingCents ?? Number.POSITIVE_INFINITY, capCents);
+    return next;
+  });
+  return { ...group, members };
+}

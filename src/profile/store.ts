@@ -16,6 +16,7 @@ interface FactRow {
   quote: string | null;
   observed_at: Date;
   retracted: boolean;
+  reported_by?: number | null;
 }
 
 const toFact = (r: FactRow): Fact => ({
@@ -31,6 +32,7 @@ const toFact = (r: FactRow): Fact => ({
   quote: r.quote,
   observedAt: r.observed_at,
   retracted: r.retracted,
+  reportedBy: r.reported_by ?? null,
 });
 
 export interface NewFact {
@@ -46,6 +48,8 @@ export interface NewFact {
   quote: string | null;
   observedAt: Date;
   retracted: boolean;
+  /** The sender; differs from personId when someone reports a friend's fact. */
+  reportedBy?: number | null;
 }
 
 /**
@@ -57,11 +61,11 @@ export async function insertFacts(facts: NewFact[], on: Queryable = db()): Promi
   for (const f of facts) {
     const scoped = TRIP_SCOPED_KEYS.has(f.key);
     const rows = await q<{ id: number }>(
-      `INSERT INTO facts (person_id, chat_id, key, value, polarity, explicit, confidence, visibility, source_message_id, quote, observed_at, retracted, trip_id)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,
-         CASE WHEN $13::boolean THEN COALESCE((SELECT trip_id FROM messages WHERE id = $9), (SELECT focus_trip_id FROM chats WHERE id = $2)) END)
+      `INSERT INTO facts (person_id, chat_id, key, value, polarity, explicit, confidence, visibility, source_message_id, quote, observed_at, retracted, reported_by, trip_id)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,
+         CASE WHEN $14::boolean THEN COALESCE((SELECT trip_id FROM messages WHERE id = $9), (SELECT focus_trip_id FROM chats WHERE id = $2)) END)
        RETURNING id`,
-      [f.personId, f.chatId, f.key, JSON.stringify(f.value), f.polarity, f.explicit, f.confidence, f.visibility ?? "public", f.sourceMessageId, f.quote, f.observedAt, f.retracted, scoped],
+      [f.personId, f.chatId, f.key, JSON.stringify(f.value), f.polarity, f.explicit, f.confidence, f.visibility ?? "public", f.sourceMessageId, f.quote, f.observedAt, f.retracted, f.reportedBy ?? null, scoped],
       on,
     );
     ids.push(rows[0]!.id);

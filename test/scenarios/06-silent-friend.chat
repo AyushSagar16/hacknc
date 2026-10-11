@@ -12,7 +12,7 @@ maya: ok
 ~agent call ask_for_missing_info {}
 ~agent text: NO_REPLY
 maya: atlas let's plan something for november
-expect atlas ~ "what dates work for you, and where would you be leaving from?"
+expect atlas ~ "- where you'd be leaving from"
 expect sql SELECT count(*)::int AS n FROM asks = [{"n":6}]
 ~extract [{"message":0,"about":"maya","key":"date_window","polarity":"positive","explicit":true,"retracts":false,"confidence":0.9,"quote":"nov 13-16","earliest":"2026-11-13","latest":"2026-11-16"},{"message":0,"about":"maya","key":"home_city","polarity":"positive","explicit":true,"retracts":false,"confidence":0.9,"quote":"durham","city":"Durham"}]
 ~gate NO_REPLY detail shared
@@ -20,11 +20,12 @@ maya: nov 13-16 and i'm in durham
 ~extract [{"message":0,"about":"leo","key":"date_window","polarity":"positive","explicit":true,"retracts":false,"confidence":0.9,"quote":"same","earliest":"2026-11-13","latest":"2026-11-16"},{"message":0,"about":"leo","key":"home_city","polarity":"positive","explicit":true,"retracts":false,"confidence":0.9,"quote":"chapel hill","city":"Chapel Hill"}]
 ~gate NO_REPLY detail shared
 leo: same for me, chapel hill
-# priya says nothing. Atlas tries to ask again, but each person is only ever asked once.
+# priya says nothing. Atlas tries to ask again, but each person is only ever asked once, so it
+# answers maya in its own words instead (tagged by name: never silent).
 ~agent call ask_for_missing_info {"people":["priya"]}
-~agent text: NO_REPLY
+~agent text: haven't heard from priya yet, but you and leo are both set for nov 13-16. we can plan without waiting on her
 maya: atlas is priya in?
-expect atlas quiet
+expect atlas ~ "haven't heard from priya yet"
 expect sql SELECT count(*)::int AS n FROM asks = [{"n":6}]
 maya: set my budget to 800
 leo: set my budget to 800
@@ -32,5 +33,5 @@ maya: atlas give us some options
 expect atlas ~ "three options for nov 13–16"
 maya vote 2
 leo vote 2
-expect atlas ~ "wins (2 of 3)"
+expect atlas ~ "it is! 2 of 3 votes"
 expect trip.status = "locked"

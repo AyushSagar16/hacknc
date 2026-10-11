@@ -139,7 +139,7 @@ export async function fetchDailyForecast(lat: number, lon: number, deps: OpenMet
   return out;
 }
 
-async function requestJson(url: string, deps: OpenMeteoDeps): Promise<unknown> {
+export async function requestJson(url: string, deps: OpenMeteoDeps): Promise<unknown> {
   const timeoutMs = deps.timeoutMs ?? DEFAULT_TIMEOUT_MS;
   const retryDelayMs = deps.retryDelayMs ?? DEFAULT_RETRY_DELAY_MS;
   try {

@@ -70,7 +70,7 @@ describe("destinations.json", () => {
     }
 
     expect(d.activities.length).toBeGreaterThanOrEqual(6);
-    expect(d.activities.length).toBeLessThanOrEqual(8);
+    expect(d.activities.length).toBeLessThanOrEqual(9);
     for (const a of d.activities) {
       expect(a.id.startsWith(`${d.id}-`)).toBe(true);
       expect(a.name.length).toBeGreaterThan(0);

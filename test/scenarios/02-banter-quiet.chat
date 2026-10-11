@@ -1,5 +1,6 @@
-# Friends banter among themselves; Atlas stays out of it. Then someone asks the room a trip
-# question without tagging it, the gate says SPEAK, and Atlas answers in one bubble.
+# Friends banter among themselves; Atlas stays out of it (off-topic chatter costs no gate call).
+# Then someone asks the room a trip question without tagging it: that always reaches the agent
+# (no gate call to get wrong), and Atlas answers in one bubble.
 today 2026-10-10 14:00
 members maya leo priya
 atlas joins
@@ -10,12 +11,11 @@ leo: insane
 ~agent text: NO_REPLY
 priya: haha same
 expect atlas quiet
-~gate NO_REPLY banter
 maya: priya are you coming to the thing tonight
 expect atlas quiet
-~gate SPEAK trip question to the room
 ~agent text: fall break is oct 17–20 for most of you, so a long weekend then could work\n\nwant me to pull some options?
 leo: wait when is everyone even free
 expect atlas says 1
 expect atlas ~ "long weekend"
-expect sql SELECT gate_decision, gate_reason FROM turns WHERE gate_decision IS NOT NULL ORDER BY id = [{"gate_decision":"NO_REPLY","gate_reason":"banter"},{"gate_decision":"SPEAK","gate_reason":"trip question to the room"}]
+expect sql SELECT gate_decision, gate_reason FROM turns WHERE gate_decision IS NOT NULL ORDER BY id ~ "asked the room a trip/money question"
+expect sql SELECT count(*)::int AS n FROM llm_traces WHERE role = 'gate' = [{"n":0}]

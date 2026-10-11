@@ -1,9 +1,9 @@
-// Web research for a trip: one Google-Search-grounded Gemini call per topic, saved with its
-// sources and published to the trip page. It runs as a background job (a grounded call takes
-// longer than a turn may), then posts a short summary and the research link. Each topic is
-// researched once per trip unless someone asks for it again.
-import { readFileSync } from "node:fs";
-import { fileURLToPath } from "node:url";
+// Research on the trip page. It all comes from the web search in features/search.ts (keyless
+// results + pages read, every item checked against the page it came from):
+//   - when a trip locks in, a background job looks up things to do, food and events on the trip
+//     dates, saves each as a note with its source, posts a one-line-per-topic summary and links
+//     the research section;
+//   - every web_search Atlas runs for a trip during the chat is saved to the page as well.
 import { createHash } from "node:crypto";
 import { isoDate, now } from "../../clock.ts";
 import { childLog } from "../../log.ts";
@@ -12,24 +12,25 @@ import { activeMembers, labelOf } from "../../db/repos/core.ts";
 import { enqueueJob } from "../../pipeline/jobs.ts";
 import { profilesFor } from "../../profile/store.ts";
 import { groupView } from "../../profile/groupView.ts";
+import { rangeLabel, stripArtifacts } from "../../search/format.ts";
 import { tripById, type TripRow } from "../../trips/state.ts";
-import type { Config } from "../../config.ts";
-import type { Llm } from "../llm.ts";
-import type { Action } from "../../transport/outbound.ts";
-import type { Feature, TurnCtx } from "../feature.ts";
-import { ToolError, strList, type Tool } from "../tools.ts";
-import { formatRange } from "./planning.ts";
+import type { AppServices, Feature } from "../feature.ts";
+import { lookup as webLookup, type Lookup, type LookupInput, type Purpose } from "./search.ts";
+import { requestSync } from "../../site/publish.ts";
 import { announceFromJob } from "./site.ts";
 
-const PROMPT = readFileSync(fileURLToPath(new URL("../prompts/research.md", import.meta.url)), "utf8");
 const log = childLog({ component: "research" });
 
 export const RESEARCH_JOB = "research.run";
-const MAX_TOPICS = 5;
-const CALL_TIMEOUT_MS = 45_000;
+/** Background lookups can take longer than a chat reply's search budget. */
+const LOOKUP_TIMEOUT_MS = 30_000;
 
-/** What a locked trip gets without anyone asking. */
-export const DEFAULT_TOPICS = ["Getting there & entry", "Weather & packing", "Where to stay", "Food", "Local tips"];
+/** What a locked trip gets without anyone asking: one web lookup per topic. */
+export const DEFAULT_TOPICS: { topic: string; purpose: Purpose; query: (place: string, month: string) => string }[] = [
+  { topic: "Things to do", purpose: "things_to_do", query: (p, m) => `things to do in ${p} in ${m}` },
+  { topic: "Food", purpose: "food", query: (p) => `best places to eat in ${p}` },
+  { topic: "Events during the trip", purpose: "events", query: (p, m) => `events and festivals in ${p} in ${m}` },
+];
 
 export interface ResearchNote {
   topic: string;
@@ -38,20 +39,67 @@ export interface ResearchNote {
   sources: { title: string; url: string }[];
 }
 
+// ---------- seam (tests) ----------
+
+type LookupFn = (input: LookupInput, svc: Pick<AppServices, "llm" | "cfg">) => Promise<Lookup>;
+let lookupFn: LookupFn = (input, svc) => webLookup(svc.llm, svc.cfg, input, LOOKUP_TIMEOUT_MS);
+/** Tests replace the web lookup; undefined restores it. */
+export function setResearchLookup(fn: LookupFn | undefined): void {
+  lookupFn = fn ?? ((input, svc) => webLookup(svc.llm, svc.cfg, input, LOOKUP_TIMEOUT_MS));
+}
+
+// ---------- notes ----------
+
 const topicKey = (t: string) => t.trim().toLowerCase().replace(/\s+/g, " ");
-const tidyTopic = (t: string) => {
-  const s = t.trim().replace(/\s+/g, " ").slice(0, 60);
-  return s.charAt(0).toUpperCase() + s.slice(1);
+const capitalize = (s: string) => s.charAt(0).toUpperCase() + s.slice(1);
+const hostOf = (url: string) => {
+  try {
+    return new URL(url).hostname.replace(/^www\./, "");
+  } catch {
+    return url;
+  }
 };
 
-/** Split the model's answer into the SUMMARY line and the note. */
-export function parseNote(text: string): { summary: string; bodyMd: string } | null {
-  const trimmed = text.trim().replace(/^```(?:markdown)?\s*|\s*```$/g, "");
-  const m = /^\s*\**SUMMARY:?\**\s*(.+?)\s*(?:\n|$)([\s\S]*)$/i.exec(trimmed);
-  const summary = (m ? m[1]! : trimmed.split("\n")[0]!).replace(/\*+/g, "").trim();
-  const bodyMd = (m ? m[2]! : trimmed.split("\n").slice(1).join("\n")).trim();
-  if (summary.length < 8 || bodyMd.length < 40) return null;
-  return { summary: summary.slice(0, 240), bodyMd: bodyMd.slice(0, 4_000) };
+/** A lookup as a page note: lists become bullets, facts a short paragraph; dates aren't research. */
+export function noteFromLookup(topic: string, found: Lookup): ResearchNote | null {
+  const sources = found.source ? [{ title: hostOf(found.source), url: found.source }] : [];
+  if (found.kind === "list") {
+    const items = found.items.map((i) => ({ ...i, name: stripArtifacts(i.name), detail: i.detail ? stripArtifacts(i.detail) : undefined }));
+    if (!items.length) return null;
+    const lines = items.map((i) => {
+      const when = i.start ? `${rangeLabel(i.start, i.end)}: ` : "";
+      return `- **${capitalize(i.name)}**${i.detail || when ? `: ${when}${i.detail ?? ""}` : ""}`;
+    });
+    const top = items.slice(0, 3).map((i) => i.name.toLowerCase());
+    const summary = found.noEvents ? `No dated events found for the trip; always-on picks: ${top.join(", ")}.` : `Top picks: ${top.join(", ")}.`;
+    return { topic: capitalize(topic.slice(0, 60)), summary, bodyMd: lines.join("\n"), sources };
+  }
+  if (found.kind === "facts") {
+    const answer = stripArtifacts(found.answer);
+    if (answer.length < 8) return null;
+    return { topic: capitalize(topic.slice(0, 60)), summary: capitalize(answer.split(/(?<=[.!?])\s/)[0]!.slice(0, 240)), bodyMd: capitalize(answer), sources };
+  }
+  return null;
+}
+
+export async function saveNote(tripId: number, n: ResearchNote): Promise<void> {
+  await q(
+    `INSERT INTO trip_research (trip_id, topic, summary, body_md, sources, model, created_at) VALUES ($1,$2,$3,$4,$5,'web_search',$6)
+     ON CONFLICT (trip_id, topic) DO UPDATE SET summary = EXCLUDED.summary, body_md = EXCLUDED.body_md, sources = EXCLUDED.sources, created_at = EXCLUDED.created_at`,
+    [tripId, n.topic, n.summary, n.bodyMd, JSON.stringify(n.sources), now()],
+  );
+}
+
+/** web_search found something for this trip: keep it on the trip page too (never throws). */
+export async function saveLookupToTrip(cfg: AppServices["cfg"], trip: Pick<TripRow, "id">, topic: string, found: Lookup): Promise<void> {
+  try {
+    const note = noteFromLookup(topic, found);
+    if (!note) return;
+    await saveNote(trip.id, note);
+    await requestSync(cfg, trip);
+  } catch (err) {
+    log.warn({ err: (err as Error).message, tripId: trip.id }, "couldn't save a lookup to the trip page");
+  }
 }
 
 async function existingTopics(tripId: number): Promise<Set<string>> {
@@ -59,97 +107,38 @@ async function existingTopics(tripId: number): Promise<Set<string>> {
   return new Set(rows.map((r) => topicKey(r.topic)));
 }
 
-/** Queue research for a trip; topics already researched are skipped unless `force`. */
-export async function queueResearch(trip: Pick<TripRow, "id">, topics: string[], opts: { force?: boolean; announce?: boolean } = {}): Promise<string[]> {
-  const done = opts.force ? new Set<string>() : await existingTopics(trip.id);
-  const todo = [...new Map(topics.map((t) => [topicKey(t), tidyTopic(t)])).entries()].filter(([k]) => k && !done.has(k)).map(([, t]) => t).slice(0, MAX_TOPICS);
-  if (!todo.length) return [];
-  const hash = createHash("sha1").update(todo.map(topicKey).join("|")).digest("hex").slice(0, 10);
-  await enqueueJob(RESEARCH_JOB, { tripId: trip.id, topics: todo, force: opts.force === true, announce: opts.announce !== false }, { singletonKey: `research:${trip.id}:${hash}`, maxAttempts: 3 });
-  return todo;
+/** Queue the default research for a trip (topics already on the page are skipped). */
+export async function queueResearch(trip: Pick<TripRow, "id">): Promise<void> {
+  const hash = createHash("sha1").update(DEFAULT_TOPICS.map((t) => t.topic).join("|")).digest("hex").slice(0, 8);
+  await enqueueJob(RESEARCH_JOB, { tripId: trip.id }, { singletonKey: `research:${trip.id}:${hash}`, maxAttempts: 3 });
 }
 
-/** The trip as the researcher should picture it: where, when, who, from where, what they eat. */
-async function tripBrief(trip: TripRow, timezone: string): Promise<string> {
+/** The group as the search should picture it: who's going, from where, what they eat and like. */
+async function context(trip: TripRow, timezone: string): Promise<string[]> {
   const members = await activeMembers(trip.chat_id);
   const profiles = await profilesFor(members.map((m) => m.id), { tripId: trip.id });
   const view = groupView(
     members.map((m) => ({ personId: m.id, label: labelOf(m), profile: profiles.get(m.id)! })),
     isoDate(now(), timezone),
   );
-  const homes = [...new Set(view.members.map((m) => m.profile.homeCity?.value).filter((h): h is string => Boolean(h)))];
-  const diets = [...view.dietary.keys()].map((d) => d.replace(/_/g, " "));
-  return [
-    `destination: ${trip.destination_name ?? trip.title ?? "not chosen yet"}`,
-    `dates: ${trip.start_date && trip.end_date ? `${formatRange(trip.start_date, trip.end_date)} (${trip.start_date} to ${trip.end_date})` : "not set yet"}`,
-    `group: ${members.length} friends${homes.length ? `, leaving from ${homes.join(", ")}` : ""}`,
-    diets.length ? `dietary needs in the group: ${diets.join(", ")}` : "",
-  ]
-    .filter(Boolean)
-    .join("\n");
-}
-
-export async function researchTopic(llm: Llm, cfg: Config, brief: string, topic: string, trace?: { chatId?: number }): Promise<ResearchNote | null> {
-  const result = await llm.generate({
-    role: "research",
-    model: cfg.GEMINI_MODEL_RESEARCH ?? cfg.GEMINI_MODEL_AGENT,
-    system: PROMPT,
-    contents: [{ role: "user", parts: [{ text: `${brief}\n\ntopic: ${topic}` }] }],
-    grounding: "google_search",
-    temperature: 0.3,
-    timeoutMs: CALL_TIMEOUT_MS,
-    maxOutputTokens: 1_500,
-    trace,
-  });
-  const note = parseNote(result.text);
-  if (!note) return null;
-  return { topic, ...note, sources: (result.sources ?? []).slice(0, 8) };
-}
-
-async function saveNote(tripId: number, n: ResearchNote, model: string): Promise<void> {
-  await q(
-    `INSERT INTO trip_research (trip_id, topic, summary, body_md, sources, model, created_at) VALUES ($1,$2,$3,$4,$5,$6,$7)
-     ON CONFLICT (trip_id, topic) DO UPDATE SET summary = EXCLUDED.summary, body_md = EXCLUDED.body_md, sources = EXCLUDED.sources, model = EXCLUDED.model, created_at = EXCLUDED.created_at`,
-    [tripId, n.topic, n.summary, n.bodyMd, JSON.stringify(n.sources), model, now()],
-  );
+  const join = (names: string[]) => names.join(" and ");
+  const lines = [`trip destination: ${trip.destination_name ?? trip.title}`];
+  if (trip.start_date && trip.end_date) lines.push(`trip dates: ${trip.start_date} to ${trip.end_date}`);
+  if (members.length > 1) lines.push(`a group of ${members.length} friends`);
+  for (const [tag, who] of view.likes) lines.push(`${join(who)} like${who.length > 1 ? "" : "s"} ${tag}`);
+  for (const [diet, who] of view.dietary) lines.push(`${join(who)}: ${diet}`);
+  return lines.slice(0, 12);
 }
 
 const lower = (s: string) => s.charAt(0).toLowerCase() + s.slice(1);
-const clip = (s: string, max: number) => (s.length <= max ? s : `${s.slice(0, max - 1).trimEnd()}…`);
 
 /** The chat version: one line per topic. The page has the rest. */
 export function chatSummary(place: string, notes: ResearchNote[]): string {
-  return [`did some digging on ${place.toLowerCase()}:`, ...notes.map((n) => `${lower(n.topic)}: ${clip(lower(n.summary.replace(/\.$/, "")), 110)}`)].join("\n");
+  return [`did some digging on ${place.toLowerCase()} for the trip page:`, ...notes.map((n) => `${lower(n.topic)}: ${lower(n.summary.replace(/\.$/, ""))}`)].join("\n");
 }
-
-const researchTool: Tool = {
-  decl: {
-    name: "research_trip",
-    description:
-      "Look things up on the web for this trip (visas and entry rules, weather and packing, neighborhoods to stay in, food, transit, events, safety...) and put sourced notes on the trip page. Runs in the background and posts a summary and link when done. Use when someone asks a question that needs current facts about the destination.",
-    parameters: {
-      type: "object",
-      properties: { topics: { type: "array", items: { type: "string" }, description: "1 to 5 short topics, e.g. [\"visas\", \"vegetarian food\"]" } },
-      required: ["topics"],
-    },
-  },
-  async run(args, ctx) {
-    const tc = ctx as TurnCtx;
-    if (!tc.trip.destination_name && !tc.trip.title) throw new ToolError("there's no destination yet; research needs a place");
-    const topics = strList(args.topics);
-    if (!topics.length) throw new ToolError("give 1 to 5 topics");
-    const queued = await queueResearch(tc.trip, topics, { force: true });
-    return {
-      ok: true,
-      data: { researching: queued },
-      next: "research is running in the background and will post when done; say in one short line that you're looking into it",
-    };
-  },
-};
 
 export const researchFeature: Feature = {
   name: "research",
-  tools: [researchTool],
 
   async situation(tc) {
     const rows = await q<{ topic: string; summary: string }>(`SELECT topic, summary FROM trip_research WHERE trip_id = $1 ORDER BY created_at`, [tc.trip.id]);
@@ -159,46 +148,48 @@ export const researchFeature: Feature = {
     );
     if (!rows.length && !pending?.n) return null;
     return {
-      title: "research (on the trip page)",
+      title: "research on the trip page",
       lines: [...rows.map((r) => `- ${r.topic}: ${r.summary}`), ...(pending?.n ? ["more research is running in the background"] : [])],
     };
   },
 
   async onTripLocked(trip) {
-    await queueResearch(trip, DEFAULT_TOPICS);
+    if (trip.destination_name) await queueResearch(trip);
   },
 
   jobs(svc) {
     return {
       [RESEARCH_JOB]: async (payload, { jobId }) => {
         const trip = await tripById(Number(payload.tripId));
-        if (!trip) return;
+        if (!trip?.destination_name) return;
         const chat = await one<{ timezone: string }>(`SELECT timezone FROM chats WHERE id = $1`, [trip.chat_id]);
-        const brief = await tripBrief(trip, chat?.timezone ?? svc.cfg.DEFAULT_TIMEZONE);
-        const topics = (Array.isArray(payload.topics) ? payload.topics : []).filter((t): t is string => typeof t === "string");
-        const skip = payload.force === true ? new Set<string>() : await existingTopics(trip.id);
+        const today = isoDate(now(), chat?.timezone ?? svc.cfg.DEFAULT_TIMEZONE);
+        const lines = await context(trip, chat?.timezone ?? svc.cfg.DEFAULT_TIMEZONE);
+        const month = new Date(`${trip.start_date ?? today}T12:00:00Z`).toLocaleDateString("en-US", { month: "long", timeZone: "UTC" }).toLowerCase();
+        const window = trip.start_date && trip.end_date ? { start: trip.start_date, end: trip.end_date } : undefined;
+        const done = await existingTopics(trip.id);
         const notes: ResearchNote[] = [];
         let failures = 0;
-        for (const topic of topics) {
-          if (skip.has(topicKey(topic))) continue;
+        for (const t of DEFAULT_TOPICS) {
+          if (done.has(topicKey(t.topic))) continue;
           try {
-            const note = await researchTopic(svc.llm, svc.cfg, brief, topic, { chatId: trip.chat_id });
-            if (!note) {
-              failures += 1;
-              continue;
-            }
-            await saveNote(trip.id, note, svc.cfg.GEMINI_MODEL_RESEARCH ?? svc.cfg.GEMINI_MODEL_AGENT);
+            const found = await lookupFn(
+              { query: t.query(trip.destination_name.toLowerCase(), month), purpose: t.purpose, context: lines, today, place: trip.destination_name, ...(window ? { window } : {}), trace: { chatId: trip.chat_id } },
+              svc,
+            );
+            const note = noteFromLookup(t.topic, found);
+            if (!note) continue;
+            await saveNote(trip.id, note);
             notes.push(note);
           } catch (err) {
             failures += 1;
-            log.warn({ err: (err as Error).message, tripId: trip.id, topic }, "research call failed");
+            log.warn({ err: (err as Error).message, tripId: trip.id, topic: t.topic }, "research lookup failed");
           }
         }
-        // Nothing came back: let the job retry (the topics done so far are skipped next time).
+        // Nothing came back: let the job retry (topics already saved are skipped next time).
         if (!notes.length && failures) throw new Error(`research failed for all ${failures} topic(s)`);
-        if (!notes.length || payload.announce === false) return;
-        const place = trip.destination_name ?? trip.title ?? "the trip";
-        await svc.post(trip.chat_id, `research${jobId}`, [{ type: "say", text: chatSummary(place, notes) } satisfies Action]);
+        if (!notes.length) return;
+        await svc.post(trip.chat_id, `research${jobId}`, [{ type: "say", text: chatSummary(trip.destination_name, notes) }]);
         await announceFromJob(svc, trip.id, "research", `research${jobId}:link`);
       },
     };

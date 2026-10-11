@@ -1,0 +1,17 @@
+# Real chat: everyone voted on the native poll and Atlas said nothing. A decided poll must lock
+# the trip and announce it without anyone tagging Atlas.
+today 2026-10-10 14:00
+members maya leo priya
+atlas joins by maya
+maya: atlas we want a beach trip nov 12-15, i'm in raleigh
+leo: same dates, charlotte
+priya: works for me, leaving from atlanta
+maya: atlas give us some options
+expect sql SELECT count(*)::int AS n FROM polls WHERE status = 'open' = [{"n":1}]
+maya vote 1
+leo vote 1
+priya vote 1
+expect trip.status = "locked"
+expect transcript ~ /it is!|locked in/
+leo: everyone voted
+expect transcript !~ /drop your votes|cast your votes/

@@ -1,0 +1,15 @@
+# Persona QA: "why is my share the same?" re-posted the whole plan instead of answering.
+today 2026-10-10 14:00
+members maya leo priya
+atlas joins by maya
+maya: atlas beach weekend nov 13-15, i'm in raleigh
+leo: same dates, charlotte
+priya: same, atlanta
+maya: atlas options
+maya vote 1
+leo vote 1
+priya vote 1
+expect trip.status = "locked"
+leo: atlas why is my share different from priya's?
+expect atlas speaks
+expect atlas !~ /payments of/

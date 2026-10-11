@@ -1,0 +1,11 @@
+# Persona QA: "i don't fly, driving only, max 5 hours" and the options still had flights for him.
+today 2026-10-10 14:00
+members nina omar tess
+atlas joins by nina
+nina: atlas long weekend trip nov 13-15, i'm in dc
+omar: i'm in richmond. i don't fly, driving only, max 5 hours
+tess: baltimore, and i'm vegan
+nina: atlas options?
+expect transcript ~ /^1\. /m
+expect sql SELECT count(*)::int AS n FROM facts f JOIN people p ON p.id = f.person_id WHERE lower(p.display_name) = 'omar' AND f.key = 'travel_limit' AND f.superseded_by IS NULL AND f.polarity = 'positive' ~ "n"
+expect transcript !~ /omar[^\n]*✈️|✈️[^\n]*omar/

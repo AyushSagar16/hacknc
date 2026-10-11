@@ -1,7 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { chatSummary, parseNote } from "../../src/agent/features/research.ts";
+import { chatSummary, noteFromLookup } from "../../src/agent/features/research.ts";
 import { matchTrip } from "../../src/agent/features/trips.ts";
-import { groundingSources } from "../../src/agent/llm.ts";
 import { firstName } from "../../src/site/snapshot.ts";
 import { pageUrl } from "../../src/site/publish.ts";
 import type { TripRow } from "../../src/trips/state.ts";
@@ -9,38 +8,35 @@ import type { TripRow } from "../../src/trips/state.ts";
 const trip = (id: number, title: string | null, destination: string | null) => ({ id, title, destination_name: destination }) as TripRow;
 
 describe("research notes", () => {
-  it("splits the SUMMARY line from the note", () => {
-    expect(parseNote("SUMMARY: Bring a light rain jacket.\n\n- March is mild, 60s by day\n- Evenings drop into the 40s, so pack layers")).toEqual({
-      summary: "Bring a light rain jacket.",
-      bodyMd: "- March is mild, 60s by day\n- Evenings drop into the 40s, so pack layers",
+  it("turns a verified list into bullets with its source", () => {
+    const note = noteFromLookup("Things to do", {
+      kind: "list",
+      heading: "things to do in asheville in march",
+      items: [
+        { name: "biltmore estate", detail: "house tours and gardens" },
+        { name: "craggy gardens", detail: "short hike, big views" },
+        { name: "river arts district" },
+      ],
+      source: "https://www.exploreasheville.com/things-to-do",
     });
-    expect(parseNote("**SUMMARY:** Visa on arrival.\nUS citizens pay $25 at the airport bank counters before passport control.")?.summary).toBe("Visa on arrival.");
+    expect(note).toEqual({
+      topic: "Things to do",
+      summary: "Top picks: biltmore estate, craggy gardens, river arts district.",
+      bodyMd: "- **Biltmore estate**: house tours and gardens\n- **Craggy gardens**: short hike, big views\n- **River arts district**",
+      sources: [{ title: "exploreasheville.com", url: "https://www.exploreasheville.com/things-to-do" }],
+    });
   });
 
-  it("rejects answers too thin to publish", () => {
-    expect(parseNote("SUMMARY: ok\n\nshort")).toBeNull();
-    expect(parseNote("")).toBeNull();
+  it("keeps a short fact as a note and skips date lookups", () => {
+    expect(noteFromLookup("do we need a car", { kind: "facts", answer: "most sights are walkable downtown. a car helps for the parkway." })?.summary).toBe("Most sights are walkable downtown.");
+    expect(noteFromLookup("winter break", { kind: "dates", start: "2026-12-12", end: "2027-01-05", confidence: "high", note: "" })).toBeNull();
+    expect(noteFromLookup("food", { kind: "list", heading: "food", items: [] })).toBeNull();
   });
 
   it("keeps the chat version to one line per topic", () => {
-    expect(chatSummary("Egypt", [{ topic: "Food", summary: "Koshary is the cheap vegetarian staple.", bodyMd: "", sources: [] }])).toBe(
-      "did some digging on egypt:\nfood: koshary is the cheap vegetarian staple",
+    expect(chatSummary("Egypt", [{ topic: "Food", summary: "Top picks: koshary, feteer.", bodyMd: "", sources: [] }])).toBe(
+      "did some digging on egypt for the trip page:\nfood: top picks: koshary, feteer",
     );
-  });
-
-  it("dedupes grounding sources and drops non-web chunks", () => {
-    expect(
-      groundingSources([
-        { web: { uri: "https://a.example/x", title: "a.example" } },
-        { web: { uri: "https://a.example/x", title: "a.example" } },
-        { web: { uri: "https://b.example/y" } },
-        { web: { uri: "javascript:alert(1)", title: "bad" } },
-        {},
-      ]),
-    ).toEqual([
-      { title: "a.example", url: "https://a.example/x" },
-      { title: "b.example", url: "https://b.example/y" },
-    ]);
   });
 });
 

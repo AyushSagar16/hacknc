@@ -19,11 +19,13 @@ import type { Action } from "../../transport/outbound.ts";
 import { nextCheckAt, shouldAlert, type AlertRecord } from "../../weather/cadence.ts";
 import { describe as describeWeather, isWet, type WeatherCategory } from "../../weather/classify.ts";
 import { detectChanges, toSnapshot, weekdayName, type Change, type DaySnapshot } from "../../weather/diff.ts";
-import { fetchDailyForecast, FORECAST_DAYS, type DailyForecast } from "../../weather/openMeteo.ts";
+import { fetchDailyForecast, FORECAST_DAYS, geocode, type DailyForecast } from "../../weather/openMeteo.ts";
+import { outlook, outlookBubble, rangeWords, type WeatherOutlook } from "../../weather/climate.ts";
+import { LRUCache } from "lru-cache";
 import { COMFORT_HIGH_F, COMFORT_LOW_F, proposeSwap, type SpareActivity, type SwapProposal } from "../../weather/swaps.ts";
 import type { AppServices, Feature, Section, TurnCtx } from "../feature.ts";
 import type { Figure } from "../figures.ts";
-import { ToolError, say, type Tool } from "../tools.ts";
+import { ToolError, say, str, type Tool, type ToolCtx } from "../tools.ts";
 
 export const WEATHER_JOB = "weather.check";
 export const WEATHER_POLL_KIND = "weather_swap";
@@ -434,6 +436,83 @@ const applyWeatherSwap: Tool = {
   },
 };
 
+// ---------- "what's the weather going to be like?" ----------
+
+const ISO_DAY = /^\d{4}-\d{2}-\d{2}$/;
+const outlookCache = new LRUCache<string, Promise<WeatherOutlook>>({ max: 200, ttl: 3 * 3_600_000 });
+export function clearOutlookCache(): void {
+  outlookCache.clear();
+}
+
+/** Where and when to look: the place asked about (else the trip's), and the trip's dates (else the likely ones). */
+async function weatherTarget(args: Record<string, unknown>, ctx: ToolCtx): Promise<{ place: string; lat: number; lon: number; start: string; end: string } | string> {
+  const asked = str(args.place);
+  const trip = ctx.trip;
+  const sameAsTrip = !asked || (trip.destination_name ? trip.destination_name.toLowerCase().includes(asked.toLowerCase().split(",")[0]!.trim()) : false);
+  let start = str(args.start_date);
+  let end = str(args.end_date);
+  if (!start || !ISO_DAY.test(start)) start = trip.start_date ?? undefined;
+  if (!end || !ISO_DAY.test(end)) end = start === trip.start_date ? (trip.end_date ?? undefined) : start;
+  if (!start || !end) {
+    const tc = ctx as Partial<TurnCtx>;
+    const d = typeof tc.view === "function" ? await tc.view().then((v) => v.dates).catch(() => null) : null;
+    if (d) ({ start, end } = d);
+  }
+  if (!start || !end) return "no dates yet: ask what dates they're thinking, then try again";
+  if (end < start) [start, end] = [end, start];
+  if (end < ctx.today) return "those dates are already over";
+  const coords = sameAsTrip ? tripCoords(trip) : null;
+  const place = (sameAsTrip ? trip.destination_name : asked) ?? asked;
+  if (coords && place) return { place, ...coords, start, end };
+  if (!place) return "no place yet: ask where they're thinking of going";
+  const g = await geocode(place.split(",")[0]!, { fetch: currentWeatherFetch(), timeoutMs: 5_000 }).catch(() => null);
+  if (!g) return `couldn't find "${place}" on the map: ask which town they mean`;
+  return { place, lat: g.latitude, lon: g.longitude, start, end };
+}
+
+const getWeather: Tool = {
+  soloPost: true,
+  decl: {
+    name: "get_weather",
+    description:
+      "Weather for the trip (or a place and dates someone names): \"what's the weather going to be like?\", \"how cold is it there in december?\", \"typical high and low\". Within two weeks it's the real forecast; further out it's what those dates were usually like the last few years. Posts one short line itself (highs, lows, rain, what to pack); don't repeat the numbers. Defaults to the trip's destination and dates.",
+    parameters: {
+      type: "object",
+      properties: {
+        place: { type: "string", description: "only if they ask about somewhere other than the trip's destination" },
+        start_date: { type: "string", description: "yyyy-mm-dd, only if they name dates other than the trip's" },
+        end_date: { type: "string", description: "yyyy-mm-dd" },
+      },
+    },
+  },
+  async run(args, ctx) {
+    const target = await weatherTarget(args, ctx);
+    if (typeof target === "string") return { ok: false, error: target };
+    const key = `${target.lat.toFixed(2)},${target.lon.toFixed(2)}|${target.start}|${target.end}|${ctx.today}`;
+    let pending = outlookCache.get(key);
+    if (!pending) {
+      pending = outlook(target.lat, target.lon, target.start, target.end, ctx.today, { fetch: currentWeatherFetch(), timeoutMs: 6_000 });
+      outlookCache.set(key, pending);
+      pending.catch(() => outlookCache.delete(key));
+    }
+    let o: WeatherOutlook;
+    try {
+      o = await pending;
+    } catch (err) {
+      childLog({ component: "weather" }).warn({ err: (err as Error).message.slice(0, 160) }, "get_weather failed");
+      return { ok: false, error: "couldn't pull the weather right now. say so in plain words and offer to check again in a bit; don't guess temperatures" };
+    }
+    const bubble = outlookBubble(target.place, o);
+    const posted = say(ctx, bubble);
+    return {
+      ok: true,
+      posted,
+      data: { kind: o.kind, dates: rangeWords(o.start, o.end), high_f: o.highF, low_f: o.lowF, rainy_days: o.rainyDays, of_days: o.days, ...(o.years ? { from_years: o.years } : {}) },
+      next: "the weather line is already in the chat; don't repeat it. add at most one short line if it changes the plan",
+    };
+  },
+};
+
 // ---------- what the agent and summaries see ----------
 
 const WEEK_SHORT = ["sun", "mon", "tue", "wed", "thu", "fri", "sat"] as const;
@@ -467,9 +546,11 @@ async function tripSnapshots(trip: TripRow, today: string): Promise<SnapshotRow[
   return rows.filter((r) => r.day <= trip.end_date!);
 }
 
+export { getWeather };
+
 export const weatherFeature: Feature = {
   name: "weather",
-  tools: [applyWeatherSwap],
+  tools: [applyWeatherSwap, getWeather],
 
   async onTripLocked(trip) {
     await startWeatherWatch(trip);

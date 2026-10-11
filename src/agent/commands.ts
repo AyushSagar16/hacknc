@@ -14,7 +14,8 @@ export type Command =
   | { kind: "budget_set"; amountCents: number }
   | { kind: "settle_up" }
   | { kind: "balances" }
-  | { kind: "propose" };
+  | { kind: "propose" }
+  | { kind: "split_mode"; mode: "even" | "by_cost" };
 
 const QUIET = /\b(stay quiet|be quiet|go quiet|quiet mode|shh+|hush|mute|stop talking|pipe down|chill out|stop (?:chiming|jumping) in|less chatty)\b/i;
 const UNQUIET = /\b(you can talk again|talk again|unmute|speak up|you can chime in|chime in again|come back|un-?quiet|you can (?:speak|jump in) again)\b/i;
@@ -26,6 +27,8 @@ const BUDGET_PUBLIC = /\b(make|set) my budget public\b|\byou can (?:share|show) 
 const BUDGET_SET = /\b(?:set|change|update|put|make) my budget (?:to|at|as)\s*\$?\s*([\d,]+(?:\.\d{1,2})?)\s*(k)?\b|\bmy budget is (?:actually )?\$?\s*([\d,]+(?:\.\d{1,2})?)\s*(k)?\b/i;
 const SETTLE = /\b(settle up|settle (?:things|everything)|let'?s settle|square up|split (?:it|everything) up now)\b/i;
 const BALANCES = /\b(who owes (?:who|whom|what|me)|what do i owe|how much do i owe|balances?)\b/i;
+const SPLIT_EVEN = /\b(split (?:it|the trip|the cost|costs?|everything)? ?(?:evenly|equally|even)|even split|(?:everyone|we all|all of us) (?:should )?(?:be )?pay(?:s|ing)? the same|same amount (?:for|each)|equal shares?)\b/i;
+const SPLIT_BY_COST = /\bsplit (?:it )?by cost\b|\beveryone (?:covers|pays) (?:their|for their) own (?:travel|flights?)\b/i;
 const PROPOSE = /\b(give us|show us|send|pitch|propose|suggest)\b.*\b(options|ideas|destinations|places|spots)\b/i;
 
 export function parseCommand(text: string, ctx: { addressed: boolean }): Command | null {
@@ -45,6 +48,8 @@ export function parseCommand(text: string, ctx: { addressed: boolean }): Command
   }
   if (BUDGET_QUERY.test(t)) return { kind: "budget_query" };
   if (SETTLE.test(t)) return { kind: "settle_up" };
+  if (SPLIT_BY_COST.test(t)) return { kind: "split_mode", mode: "by_cost" };
+  if (SPLIT_EVEN.test(t)) return { kind: "split_mode", mode: "even" };
   if (!ctx.addressed) return null;
   if (UNQUIET.test(t)) return { kind: "unquiet" };
   if (QUIET.test(t)) return { kind: "quiet" };

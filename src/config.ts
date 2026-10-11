@@ -45,8 +45,6 @@ const schema = z.object({
   GEMINI_EMBED_MODEL: optionalString.transform((v) => v ?? "gemini-embedding-2"),
   /** Tried in order when a model is overloaded or times out. */
   GEMINI_FALLBACK_MODELS: csv.transform((v) => (v.length ? v : ["gemini-3.1-flash-lite", "gemini-3.5-flash-lite", "gemini-3-flash-preview", "gemini-3.8-flash"])),
-  /** Grounded web research (Google Search); defaults to the agent model. */
-  GEMINI_MODEL_RESEARCH: optionalString,
   LLM_MODE: optionalString.transform((v) => v ?? "live").pipe(z.enum(["live", "replay", "record", "fake"])),
 
   NESSIE_API_KEY: optionalString,
@@ -69,6 +67,21 @@ const schema = z.object({
     if (!Number.isInteger(n) || n < 0) throw new Error(`expected a whole number of seconds, got "${v}"`);
     return n;
   }),
+
+  /**
+   * Message cadence: Atlas shows the typing indicator and pauses before each bubble like a person
+   * texting, PACE_BASE_MS + PACE_MS_PER_CHAR per character, clamped to [PACE_MIN_MS, PACE_MAX_MS].
+   * The first bubble waits at most PACE_FIRST_MAX_MS (minus the time Atlas already spent typing).
+   * Tapbacks and polls never wait. PACING=off sends back to back (the simulator and tests do).
+   */
+  PACING: optionalString.transform((v) => v ?? "on").pipe(z.enum(["on", "off"])),
+  PACE_BASE_MS: intWithDefault(400),
+  PACE_MS_PER_CHAR: intWithDefault(25),
+  PACE_MIN_MS: intWithDefault(600),
+  PACE_MAX_MS: intWithDefault(2_500),
+  PACE_FIRST_MAX_MS: intWithDefault(1_000),
+  /** Quiet window before answering a message that names Atlas and reads complete (others wait 2.5 s). */
+  ADDRESSED_DEBOUNCE_MS: intWithDefault(1_500),
 
   ALLOWED_CHATS: csv,
   OPERATOR_HANDLES: csv,

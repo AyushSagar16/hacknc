@@ -61,6 +61,8 @@ export async function render(space: Space, action: Action, clientGuid: string): 
       return { renderedAs: "fallback", providerMessageIds: [fid], shownText: action.fallbackText };
     }
     case "poll": {
+      // A poll needs two choices (Spectrum rejects fewer); the options were already listed as text.
+      if (action.options.length < 2) return { renderedAs: "skipped", providerMessageIds: [], shownText: "" };
       const id = await tryNative(poll(action.title, action.options), clientGuid);
       const listed = action.options.map((o, i) => `${i + 1}. ${o}`).join("\n");
       if (id) return { renderedAs: "native", providerMessageIds: [id], shownText: `${action.title}\n${listed}` };

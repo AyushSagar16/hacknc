@@ -5,6 +5,8 @@ import { q } from "../../src/db/pool.ts";
 import { callResult, textResult, type GenerateRequest, type GenerateResult } from "../../src/agent/llm.ts";
 import { OffsetClock, isoDate, setClock, systemClock } from "../../src/clock.ts";
 import { MemorySiteStore, useSite } from "../../src/site/store.ts";
+import { setResearchLookup } from "../../src/agent/features/research.ts";
+import type { Lookup, LookupInput } from "../../src/agent/features/search.ts";
 import { dbAvailable } from "../helpers/db.ts";
 import { pastIntro, quietFake, testAtlas, type TestAtlas } from "../helpers/atlas.ts";
 
@@ -38,10 +40,13 @@ const planFor = (start: string) => ({
   ],
 });
 
-const researchAnswer = (req: GenerateRequest): GenerateResult => {
-  const topic = /topic: (.+)$/.exec((req.contents[0]!.parts[0] as { text: string }).text)?.[1] ?? "?";
-  const text = `SUMMARY: The short version on ${topic.toLowerCase()}.\n\n- one useful thing about ${topic.toLowerCase()} that is long enough to count\n- and another useful thing`;
-  return { text, functionCalls: [], parts: [{ text }], sources: [{ title: "example.org", url: "https://example.org/guide" }] };
+/** The web lookups research makes, answered without the network. */
+const lookups: LookupInput[] = [];
+const fakeLookup = async (input: LookupInput): Promise<Lookup> => {
+  lookups.push(input);
+  return input.purpose === "events"
+    ? { kind: "list", heading: "events in asheville", items: [{ name: "winter lights", detail: "garden light show", start: "2026-11-20", end: "2027-01-03" }, { name: "craft fair", detail: "local makers" }], source: "https://example.org/events" }
+    : { kind: "list", heading: input.query, items: [{ name: "biltmore estate", detail: "house and gardens" }, { name: "white duck tacos", detail: "creative tacos" }], source: "https://example.org/guide" };
 };
 
 describeDb("trip pages", () => {
@@ -53,16 +58,19 @@ describeDb("trip pages", () => {
     store = new MemorySiteStore();
     useSite({ store, baseUrl: BASE });
     setClock(clock);
+    lookups.length = 0;
+    setResearchLookup(fakeLookup);
   });
   afterEach(async () => {
     await t?.close();
     t = undefined;
     useSite(undefined);
     setClock(systemClock);
+    setResearchLookup(undefined);
   });
 
   async function lockedTrip() {
-    const llm = quietFake().set("research", researchAnswer);
+    const llm = quietFake();
     t = await testAtlas({ llm });
     const chat = t.chat("p1", ["maya", "leo", "priya"]);
     await pastIntro(chat);
@@ -84,7 +92,7 @@ describeDb("trip pages", () => {
     const link = sent.at(-1)!;
     expect(link.kind).toBe("link");
     expect(link.text).toBe(`${BASE}/t/${trip!.public_id}/itinerary?v=${trip!.site_version}`);
-    expect(sent.slice(0, -1).some((e) => /asheville is locked in/.test(e.text))).toBe(true);
+    expect(sent.slice(0, -1).some((e) => /asheville it is!\nlocked in for/.test(e.text))).toBe(true);
     expect(sent.some((e) => /rough plan/.test(e.text))).toBe(false);
 
     const page = store.trips.get(trip!.public_id)!;
@@ -109,13 +117,16 @@ describeDb("trip pages", () => {
     const mark = chat.lastEntry();
     await t!.app.jobs.runDue();
     await t!.world.waitIdle("p1");
-    expect(llm.calls.filter((c) => c.role === "research")).toHaveLength(5);
-    expect(llm.calls.find((c) => c.role === "research")!.grounding).toBe("google_search");
+    expect(lookups.map((l) => l.purpose)).toEqual(["things_to_do", "food", "events"]);
+    expect(lookups[2]!.window).toEqual({ start, end: expect.any(String) });
+    void llm;
     const after = chat.atlasSince(mark);
-    expect(after[0]!.text).toMatch(/^did some digging on asheville:\ngetting there & entry: the short version/);
+    expect(after[0]!.text).toBe(
+      "did some digging on asheville for the trip page:\nthings to do: top picks: biltmore estate, white duck tacos\nfood: top picks: biltmore estate, white duck tacos\nevents during the trip: top picks: winter lights, craft fair",
+    );
     expect(after.at(-1)!.text).toMatch(new RegExp(`^${BASE}/t/${trip!.public_id}/research\\?v=\\d+$`));
     const notes = [...store.research.get(trip!.public_id)!.values()];
-    expect(notes.map((n) => n.topic)).toEqual(["Getting there & entry", "Weather & packing", "Where to stay", "Food", "Local tips"]);
+    expect(notes.map((n) => n.topic)).toEqual(["Things to do", "Food", "Events during the trip"]);
     expect(notes[0]!.sources).toEqual([{ title: "example.org", url: "https://example.org/guide" }]);
   });
 
@@ -137,9 +148,13 @@ describeDb("trip pages", () => {
           ])(req)
         : textResult("NO_REPLY"),
     );
+    // A nudge is skipped while another turn is still finishing; the job checks back 90 s later.
     clock.advance(5_000);
-    await t!.app.jobs.runDue();
-    await t!.world.waitIdle("p1");
+    for (let i = 0; i < 3 && !chat.atlasSince(before).some((e) => e.kind === "link"); i++) {
+      await t!.app.jobs.runDue();
+      await t!.world.waitIdle("p1");
+      clock.advance(91_000);
+    }
     expect(chat.atlasSince(before).at(-1)!.text).toMatch(new RegExp(`^${BASE}/t/${trip!.public_id}/itinerary\\?v=\\d+$`));
     clock.advance(10_000);
     await t!.app.jobs.runDue();
@@ -159,11 +174,11 @@ describeDb("trip pages", () => {
       return textResult("NO_REPLY");
     });
     await chat.say("maya", "atlas add a boat tour");
-    expect(results).toEqual([
-      { ok: false, error: expect.stringMatching(/leave prices out/) },
-      expect.anything(),
-      { ok: false, error: expect.stringMatching(/outside the trip/) },
-    ]);
+    // Each bad plan comes back as an error the model can act on, and nothing was saved.
+    const errors = new Set((results as { ok: boolean; error?: string }[]).filter((r) => !r.ok).map((r) => r.error));
+    expect([...errors]).toEqual([expect.stringMatching(/leave prices out/), expect.stringMatching(/outside the trip/)]);
+    const [saved] = await q<{ itinerary: { items: { name: string }[] }[] }>(`SELECT itinerary FROM trips`);
+    expect(saved!.itinerary.flatMap((d) => d.items.map((i) => i.name))).not.toContain("Boat tour ($40)");
   });
 
   it("syncs the chat to the page with first names only", async () => {

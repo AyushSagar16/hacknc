@@ -18,15 +18,21 @@ priya: set my budget to 900
 ~agent call lock_destination {"destination":"charleston"}
 ~agent text: NO_REPLY
 maya: atlas everyone agreed, we're doing charleston
-expect atlas ~ "charleston is locked in for nov 12–16"
-expect atlas ~ "payment plan for everyone's share"
+expect atlas ~ "charleston it is!"
+expect atlas ~ "locked in for nov 12–16"
+expect atlas ~ "💸 payment plan"
 expect trip.status = "locked"
-expect sql SELECT count(*)::int AS n FROM installments = [{"n":3}]
+expect sql SELECT count(*)::int AS n FROM installments = [{"n":6}]
+# "everyone should pay the same": one equal share each, the old plan retired
+leo: everyone should be paying the same amount
+expect atlas ~ "💸 payment plan, split evenly"
+expect atlas ~ "everyone pays the same now"
+expect sql SELECT count(DISTINCT total)::int AS n FROM (SELECT person_id, sum(amount_cents) AS total FROM installments WHERE status = 'scheduled' GROUP BY person_id) s = [{"n":1}]
 # the trip starts
 clock +33d
 maya: i paid 64 for dinner
 expect atlas ~ "logged #1: dinner $64.00, paid by maya"
-expect atlas ~ "split 3 ways: leo + priya owe maya $21.33 each"
+expect atlas ~ "split 3 ways: leo and priya owe maya $21.33 each"
 expect trip.status = "ongoing"
 leo: paid $45 for the uber
 expect atlas ~ "logged #2"
@@ -56,7 +62,7 @@ expect atlas ~ "and i'll send yours as a nessie transfer"
 expect trip.status = "settling"
 expect sql SELECT count(*)::int AS n FROM settlements WHERE status = 'proposed' = [{"n":2}]
 leo: confirm
-expect atlas ~ "✓ leo → maya"
+expect atlas ~ "leo → maya $18.06"
 priya: confirm
 expect atlas ~ "all settled up"
 expect trip.status = "done"

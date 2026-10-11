@@ -5,6 +5,15 @@ import { LOCAL_LIKE } from "../../src/transport/sim/platform.ts";
 import { dbAvailable } from "../helpers/db.ts";
 import { harness, type Harness } from "../helpers/harness.ts";
 
+/** Poll a condition (10 ms steps, 5 s cap) instead of guessing how long the pipeline takes. */
+async function until(cond: () => boolean): Promise<void> {
+  const deadline = Date.now() + 5_000;
+  while (!cond()) {
+    if (Date.now() > deadline) throw new Error("condition never became true");
+    await new Promise((r) => setTimeout(r, 10));
+  }
+}
+
 const describeDb = dbAvailable ? describe : describe.skip;
 
 describeDb("pipeline on the simulator", () => {
@@ -79,7 +88,8 @@ describeDb("pipeline on the simulator", () => {
     });
     const chat = h.chat("c4", ["maya", "leo", "priya"]);
     await chat.say("maya", "where should we go", { wait: false });
-    await new Promise((r) => setTimeout(r, 120));
+    // Wait for the first turn to actually be running (a fixed sleep raced under full-suite load).
+    await until(() => seen.length === 1);
     await chat.say("leo", "somewhere warm", { wait: false });
     await h.world.waitIdle("c4");
     expect(seen).toEqual([["where should we go"], ["where should we go", "somewhere warm"]]);
@@ -100,7 +110,7 @@ describeDb("pipeline on the simulator", () => {
     });
     const chat = h.chat("c5", ["maya", "leo", "priya"]);
     await chat.say("maya", "i paid 64 for dinner", { wait: false });
-    await new Promise((r) => setTimeout(r, 80));
+    await until(() => calls === 1);
     await chat.say("leo", "nice", { wait: false });
     await h.world.waitIdle("c5");
     expect(chat.atlasSince(undefined).map((e) => e.text)).toEqual(["echo: i paid 64 for dinner", "echo: nice"]);

@@ -1,0 +1,18 @@
+{
+  "data": {
+    "chat": {
+      "id": "10df84ec-96bc-40ea-84fe-449c38b44e43",
+      "is_group": true,
+      "owner_handle": { "id": "1ac216fb-4fdc-43b8-8b18-21c8402b4816", "is_me": true, "handle": "+19195550000", "status": "active", "left_at": null, "service": "iMessage", "joined_at": "2026-10-10T21:26:56.128565Z", "line_type": "iMessage" }
+    },
+    "service": "iMessage",
+    "direction": "inbound",
+    "option_id": "d14cc9c0-beff-4dac-a6f6-e24fe8a2e1c2",
+    "message_id": "ccc2022b-9ff1-4915-9254-89f0d90a3512",
+    "sender_handle": { "id": "45a51eb8-795a-4143-bb76-eeb012f0c240", "is_me": false, "handle": "+19195550101", "status": "active", "left_at": null, "service": "iMessage", "joined_at": "2026-10-10T21:26:56.128565Z" },
+    "zero_retention": false
+  },
+  "event_id": "78fe72f8-199f-5bc2-9a27-9e7b3d0ae2a8",
+  "created_at": "2026-10-10T22:30:22.519994392Z",
+  "event_type": "poll.vote.added"
+}

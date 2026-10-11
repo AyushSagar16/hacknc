@@ -37,17 +37,27 @@ export type LinqPart =
   | { type: "link"; value: string }
   | { type: "media"; url: string; mime_type?: string };
 
+/**
+ * One option as GET /messages/{id}/poll returns it (observed on a real line):
+ * {"option_id":"d14c…","text":"Gatlinburg (~$630)","voters":[{"handle":"+1…","voted_at":"…"}],…}.
+ * `id` is accepted too in case another API version names it that way; read it with optionIdOf().
+ */
 export interface LinqPollOption {
-  id: string;
+  option_id?: string;
+  id?: string;
   text: string;
-  voters?: { handle: string }[];
+  voters?: { handle: string; voted_at?: string | null }[];
 }
 
 export interface LinqPoll {
-  message_id: string;
+  message_id?: string;
+  chat_id?: string;
   options: LinqPollOption[];
   total_voters?: number;
 }
+
+/** The option's id, whichever field this API version carries it in ("" when neither). */
+export const optionIdOf = (o: { option_id?: string | null; id?: string | null }): string => o.option_id ?? o.id ?? "";
 
 export interface LinqApiOptions {
   apiKey: string;
@@ -142,20 +152,28 @@ export class LinqApi {
     await this.call(`/chats/${chatId}/typing`, { method: on ? "POST" : "DELETE" });
   }
 
-  /** Linq polls have no title; the caller sends the question as its own text first. */
-  async createPoll(chatId: string, options: string[], idempotencyKey?: string): Promise<{ messageId: string }> {
-    const result = await this.call<{ message_id?: string; poll?: { message_id?: string }; message?: { id?: string } }>(
-      `/chats/${chatId}/polls`,
-      { body: { poll: { options: options.map((text) => ({ text })), ...(idempotencyKey ? { idempotency_key: idempotencyKey } : {}) } } },
-    );
-    const messageId = result?.message_id ?? result?.poll?.message_id ?? result?.message?.id;
+  /**
+   * Linq polls have no title; the caller sends the question as its own text first. Creation is
+   * async (202): the response may or may not carry the options yet. When it does, their ids come
+   * back so votes can be mapped without a lookup.
+   */
+  async createPoll(chatId: string, options: string[], idempotencyKey?: string): Promise<{ messageId: string; options?: LinqPollOption[] }> {
+    type Created = { message_id?: string; id?: string; options?: LinqPollOption[]; poll?: { message_id?: string; options?: LinqPollOption[] }; message?: { id?: string } };
+    const result = await this.call<Created>(`/chats/${chatId}/polls`, {
+      body: { poll: { options: options.map((text) => ({ text })), ...(idempotencyKey ? { idempotency_key: idempotencyKey } : {}) } },
+    });
+    const messageId = result?.message_id ?? result?.poll?.message_id ?? result?.message?.id ?? result?.id;
     if (!messageId) throw new LinqApiError(`/chats/${chatId}/polls`, 202, "response had no message_id");
-    return { messageId };
+    const created = result?.poll?.options ?? result?.options;
+    return { messageId, options: created?.length && created.every((o) => optionIdOf(o)) ? created : undefined };
   }
 
+  /** GET /messages/{id}/poll → {chat_id, message_id, poll: {options, total_voters}, …}. */
   async getPoll(messageId: string): Promise<LinqPoll> {
-    const result = await this.call<LinqPoll | { poll: LinqPoll }>(`/messages/${messageId}/poll`);
-    return "poll" in result ? result.poll : result;
+    const result = await this.call<(LinqPoll & { poll?: undefined }) | { chat_id?: string; message_id?: string; poll: LinqPoll }>(`/messages/${messageId}/poll`);
+    if (result && "poll" in result && result.poll) return { ...result.poll, message_id: result.poll.message_id ?? result.message_id ?? messageId, chat_id: result.poll.chat_id ?? result.chat_id };
+    const flat = result as LinqPoll | null;
+    return { ...(flat ?? {}), options: flat?.options ?? [], message_id: flat?.message_id ?? messageId };
   }
 
   async getChat(chatId: string): Promise<{ id: string; is_group?: boolean; handles: LinqHandle[] }> {

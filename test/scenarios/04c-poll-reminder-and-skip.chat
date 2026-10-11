@@ -1,0 +1,25 @@
+# Most of the group votes, the poll isn't decided, and the rest go quiet: 30 seconds after the
+# last vote Atlas names who hasn't voted (once). "skip" then decides with the votes that are in.
+today 2026-10-10 14:00
+members jay kim ravi sol ben
+atlas joins by kim
+kim: atlas give us some options
+expect sql SELECT count(*)::int AS n FROM polls WHERE status = 'open' = [{"n":1}]
+jay vote 1
+kim vote 2
+sol vote 2
+expect atlas quiet
+clock +10s
+expect atlas quiet
+# 30 s after the latest vote: the two who haven't voted are named
+clock +25s
+expect atlas ~ "still waiting on ravi and ben"
+expect atlas ~ "3 of 5 are in"
+expect sql SELECT count(*)::int AS n FROM polls WHERE reminded_at IS NOT NULL = [{"n":1}]
+# only once per poll
+clock +2m
+expect atlas quiet
+kim: skip
+expect atlas ~ "3 of 5 voted"
+expect trip.status = "locked"
+expect sql SELECT count(*)::int AS n FROM polls WHERE status = 'open' = [{"n":0}]

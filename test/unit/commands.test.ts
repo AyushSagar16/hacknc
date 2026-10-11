@@ -25,6 +25,13 @@ describe("parseCommand", () => {
     expect(parseCommand("set my budget to 1.2k", { addressed: false })).toEqual({ kind: "budget_set", amountCents: 120_000 });
   });
 
+  it("reads requests to split the trip evenly or by cost", () => {
+    expect(parseCommand("But everyone should be paying the same amount", { addressed: false })).toEqual({ kind: "split_mode", mode: "even" });
+    expect(parseCommand("can we split it evenly", { addressed: false })).toEqual({ kind: "split_mode", mode: "even" });
+    expect(parseCommand("split by cost", { addressed: false })).toEqual({ kind: "split_mode", mode: "by_cost" });
+    expect(parseCommand("lol same", { addressed: false })).toBeNull();
+  });
+
   it("friend-to-friend phrasing isn't a command unless Atlas is addressed", () => {
     expect(parseCommand("leo stay quiet lol", { addressed: false })).toBeNull();
     expect(parseCommand("can you help me with my bag", { addressed: false })).toBeNull();

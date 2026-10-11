@@ -1,0 +1,10 @@
+# Persona QA: "ana is vegetarian" (said by luis) also made carmen vegetarian; "lol miami?" became a
+# veto; home city from message 1 went missing.
+today 2026-10-10 14:00
+members ana luis carmen
+atlas joins by ana
+ana: hi atlas! i'm in charlotte and we're thinking mountains in december
+luis: ana is vegetarian btw, i'm in chapel hill
+carmen: raleigh for me. lol miami? no way we said mountains
+expect sql SELECT count(*)::int AS n FROM facts f JOIN people p ON p.id = f.person_id WHERE f.key = 'dietary' AND lower(p.display_name) <> 'ana' AND f.superseded_by IS NULL = [{"n":0}]
+expect sql SELECT count(*)::int AS n FROM facts f JOIN people p ON p.id = f.person_id WHERE f.key = 'home_city' AND lower(p.display_name) = 'ana' AND f.superseded_by IS NULL = [{"n":1}]

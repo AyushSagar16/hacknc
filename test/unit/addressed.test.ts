@@ -11,10 +11,10 @@ const names = new Map([[1, "maya"], [2, "leo"], [3, "priya"]]);
 const reason = (message: MessageRow, history: MessageRow[]) => addressedReason({ message, history: [...history, message], agentName: "Atlas", namesById: names });
 
 describe("mentions", () => {
-  it.each(["@atlas hi", "hey atlas", "Hey Atlas, what's the plan", "atlas, help", "atlas can you find flights", "ok atlas", "thoughts, atlas?", "what do you think atlas?", "atlas"])("%s → addressed", (t) => {
+  it.each(["@atlas hi", "hey atlas", "Hey Atlas, what's the plan", "atlas, help", "atlas can you find flights", "ok atlas", "thoughts, atlas?", "what do you think atlas?", "atlas", "UNC winter break, I'm free. Atlas. Let's keep moving.", "ok. atlas, what now", "Atlas: options pls"])("%s → addressed", (t) => {
     expect(mentionsAgent(t, "Atlas")).toBe(true);
   });
-  it.each(["atlas seems useful", "let's ask atlas later lol", "lol atlas is so organized", "i love my atlas of the world"])("%s → not addressed", (t) => {
+  it.each(["atlas seems useful", "let's ask atlas later lol", "lol atlas is so organized", "i love my atlas of the world", "lol. atlas is so organized", "we bought the atlas. it was huge"])("%s → not addressed", (t) => {
     expect(mentionsAgent(t, "Atlas")).toBe(false);
   });
 });
@@ -55,5 +55,18 @@ describe("addressedReason", () => {
   it("a friend answering a friend's question is not addressed", () => {
     const fq = msg({ person_id: 2, text: "maya when's your flight?" });
     expect(reason(msg({ text: "6pm" }, 1), [fq])).toBeNull();
+  });
+});
+
+describe("addressedReason: who an open question is for", () => {
+  it("a question ending in a name is that person's to answer", () => {
+    const q = msg({ direction: "outbound", person_id: null, text: "got it, seattle for zoe.\nwant me to add you to the payment plan, priya?" });
+    expect(reason(msg({ person_id: 2, text: "ok" }, 1), [q])).toBeNull();
+    expect(reason(msg({ person_id: 3, text: "yes please" }, 1), [q])).toBe("answers_question");
+  });
+  it("a bare ack to a question for the room answers nothing", () => {
+    const q = msg({ direction: "outbound", person_id: null, text: "options? dates?" });
+    expect(reason(msg({ person_id: 2, text: "ok" }, 1), [q])).toBeNull();
+    expect(reason(msg({ person_id: 2, text: "late jan works" }, 1), [q])).toBe("answers_question");
   });
 });

@@ -10,7 +10,15 @@ import { now } from "../clock.ts";
 import { childLog } from "../log.ts";
 import { q } from "../db/pool.ts";
 
-export type LlmRole = "gate" | "agent" | "extract" | "summary" | "research";
+export type LlmRole = "gate" | "agent" | "extract" | "summary" | "search";
+
+/** Gemini's built-in tools: Google Search grounding, and reading pages the prompt names. */
+export type BuiltinTool = "googleSearch" | "urlContext";
+
+export interface LlmSource {
+  uri: string;
+  title?: string;
+}
 
 export type LlmPart =
   | { text: string; thought?: boolean; thoughtSignature?: string }
@@ -39,14 +47,15 @@ export interface GenerateRequest {
   timeoutMs: number;
   maxOutputTokens?: number;
   thinking?: "minimal" | "low" | "medium";
-  /** Ground the answer in Google Search (instead of tools; the two aren't sent together). */
-  grounding?: "google_search";
+  /** Built-in tools to enable (grounded lookups). Health is tracked separately per tool set. */
+  builtinTools?: BuiltinTool[];
+  /**
+   * Total wall-clock budget across the whole failover chain (each attempt still gets at most
+   * timeoutMs). With a budget, a chain whose models are all benched by a short quota 429 waits
+   * for the first one to come back instead of hammering them, as long as that fits the budget.
+   */
+  budgetMs?: number;
   trace?: { chatId?: number; turnId?: number };
-}
-
-export interface Source {
-  title: string;
-  url: string;
 }
 
 export interface GenerateResult {
@@ -56,8 +65,11 @@ export interface GenerateResult {
   functionCalls: { name: string; args: Record<string, unknown>; id?: string }[];
   /** The model's parts exactly as returned (thought signatures included) to append to history. */
   parts: LlmPart[];
-  /** Web pages a grounded answer drew on. */
-  sources?: Source[];
+  /**
+   * Pages a built-in tool used: Google Search grounding chunks (often vertexaisearch redirect
+   * URLs; resolve before showing anyone) and pages urlContext fetched successfully.
+   */
+  sources?: LlmSource[];
 }
 
 export interface Llm {
@@ -136,13 +148,29 @@ export class GeminiLlm implements Llm {
    */
   async generate(req: GenerateRequest): Promise<GenerateResult> {
     const chain = [req.model, ...this.fallbacks.filter((m) => m !== req.model)];
-    const usable = chain.filter((m) => this.healthy(m));
+    const key = (m: string) => bucketKey(m, req.builtinTools);
+    const t0 = Date.now();
+    const remaining = () => (req.budgetMs === undefined ? Number.POSITIVE_INFINITY : req.budgetMs - (Date.now() - t0));
+    let usable = chain.filter((m) => this.healthy(key(m)));
+    if (usable.length === 0 && req.budgetMs !== undefined) {
+      // Everything is benched (usually a per-minute 429). Back off until the first model is due
+      // back if that still leaves time for a real attempt; otherwise fail fast so the caller can
+      // fall back instead of burning its whole budget on calls that will 429 again.
+      const soonest = Math.min(...chain.map((m) => this.unhealthyUntil.get(key(m)) ?? 0));
+      const wait = Math.max(0, soonest - Date.now());
+      if (wait + MIN_ATTEMPT_MS > remaining()) throw new LlmError(`all models busy for ${Math.round(wait / 1000)}s more`, "api");
+      this.log.info({ role: req.role, waitMs: wait }, "all gemini models benched; backing off");
+      await sleep(wait);
+      usable = chain.filter((m) => this.healthy(key(m)));
+    }
     const order = usable.length ? usable : chain;
     let last: unknown;
     for (const [i, model] of order.entries()) {
       const isLast = i === order.length - 1;
+      const left = remaining();
+      if (left < MIN_ATTEMPT_MS && last !== undefined) break;
       // With somewhere to fall back to, don't wait the full budget on a struggling model.
-      const timeoutMs = isLast ? req.timeoutMs : Math.min(req.timeoutMs, 12_000);
+      const timeoutMs = Math.max(1_000, Math.min(isLast ? req.timeoutMs : Math.min(req.timeoutMs, 12_000), left));
       try {
         return await this.once({ ...req, timeoutMs }, model, !this.noThinking.has(model));
       } catch (err) {
@@ -157,8 +185,11 @@ export class GeminiLlm implements Llm {
             last = retryErr;
           }
         }
-        const hung = err instanceof LlmError && err.kind === "timeout" && timeoutMs >= 10_000;
-        if (hung || OVERLOADED.test(msg) || NOT_FOUND.test(msg)) this.markUnhealthy(model, benchMs(err), msg);
+        // A budgeted call that times out on a model has learned it's too slow right now: bench it
+        // briefly so the next call starts on another model instead of timing out the same way.
+        const hung = err instanceof LlmError && err.kind === "timeout" && (timeoutMs >= 10_000 || req.budgetMs !== undefined);
+        if (hung) this.markUnhealthy(key(model), timeoutMs >= 10_000 ? benchMs(err) : 45_000, msg);
+        else if (OVERLOADED.test(msg) || NOT_FOUND.test(msg)) this.markUnhealthy(key(model), benchMs(err), msg);
         else if (!isLast) this.log.warn({ model, err: msg.slice(0, 160) }, "gemini call failed; trying the next model");
       }
     }
@@ -176,11 +207,14 @@ export class GeminiLlm implements Llm {
           temperature: req.temperature,
           maxOutputTokens: req.maxOutputTokens,
           abortSignal: signal,
-          ...(req.grounding
-            ? { tools: [{ googleSearch: {} }] }
-            : req.tools?.length
-              ? { tools: [{ functionDeclarations: req.tools.map((t) => ({ name: t.name, description: t.description, parametersJsonSchema: t.parameters })) }] }
-              : {}),
+          ...(req.tools?.length || req.builtinTools?.length
+            ? {
+                tools: [
+                  ...(req.tools?.length ? [{ functionDeclarations: req.tools.map((t) => ({ name: t.name, description: t.description, parametersJsonSchema: t.parameters })) }] : []),
+                  ...(req.builtinTools ?? []).map((t) => ({ [t]: {} })),
+                ],
+              }
+            : {}),
           ...(req.jsonSchema ? { responseMimeType: "application/json", responseJsonSchema: req.jsonSchema } : {}),
           ...(req.thinking && withThinking ? { thinkingConfig: { thinkingLevel: THINKING[req.thinking] } } : {}),
         },
@@ -191,8 +225,9 @@ export class GeminiLlm implements Llm {
         const reason = candidate?.finishReason ?? response.promptFeedback?.blockReason ?? "no candidates";
         throw new LlmError(`gemini returned nothing (${reason})`, String(reason).includes("SAFETY") ? "refused" : "empty");
       }
-      const sources = req.grounding ? groundingSources(candidate.groundingMetadata?.groundingChunks) : undefined;
-      return { ...toResult(parts), model, ...(sources ? { sources } : {}) };
+      const result: GenerateResult = { ...toResult(parts), model };
+      if (req.builtinTools?.length) result.sources = sourcesOf(candidate);
+      return result;
     } catch (err) {
       if (err instanceof LlmError) throw err;
       if (signal.aborted) throw new LlmError(`gemini ${model} ${req.role} call timed out after ${req.timeoutMs}ms`, "timeout");
@@ -225,6 +260,20 @@ export class GeminiLlm implements Llm {
   }
 }
 
+/** Below this, another attempt can't finish (a urlContext read alone takes a few seconds). */
+const MIN_ATTEMPT_MS = 2_500;
+
+const sleep = (ms: number) => new Promise<void>((r) => setTimeout(r, ms));
+
+/**
+ * Which quota bucket a call draws from. Google Search grounding has its own (a 429 there must not
+ * bench the model for chat), but urlContext and plain calls share the model's per-minute request
+ * quota: a 429 on one means the other will 429 too, so they share a health key.
+ */
+export function bucketKey(model: string, builtinTools?: BuiltinTool[]): string {
+  return builtinTools?.includes("googleSearch") ? `${model}+googleSearch` : model;
+}
+
 const THINKING = { minimal: ThinkingLevel.MINIMAL, low: ThinkingLevel.LOW, medium: ThinkingLevel.MEDIUM } as const;
 
 /**
@@ -254,19 +303,19 @@ function toResult(parts: LlmPart[]): GenerateResult {
   return { text, functionCalls, parts };
 }
 
-/** Web sources from a grounded answer, deduplicated, in the order the model used them. */
-export function groundingSources(chunks: { web?: { uri?: string; title?: string } }[] | undefined): Source[] {
-  const out: Source[] = [];
+/** Grounding chunks first (search results), then pages urlContext read; deduped, in order. */
+function sourcesOf(candidate: { groundingMetadata?: unknown; urlContextMetadata?: unknown }): LlmSource[] {
+  const out: LlmSource[] = [];
   const seen = new Set<string>();
-  for (const c of chunks ?? []) {
-    const url = c.web?.uri;
-    if (!url || !/^https?:\/\//.test(url)) continue;
-    const title = (c.web?.title || new URL(url).hostname).trim();
-    const key = `${title}|${url}`;
-    if (seen.has(key)) continue;
-    seen.add(key);
-    out.push({ title, url });
-  }
+  const add = (uri: unknown, title: unknown) => {
+    if (typeof uri !== "string" || !/^https?:\/\//.test(uri) || seen.has(uri)) return;
+    seen.add(uri);
+    out.push(typeof title === "string" && title ? { uri, title } : { uri });
+  };
+  const g = candidate.groundingMetadata as { groundingChunks?: { web?: { uri?: string; title?: string } }[] } | undefined;
+  for (const c of g?.groundingChunks ?? []) add(c.web?.uri, c.web?.title);
+  const u = candidate.urlContextMetadata as { urlMetadata?: { retrievedUrl?: string; urlRetrievalStatus?: string }[] } | undefined;
+  for (const m of u?.urlMetadata ?? []) if (String(m.urlRetrievalStatus ?? "").includes("SUCCESS")) add(m.retrievedUrl, undefined);
   return out;
 }
 

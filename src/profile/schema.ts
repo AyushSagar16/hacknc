@@ -22,7 +22,7 @@ export const TRIP_SCOPED_KEYS: ReadonlySet<FactKey> = new Set<FactKey>(["destina
 export const DIETARY = ["vegetarian", "vegan", "halal", "kosher", "gluten_free", "dairy_free", "nut_allergy", "pescatarian"] as const;
 export const ACTIVITY_TAGS = [
   "beach", "food", "nightlife", "culture", "outdoors", "hiking", "mountains", "city", "music",
-  "relaxing", "adventure", "shopping", "history", "snow", "walkable", "budget_friendly", "luxury",
+  "relaxing", "adventure", "shopping", "history", "snow", "walkable", "budget_friendly", "luxury", "holiday",
 ] as const;
 export const TRAVEL_LIMITS = ["no_flying", "max_flight_hours", "max_drive_hours", "no_passport", "low_mobility"] as const;
 
@@ -60,6 +60,8 @@ export interface Fact {
   quote: string | null;
   observedAt: Date;
   retracted: boolean;
+  /** Who said it; null for facts from before this was recorded (treated as the person themselves). */
+  reportedBy?: number | null;
 }
 
 /** JSON Schema handed to Gemini for structured extraction (validated again with zod after).

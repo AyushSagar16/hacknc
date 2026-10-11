@@ -60,7 +60,9 @@ describe("Linq webhook → Spectrum records", () => {
     expect(r).toMatchObject({ content: { type: "poll_option", option: { title: "Asheville (~$585)" }, selected: true, poll: { title: "where to?" } }, pollMessageId: "poll_1", optionId: "o2" });
     const off = await read("poll.vote.removed", { message_id: "poll_1", chat: { id: "chat_1" }, sender_handle: { handle: "+19195550101" }, option_id: "o2" }, c);
     expect(off).toMatchObject({ content: { selected: false } });
-    expect(isSkip(await read("poll.vote.added", { message_id: "unknown", chat: { id: "c" }, sender_handle: { handle: "+1" }, option_id: "x" }, c))).toBe(true);
+    // A poll it can't read isn't dropped: the vote goes through as unreadable and gets reconciled later.
+    const unknown = await read("poll.vote.added", { message_id: "unknown", chat: { id: "c" }, sender_handle: { handle: "+1" }, option_id: "x" }, c);
+    expect(unknown).toMatchObject({ content: { type: "poll_option", option: { title: "(unreadable option)" } }, pollMessageId: "unknown" });
   });
 
   it("maps Atlas being added (participant.added with our number, or chat.created) to a joined event", async () => {
