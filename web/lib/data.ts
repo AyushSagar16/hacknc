@@ -3,7 +3,7 @@
 import "server-only";
 import { cache } from "react";
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
-import type { SiteDay, SiteMessage, SiteOverview, SiteResearch, SiteTrip } from "./types";
+import type { SiteDay, SiteOverview, SiteResearch, SiteTrip } from "./types";
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
@@ -78,18 +78,5 @@ export const getChatTrips = cache(async (chatId: string): Promise<TripLink[]> =>
 export const getResearch = cache(async (tripId: string): Promise<SiteResearch[]> => {
   const { data, error } = await db().from("site_research").select("*").eq("trip_id", tripId).order("created_at", { ascending: true });
   if (error) throw new Error(`site_research: ${error.message}`);
-  return (data ?? []).map((r) => ({ topic: r.topic, summary: r.summary, bodyMd: r.body_md, sources: r.sources ?? [], createdAt: r.created_at }));
-});
-
-export const getMessages = cache(async (tripId: string, limit = 500): Promise<SiteMessage[]> => {
-  const { data, error } = await db()
-    .from("site_messages")
-    .select("*")
-    .eq("trip_id", tripId)
-    .order("sent_at", { ascending: false })
-    .limit(limit);
-  if (error) throw new Error(`site_messages: ${error.message}`);
-  return (data ?? [])
-    .map((r) => ({ localId: Number(r.local_id), sender: r.sender, fromAtlas: r.from_atlas, text: r.text, sentAt: r.sent_at }))
-    .reverse();
+  return (data ?? []).map((r) => ({ topic: r.topic, summary: r.summary, bodyMd: r.body_md, createdAt: r.created_at }));
 });

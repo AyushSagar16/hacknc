@@ -1,5 +1,8 @@
 import type { Metadata, Viewport } from "next";
+import { Nunito_Sans } from "next/font/google";
 import "./globals.css";
+
+const sans = Nunito_Sans({ subsets: ["latin"], variable: "--font-sans" });
 
 function siteUrl(): URL {
   const explicit = process.env.NEXT_PUBLIC_SITE_URL;
@@ -20,14 +23,14 @@ export const viewport: Viewport = {
   width: "device-width",
   initialScale: 1,
   themeColor: [
-    { media: "(prefers-color-scheme: light)", color: "#ffffff" },
-    { media: "(prefers-color-scheme: dark)", color: "#111111" },
+    { media: "(prefers-color-scheme: light)", color: "#d7ecf8" },
+    { media: "(prefers-color-scheme: dark)", color: "#0b2433" },
   ],
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="en">
+    <html lang="en" className={sans.variable}>
       <body>
         <main>{children}</main>
       </body>
