@@ -5,9 +5,10 @@
 //                                   which iMessage renders as a rich preview); soloPost.
 //   dates                         → structured {start, end, confidence, source} for set_trip_dates.
 //   facts                         → a short answer the agent relays in its own words.
-// Lookups go through Google Search grounding when GEMINI_SEARCH_GROUNDING=1 (it needs a paid
-// tier; free keys get an instant 429) and otherwise through a keyless search (DuckDuckGo results)
-// plus Gemini's urlContext reading the top pages. Results are cached for six hours.
+// Gemini only: Google Search grounding when the key allows it (a paid tier; free keys get a 429,
+// and then it rests six hours), otherwise Gemini answers from what it knows, told to name only
+// places it's sure are real. When that fails too, callers fall back (the catalog, a plain reply).
+// Results are cached for six hours.
 import { createHash } from "node:crypto";
 import { LRUCache } from "lru-cache";
 import type { Config } from "../../config.ts";
@@ -18,7 +19,7 @@ import { say, str, type Tool, type ToolCtx } from "../tools.ts";
 import { cleanAnswer, dietLabel, formatList, MAX_ITEMS, MIN_ITEMS, rangeLabel, stripArtifacts, type ListItem } from "../../search/format.ts";
 import { groundItems } from "../../search/verify.ts";
 import { saveLookupToTrip } from "./research.ts";
-import { ddgSearch, SearchBlockedError, excerpt, fetchPage, isGroundingRedirect, keywords, linkable, resolveRedirect, type Fetch, type Page, type WebResult } from "../../search/web.ts";
+import { excerpt, fetchPage, isGroundingRedirect, keywords, linkable, resolveRedirect, type Fetch, type Page, type WebResult } from "../../search/web.ts";
 
 export const PURPOSES = ["things_to_do", "food", "events", "dates", "facts"] as const;
 export type Purpose = (typeof PURPOSES)[number];
@@ -97,8 +98,10 @@ export function cacheKey(input: Pick<LookupInput, "query" | "purpose" | "context
 
 const VOICE = "write like a friend texting: lowercase, plain words, no markdown, no asterisks, no emoji, no citation marks, no urls, no prices or dollar amounts.";
 
-function systemPrompt(purpose: Purpose, today: string, window?: { start: string; end: string }): string {
-  const base = `you look things up for a group of friends planning a trip together. today is ${today}. only state what the pages or search results below support; never invent places, dates or details. every name you return must be written in the page text or search results, copied as it appears there. ${VOICE}`;
+function systemPrompt(purpose: Purpose, today: string, window?: { start: string; end: string }, fromKnowledge = false): string {
+  const base = fromKnowledge
+    ? `you help a group of friends planning a trip together. today is ${today}. there are no search results: answer from what you know. only name places, events and facts you are confident are real and still open (well-known, long-running ones), spelled the way they're usually written; if you aren't sure about one, leave it out and return fewer. never invent places, dates or details. ${VOICE}`
+    : `you look things up for a group of friends planning a trip together. today is ${today}. only state what the pages or search results below support; never invent places, dates or details. every name you return must be written in the page text or search results, copied as it appears there. ${VOICE}`;
   switch (purpose) {
     case "things_to_do":
     case "food": {
@@ -245,16 +248,20 @@ function sourceIndex(text: string): number {
 
 // ---------- the lookup ----------
 
-/** Google Search grounding is only tried when enabled; after a quota error it rests for six hours. */
+/** Google Search grounding is tried first; after a quota error (free keys) it rests for six hours. */
 let groundingOffUntil = 0;
-const groundingEnabled = () => process.env.GEMINI_SEARCH_GROUNDING === "1" && Date.now() >= groundingOffUntil;
+const groundingEnabled = () => process.env.GEMINI_SEARCH_GROUNDING !== "0" && Date.now() >= groundingOffUntil;
+/** Tests: forget a grounding rest. */
+export function resetSearchRest(): void {
+  groundingOffUntil = 0;
+}
 
 interface Got {
   result: GenerateResult;
   results: WebResult[];
   pages: Page[];
-  /** Which path answered: grounding, our own page reads, urlContext, or snippets only. */
-  via: "grounded" | "pages" | "url_context" | "snippets";
+  /** Which path answered: Google Search grounding, or Gemini's own knowledge. */
+  via: "grounded" | "knowledge";
 }
 
 /** Milliseconds left before `deadline`. */
@@ -282,90 +289,26 @@ async function grounded(llm: Llm, cfg: Config, input: LookupInput, deadline: num
   } catch (err) {
     const msg = (err as Error).message;
     if (/\b429\b|RESOURCE_EXHAUSTED|quota|\b400\b|INVALID_ARGUMENT/i.test(msg)) groundingOffUntil = Date.now() + CACHE_TTL_MS;
-    log.warn({ err: msg.slice(0, 160) }, "grounded search failed; using keyless search");
+    log.warn({ err: msg.slice(0, 160) }, "grounded search failed; answering from gemini's own knowledge");
     return null;
   }
 }
 
-/** After a challenge page, keyless web search rests this long (Wikivoyage still answers). */
-const SEARCH_REST_MS = 2 * 60_000;
-let searchOffUntil = 0;
-/** Tests: forget a rate-limit rest. */
-export function resetSearchRest(): void {
-  searchOffUntil = 0;
-}
-
-const wikivoyage = (place: string): WebResult => {
-  const page = place
-    .split(",")[0]!
-    .trim()
-    .replace(/\b\w/g, (c) => c.toUpperCase())
-    .replace(/\s+/g, "_");
-  return { title: `${place} travel guide (wikivoyage)`, url: `https://en.wikivoyage.org/wiki/${encodeURIComponent(page)}`, snippet: "see, do and eat sections" };
-};
-
-async function keyless(llm: Llm, cfg: Config, input: LookupInput, deadline: number): Promise<Got> {
-  const t0 = Date.now();
-  let results: WebResult[] = [];
-  if (Date.now() < searchOffUntil) log.info({ secLeft: Math.round((searchOffUntil - Date.now()) / 1000) }, "web search resting after a challenge page");
-  else {
-    try {
-      results = (await ddgSearch(searchQueryFor(input), { fetch: currentFetch(), timeoutMs: 4_000 })).slice(0, PAGES_TO_READ);
-      if (results.length === 0) log.warn({ query: input.query.slice(0, 80) }, "web search returned no results");
-    } catch (err) {
-      // Rate-limited: don't spend 4 s per lookup asking again while the challenge lasts.
-      if (err instanceof SearchBlockedError) searchOffUntil = Date.now() + SEARCH_REST_MS;
-      log.warn({ err: (err as Error).message.slice(0, 120), blocked: err instanceof SearchBlockedError }, "web search failed");
-    }
-  }
-  // Wikivoyage is reliable, keyless and has see/do/eat sections: always read it for list asks,
-  // for the trip's destination or the place the question names.
-  const toRead = [...results];
-  const place = input.place ?? placeOf(input) ?? undefined;
-  if (place && LIST_PURPOSES.has(input.purpose)) {
-    const wv = wikivoyage(place);
-    if (!toRead.some((r) => r.url.startsWith(wv.url))) toRead.push(wv);
-    if (results.length === 0) results = [wv];
-  }
-  if (results.length === 0) throw new LlmError("no search results", "empty");
-  const pages = (await Promise.all(toRead.map((r) => fetchPage(r.url, { fetch: currentFetch(), timeoutMs: Math.min(3_500, Math.max(1_000, left(deadline) - 8_000)) })))).filter((p): p is Page => p !== null);
-  log.info({ results: results.length, pagesRead: pages.length, ms: Date.now() - t0 }, "search sources gathered");
-
-  const base = {
-    role: "search" as const,
-    system: systemPrompt(input.purpose, input.today, input.window),
+/** No grounding: Gemini answers from what it knows (no pages to check names against). */
+async function fromKnowledge(llm: Llm, cfg: Config, input: LookupInput, deadline: number): Promise<Got> {
+  const result = await llm.generate({
+    role: "search",
+    model: cfg.GEMINI_MODEL_AGENT,
+    system: systemPrompt(input.purpose, input.today, input.window, true),
+    contents: [{ role: "user", parts: [{ text: userPrompt(input, [], []) }] }],
     jsonSchema: schemaFor(input.purpose),
     temperature: 0.2,
-    thinking: "minimal" as const,
+    timeoutMs: 9_000,
+    budgetMs: left(deadline) - 300,
+    thinking: "minimal",
     trace: input.trace,
-  };
-  try {
-    // Preferred: the text we already read goes in the prompt (one plain call, no slow urlContext
-    // fetches on Google's side, and names can be checked against exactly what the model saw).
-    const result = await llm.generate({
-      ...base,
-      model: cfg.GEMINI_MODEL_AGENT,
-      contents: [{ role: "user", parts: [{ text: userPrompt(input, results, pages) }] }],
-      ...(pages.length ? {} : { builtinTools: ["urlContext" as const] }),
-      timeoutMs: 9_000,
-      budgetMs: left(deadline) - (results.length ? 3_500 : 500),
-    });
-    return { result, results, pages, via: pages.length ? "pages" : "url_context" };
-  } catch (err) {
-    if (err instanceof LlmError && err.kind === "refused") throw err;
-    const usable = results.filter((r) => r.snippet);
-    if (usable.length === 0 || left(deadline) < 2_500) throw err;
-    // Fallback: the search snippets alone, on the cheapest model, in whatever time is left.
-    log.warn({ err: (err as Error).message.slice(0, 160), msLeft: left(deadline) }, "search read failed; answering from snippets");
-    const result = await llm.generate({
-      ...base,
-      model: cfg.GEMINI_MODEL_GATE,
-      contents: [{ role: "user", parts: [{ text: userPrompt(input, usable, []) }] }],
-      timeoutMs: Math.min(6_000, left(deadline) - 300),
-      budgetMs: left(deadline) - 300,
-    });
-    return { result, results: usable, pages: [], via: "snippets" };
-  }
+  });
+  return { result, results: [], pages: [], via: "knowledge" };
 }
 
 /** The one link worth posting: the result the model credited, else the first page it read; real URLs only. */
@@ -385,9 +328,11 @@ const inWindow = (it: ListItem, w?: { start: string; end: string }) => Boolean(i
 
 async function runLookup(llm: Llm, cfg: Config, input: LookupInput, deadline: number): Promise<Lookup> {
   const t0 = Date.now();
-  const got = (await grounded(llm, cfg, input, deadline)) ?? (await keyless(llm, cfg, input, deadline));
-  const lookup = parseLookup(input.purpose, got.result.text, input.today);
+  const got = (await grounded(llm, cfg, input, deadline)) ?? (await fromKnowledge(llm, cfg, input, deadline));
+  let lookup = parseLookup(input.purpose, got.result.text, input.today);
   if (!lookup) throw new LlmError("the lookup came back unreadable", "empty");
+  // Dates from memory aren't an official calendar.
+  if (got.via === "knowledge" && lookup.kind === "dates" && lookup.confidence === "high") lookup = { ...lookup, confidence: "medium" };
   if (lookup.kind !== "list") {
     const source = await pickSource(got.result.text, got.results, got.result.sources ?? [], false);
     log.info({ purpose: input.purpose, via: got.via, ms: Date.now() - t0 }, "lookup done");
@@ -403,8 +348,9 @@ async function runLookup(llm: Llm, cfg: Config, input: LookupInput, deadline: nu
     got.pages.push(...pages);
     texts.unshift(...pages.map((p) => ({ url: p.url, text: p.text })));
   }
-  // Grounded answers whose pages we couldn't read are trusted as grounded (Google read them).
-  const checkable = got.via !== "grounded" || got.pages.length > 0;
+  // Grounded answers whose pages we couldn't read are trusted as grounded (Google read them);
+  // answers from Gemini's own knowledge have nothing to check against.
+  const checkable = got.via === "grounded" && got.pages.length > 0;
   const { kept, dropped, bestUrl } = checkable ? groundItems(lookup.items, texts) : { kept: lookup.items, dropped: [], bestUrl: undefined };
   if (dropped.length) log.warn({ purpose: input.purpose, via: got.via, dropped: dropped.map((d) => d.name).slice(0, 5) }, "dropped search items not found in any source");
   let items = kept;
@@ -418,7 +364,7 @@ async function runLookup(llm: Llm, cfg: Config, input: LookupInput, deadline: nu
     }
   }
   let source = bestUrl && linkable(bestUrl) ? bestUrl : undefined;
-  if (!source && !checkable) source = await pickSource(got.result.text, got.results, got.result.sources ?? [], true);
+  if (!source && !checkable && got.via === "grounded") source = await pickSource(got.result.text, got.results, got.result.sources ?? [], true);
   log.info({ purpose: input.purpose, via: got.via, items: items.length, dropped: dropped.length, ms: Date.now() - t0 }, "lookup done");
   return { kind: "list", heading: headingFor(input, lookup.heading, fallback), items, ...(fallback ? { noEvents: true } : {}), ...(source ? { source } : {}) };
 }

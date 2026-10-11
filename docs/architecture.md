@@ -16,9 +16,9 @@ schedules are deterministic code.
 | Money | `src/money/*`, `src/trips/ledger.ts` | Cents, splits, exact minimum settle-up, budget engine, paycheck cadence and payment plans, trip ledger, trip fund (`src/money/fund.ts`, `src/trips/fund.ts`) |
 | Private chats | `src/agent/features/banking.ts`, `src/money/bank.ts` | One-on-one with Atlas: balances, spending, bills, recent transactions and checking ↔ savings transfers from the person's ledger (no model for plain asks; `check_my_bank` / `move_my_money` tools, offered only in private chats via `Tool.scope`); everything else runs the normal turn as a solo trip |
 | Nessie | `src/nessie/*` | Client (https, audit, last-good cache, circuit breaker), probe-driven capabilities, personas, resumable seeding, ledger replay, budgets |
-| Trips | `src/trips/*` | Catalog (destinations with vibe tags incl. `holiday`, 105 home airports), per-person drive times, constraints (no-fly and max-drive enforced per person), hard filter, scoring with a required vibe, SerpApi pricing with cache and fallback (keyless hotel and Airbnb prices in `trips/freeStays.ts`), votes (ties don't lock), itinerary (no repeats, seasonal), booking links, food & activities near the stay (SerpApi google_maps, `trips/nearby.ts`, `features/places.ts`: dietary-aware shortlist, picks onto the itinerary) |
+| Trips | `src/trips/*` | Catalog (destinations with vibe tags incl. `holiday`, 105 home airports), per-person drive times, constraints (no-fly and max-drive enforced per person), hard filter, scoring with a required vibe, SerpApi pricing with cache and fallback (keyless hotel and Airbnb prices in `trips/freeStays.ts`), votes (ties don't lock), itinerary (no repeats, seasonal), booking links, food & activities near the stay (SerpApi google_maps when keyed, else a Gemini lookup, catalog last; `trips/nearby.ts`, `features/places.ts`: dietary-aware shortlist, picks onto the itinerary) |
 | Weather | `src/weather/*`, `features/weather.ts` | Open-Meteo forecast and 3-year climatology (`get_weather`), classification, change detection, cadence, cooldown, swaps |
-| Search | `src/search/*`, `features/search.ts` | `web_search`: result pages read in code, Gemini answers from them, every posted item verified against the source; Wikivoyage fallback |
+| Search | `src/search/*`, `features/search.ts` | `web_search`: Gemini only. Google Search grounding when the key allows it (paid tier; after a 429 it rests six hours), otherwise Gemini answers from its own knowledge, naming only places it's sure of. When both fail, callers fall back (catalog, a plain reply) |
 | Memory | `src/memory/*`, `features/memory.ts` | Embedding writer, hybrid BM25 + diskann recall (RRF) with recency and importance rerank, `atlas_log` of Atlas's own words |
 | Console | `src/console/server.ts` | Localhost judge view of all of the above |
 | Trip pages | `src/site/*`, `features/site.ts`, `web/`, `supabase/` | Per-trip snapshot (first names only, no money), Supabase store, publish-then-link; the Next.js site that renders each section and its iMessage preview |
@@ -176,8 +176,8 @@ are reachable only by UUID).
   `og:title`/`og:description` and a text-only 1200×630 `opengraph-image`. Links carry
   `?v=<site_version>` because iMessage caches previews by URL.
 - **Research (background, not a page section).** Every lock-in queues `research.run`: three lookups
-  through `web_search`'s pipeline (things to do, food, events on the trip dates; keyless search,
-  pages read, every item checked against its page), each saved to `trip_research` with its source.
+  through `web_search`'s pipeline (things to do, food, events on the trip dates; Gemini grounding
+  or Gemini's own knowledge), each saved to `trip_research` with its source.
   Nothing is posted: the notes are in Atlas's situation, and events on the dates go out with the
   things-to-do shortlist. Every `web_search` Atlas runs for a trip is saved as a note too.
 - **Privacy.** `src/site/snapshot.ts` is the boundary: first names only (no handles), no budgets,

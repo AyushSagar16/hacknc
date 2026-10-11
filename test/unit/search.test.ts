@@ -174,11 +174,11 @@ describe("dates", () => {
 });
 
 describe("web_search tool", () => {
-  let fetchCalls: string[];
   beforeEach(() => {
     clearSearchCache();
-    fetchCalls = [];
-    setSearchFetch(fakeFetch(DDG_PAGE, fetchCalls));
+    resetSearchRest();
+    setSearchFetch(fakeFetch(DDG_PAGE));
+    process.env.GEMINI_SEARCH_GROUNDING = "0"; // these answer from gemini's own knowledge
   });
   afterEach(() => {
     resetSearchRest();
@@ -186,41 +186,28 @@ describe("web_search tool", () => {
     delete process.env.GEMINI_SEARCH_GROUNDING;
   });
 
-  it("posts only items written on the pages it read, with the page they came from as the link", async () => {
-    const withFake = { ...LIST, items: [...LIST.items, { name: "Mountain Medley Bistro", detail: "cozy spot downtown" }] };
-    const llm = new FakeLlm({ search: () => jsonResult(withFake) });
+  it("without grounding, gemini answers from what it knows: a list fitted to the group, no link", async () => {
+    const llm = new FakeLlm({ search: () => jsonResult(LIST) });
     const c = ctx(llm);
     const r = await webSearch.run({ query: "things to do in gatlinburg in december", purpose: "things_to_do" }, c);
     expect(r.ok).toBe(true);
-    expect(c.out).toHaveLength(2);
-    const text = (c.out[0] as { text: string }).text;
-    expect(text).toMatch(/^things to do in gatlinburg in december:\n1\. great smoky mountains — /);
-    expect(text).not.toContain("mountain medley"); // only in a <script>, never in the readable text
-    expect(text).toContain("4. dollywood smoky mountain christmas");
-    expect(c.out[1]).toEqual({ type: "link", url: "https://www.gatlinburg.com/winter/" });
+    expect(c.out).toHaveLength(1);
+    expect((c.out[0] as { text: string }).text).toMatch(/^things to do in gatlinburg in december:\n1\. great smoky mountains — /);
     const req = llm.calls[0]!;
-    expect(req.builtinTools).toBeUndefined(); // we read the pages ourselves
+    expect(req.builtinTools).toBeUndefined();
+    expect(req.system).toContain("answer from what you know");
     const prompt = JSON.stringify(req.contents);
-    expect(prompt).toContain("Gatlinburg Winterfest Lights glow through February");
     expect(prompt).toContain("sai wants mountains");
     expect(prompt).toContain("leo: vegetarian");
     expect(prompt).toContain("trip dates: 2026-12-14 to 2026-12-17 (december)");
     expect(webSearch.soloPost).toBe(true);
   });
 
-  it("says so honestly when fewer than two items check out, and leads food lists with the ask", async () => {
-    const invented = { heading: "top places to eat in gatlinburg in december", items: [{ name: "the earthy cafe", detail: "vegan bowls" }, { name: "ole smoky vegan deli", detail: "sandwiches" }, { name: "green valley bistro", detail: "salads" }, { name: "Wild Plum Tea Room", detail: "vegetarian plates" }] };
-    const c = ctx(new FakeLlm({ search: () => jsonResult(invented) }));
-    const r = await webSearch.run({ query: "vegetarian food in gatlinburg", purpose: "food" }, c);
-    expect(r).toMatchObject({ ok: false, error: expect.stringContaining("only found 1 i could confirm on real pages (wild plum tea room)") });
-    expect(c.out).toHaveLength(0);
-
-    clearSearchCache();
-    const real = { heading: "top places to eat in gatlinburg in december", items: [{ name: "Wild Plum Tea Room", detail: "vegetarian plates" }, { name: "Bistro 109", detail: "veggie menu" }, { name: "the earthy cafe", detail: "vegan bowls" }] };
+  it("leads food lists with the ask", async () => {
+    const real = { heading: "top places to eat in gatlinburg in december", items: [{ name: "Wild Plum Tea Room", detail: "vegetarian plates" }, { name: "Bistro 109", detail: "veggie menu" }] };
     const d = ctx(new FakeLlm({ search: () => jsonResult(real) }));
     expect((await webSearch.run({ query: "vegetarian food in gatlinburg", purpose: "food" }, d)).ok).toBe(true);
     expect((d.out[0] as { text: string }).text).toBe("veggie-friendly spots in gatlinburg:\n1. wild plum tea room — vegetarian plates\n2. bistro 109 — veggie menu");
-    expect(d.out[1]).toEqual({ type: "link", url: "https://en.wikivoyage.org/wiki/Gatlinburg" });
   });
 
   it("events: keeps dated ones inside the trip, else says nothing big is on", async () => {
@@ -251,22 +238,20 @@ describe("web_search tool", () => {
     const again = ctx(llm);
     await webSearch.run({ query: "things to do in gatlinburg in december", purpose: "things_to_do" }, again);
     expect(llm.calls).toHaveLength(1);
-    expect(fetchCalls.filter((u) => u.includes("duckduckgo"))).toHaveLength(1);
     expect(again.out[0]).toMatchObject({ type: "say" });
     expect(cacheKey({ query: "A b?", purpose: "food", context: [] })).toBe(cacheKey({ query: "a  b", purpose: "food", context: [] }));
   });
 
-  it("returns dates as data without posting", async () => {
-    const llm = new FakeLlm({ search: () => jsonResult({ start: "2026-12-12", end: "2027-01-05", confidence: "high", note: "last fall exam dec 11, spring starts jan 6", source: 1 }) });
+  it("returns dates as data without posting; from memory they're never high confidence", async () => {
+    const llm = new FakeLlm({ search: () => jsonResult({ start: "2026-12-12", end: "2027-01-05", confidence: "high", note: "last fall exam dec 11, spring starts jan 6" }) });
     const c = ctx(llm);
     const r = await webSearch.run({ query: "unc chapel hill winter break", purpose: "dates" }, c);
     expect(c.out).toHaveLength(0);
-    expect(r).toMatchObject({ ok: true, data: { start: "2026-12-12", end: "2027-01-05", confidence: "high", source: "https://www.gatlinburg.com/winter/" } });
+    expect(r).toMatchObject({ ok: true, data: { start: "2026-12-12", end: "2027-01-05", confidence: "medium", source: null } });
     expect(llm.calls[0]!.system).toContain("2026-27 academic year");
-    expect(fetchCalls[0]).toContain(encodeURIComponent("unc chapel hill winter break 2026-27 academic calendar"));
   });
 
-  it("fails softly with a human reply on model errors, empty search and timeouts", async () => {
+  it("fails softly with a human reply on model errors and timeouts", async () => {
     const broken = new FakeLlm({
       search: () => {
         throw new LlmError("429 RESOURCE_EXHAUSTED", "api");
@@ -277,65 +262,24 @@ describe("web_search tool", () => {
     expect(BUSY).toContain("try me again in a minute");
     expect(c.out).toHaveLength(0);
 
-    setSearchFetch(fakeFetch("<html>no results</html>"));
-    const noPlace = ctx(new FakeLlm({ search: () => jsonResult(LIST) }), { trip: { id: 1, destination_name: null, start_date: null, end_date: null } as never });
-    expect(await webSearch.run({ query: "best ramen", purpose: "food" }, noPlace)).toMatchObject({ ok: false });
-
     const slow = new FakeLlm({ search: () => new Promise<never>(() => {}) });
-    setSearchFetch(fakeFetch());
     await expect(lookup(slow, cfg, { query: "slow", purpose: "facts", context: [], today: "2026-10-10" }, 50)).rejects.toMatchObject({ kind: "timeout" });
   });
 
-  it("answers from the snippets on the cheap model when the page read fails", async () => {
+  it("tries grounding first; a quota error falls back to gemini's knowledge and rests grounding", async () => {
+    delete process.env.GEMINI_SEARCH_GROUNDING;
     const llm = new FakeLlm({
       search: (req) => {
-        if (req.model === "gemini-test") throw new LlmError("all models busy for 20s more", "api");
-        return jsonResult({ answer: "winterfest lights run through february [1]", source: 1 });
+        if (req.builtinTools?.includes("googleSearch")) throw new LlmError("429 RESOURCE_EXHAUSTED quota", "api");
+        return jsonResult({ answer: "tickets are sold on universal's own site", source: 0 });
       },
     });
-    const r = await webSearch.run({ query: "how long do winterfest lights run", purpose: "facts" }, ctx(llm));
-    expect(r).toMatchObject({ ok: true, data: { answer: "winterfest lights run through february" } });
-    expect(llm.calls.map((c) => c.model)).toEqual(["gemini-test", "gemini-cheap"]);
-    expect(llm.calls.every((c) => typeof c.budgetMs === "number")).toBe(true);
-  });
-
-  it("uses urlContext only when none of the pages could be read, and checks names against snippets", async () => {
-    setSearchFetch(fakeFetch(DDG_PAGE, [], {}));
-    const llm = new FakeLlm({ search: () => jsonResult({ heading: "x", items: [{ name: "Winterfest lights", detail: "a" }, { name: "Great Smoky Mountains", detail: "b" }, { name: "made up place", detail: "c" }] }) });
-    const c = ctx(llm, { trip: { id: 1, destination_name: null, start_date: null, end_date: null } as never });
-    expect((await webSearch.run({ query: "winter things to do in gatlinburg", purpose: "things_to_do" }, c)).ok).toBe(true);
-    expect(llm.calls[0]!.builtinTools).toEqual(["urlContext"]);
-    expect((c.out[0] as { text: string }).text).not.toContain("made up place");
-  });
-
-  it("falls back to the destination's wikivoyage page when web search is blocked", async () => {
-    setSearchFetch(fakeFetch("<html>challenge</html>"));
-    const llm = new FakeLlm({ search: () => jsonResult({ heading: "food", items: [{ name: "Wild Plum Tea Room", detail: "lunch" }, { name: "Crockett's Breakfast Camp", detail: "big breakfasts" }] }) });
-    const c = ctx(llm);
-    expect((await webSearch.run({ query: "where to eat", purpose: "food" }, c)).ok).toBe(true);
-    expect(c.out[1]).toEqual({ type: "link", url: "https://en.wikivoyage.org/wiki/Gatlinburg" });
-    expect(JSON.stringify(llm.calls[0]!.contents)).toContain("https://en.wikivoyage.org/wiki/Gatlinburg");
-  });
-
-  it("rests web search after a challenge page and still reads wikivoyage for the place in the question", async () => {
-    const calls: string[] = [];
-    const challenge = (async (input: string | URL | Request) => {
-      const url = String(input);
-      calls.push(url);
-      if (url.includes("duckduckgo")) return new Response('<div class="anomaly-modal">', { status: 202 });
-      const page = PAGES[url];
-      return page ? new Response(page, { status: 200, headers: { "content-type": "text/html" } }) : new Response("nope", { status: 404 });
-    }) as typeof fetch;
-    setSearchFetch(challenge);
-    const llm = new FakeLlm({ search: () => jsonResult({ heading: "x", items: [{ name: "Wild Plum Tea Room", detail: "veg plates" }, { name: "Bistro 109", detail: "veggie menu" }] }) });
-    const noTrip = { trip: { id: 1, destination_name: null, start_date: null, end_date: null } as never };
-    const c = ctx(llm, noTrip);
-    expect((await webSearch.run({ query: "vegetarian food in gatlinburg", purpose: "food" }, c)).ok).toBe(true);
-    expect((c.out[0] as { text: string }).text).toMatch(/^veggie-friendly spots in gatlinburg:/);
+    const r = await webSearch.run({ query: "universal orlando tickets", purpose: "facts" }, ctx(llm));
+    expect(r).toMatchObject({ ok: true, data: { answer: "tickets are sold on universal's own site" } });
+    expect(llm.calls.map((c) => c.builtinTools?.[0] ?? "none")).toEqual(["googleSearch", "none"]);
     clearSearchCache();
-    await webSearch.run({ query: "brunch in gatlinburg", purpose: "food" }, ctx(llm, noTrip));
-    expect(calls.filter((u) => u.includes("duckduckgo"))).toHaveLength(1); // resting, not asked again
-    resetSearchRest();
+    await webSearch.run({ query: "universal orlando hours", purpose: "facts" }, ctx(llm));
+    expect(llm.calls.map((c) => c.builtinTools?.[0] ?? "none")).toEqual(["googleSearch", "none", "none"]); // resting
   });
 
   it("grounding check: names must appear (near-verbatim) in the text", () => {
@@ -352,7 +296,7 @@ describe("web_search tool", () => {
   });
 
   it("with grounding on, never posts a raw redirect url", async () => {
-    process.env.GEMINI_SEARCH_GROUNDING = "1";
+    delete process.env.GEMINI_SEARCH_GROUNDING;
     const redirect = "https://vertexaisearch.cloud.google.com/grounding-api-redirect/xyz";
     const seen: GenerateRequest[] = [];
     const llm = new FakeLlm({
