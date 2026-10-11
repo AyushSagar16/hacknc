@@ -71,8 +71,8 @@ schedules are deterministic code.
 5. "atlas give us some options" goes through constraints, the hard filter, scoring, live pricing
    for the top five, three options with per-person breakdowns, and a **native poll**.
 6. Votes come in (native, tapback or text), reconciled against Linq's voter list. A majority (or
-   everyone voting, without a tie) **locks** the trip: destination, dates, itinerary and booking
-   links. A tie is called out once ("pick for us" takes the cheaper option). If at least half the
+   everyone voting, without a tie) **locks** the trip: destination, dates and booking links (no
+   day-by-day plan yet). A tie is called out once ("pick for us" takes the cheaper option). If at least half the
    group has voted and nobody votes for 30 s, Atlas names who hasn't, once per poll
    (`poll.remind` job); "skip" closes the poll with the votes in. "can we do X instead?" after a lock
    reopens it as a two-option poll. That fires `onTripLocked`: a recurring **weather.check** job and a decision memory. Once dates
@@ -83,6 +83,15 @@ schedules are deterministic code.
    payday before a deposit deadline two weeks out; the `fund.collect` job moves them as Nessie
    transfers checking → fund (ledger only for people with no bank) and pays the stay as a fund
    purchase once it's covered. `add_to_fund` puts shared costs on it; `show_fund` is the status.
+   After the booking, the `places.suggest` job asks what food everyone's into (once per trip,
+   `asks` field `food:<trip>`; skipped when most of the group's cuisines are already known from
+   earlier in the chat). Answers become `cuisine` facts, kept per person for later trips. Once
+   most have answered (or 10 minutes pass), it posts ~5 places to eat and ~5 things to do near the
+   stay: a general google_maps search plus searches for the group's top cuisines and interests,
+   merged and ranked for diets, cuisines (each asked-for cuisine gets a slot) and likes, with any
+   events on the dates from the background research. "add 2" puts a pick on the itinerary; "we're
+   good" settles the stage and queues `site.itinerary_nudge`, and Atlas writes the rest of the
+   day-by-day plan around the picks.
 7. During the trip, "i paid 64 for dinner" becomes a Nessie purchase on the payer's account, a
    ledger row and a spend event. Disputes from anyone but the payer wait for the payer's "yes".
 8. "settle up" squares the tab and the fund together (`src/money/fund.ts`): a fund leftover is
@@ -114,6 +123,8 @@ remaining messages:
          city that nobody gave is cut; an unprompted bubble that restates a recent ask or nudge
          (atlas_log, pg_trgm > 0.6) is dropped
   money guard: every $ figure must match a registered figure the audience may see, or the text is dropped
+nothing to say: a message extraction took a fact from gets a 👍 tapback (latest per person, ≤4 a
+  turn, not in quiet mode, never small talk), so an answer while Atlas waits on the rest is seen
 outbox → ordered sends with client GUIDs → text fallbacks
 
 follow-up (no new messages): after a human message Atlas didn't answer, a `chat.nudge` job is
@@ -136,25 +147,27 @@ are reachable only by UUID).
   `update_itinerary` (days → items with time, setting and a note; each given day replaces that day)
   and `set_trip_summary` (2–3 sentences, optional rename). `src/site/content.ts` validates it with
   zod: dates inside the trip, length limits, and no dollar figures (costs come from the catalog
-  when an item names a catalog activity). Locking in doesn't post a code-drafted plan: the lock tool
-  tells the agent to write it in the same turn, and a lock decided by a vote queues
-  `site.itinerary_nudge`, a follow-up turn that asks Atlas to write it. If three nudges get no plan
-  (a busy chat, models out of quota), the catalog draft (`draftItinerary`) is saved and linked so the
-  page is never empty.
+  when an item names a catalog activity). The plan comes last: `update_itinerary` refuses until the
+  stay is picked, and finishing the food & activities picks queues `site.itinerary_nudge`, a
+  follow-up turn that asks Atlas to write it around the picks (`trips.plan_written_at` marks it
+  written; a rewritten day keeps its picks). If three nudges get no plan (a busy chat, models out
+  of quota), the catalog draft (`draftItinerary`) fills the days around the picks and is linked so
+  the page is never empty.
 - **Publish, then link.** iMessage fetches a link's preview when it lands, so the page is written
   first. On a meaningful change (`start_trip`/`switch_trip`, `update_itinerary`, a weather swap) the turn
-  publishes and appends a `link` action after its own replies; research publishes from its job. If
-  Supabase is down, a `site.announce` job retries and posts the link later.
+  publishes and appends a `link` action after its own replies. A reply carries at most one link to
+  the site (`src/agent/links.ts`: the last link action wins, and a page URL the model typed is
+  dropped). If Supabase is down, a `site.announce` job retries and posts the link later.
 - **Silent sync.** After every group turn a debounced `site.sync` job copies new chat lines
   (`messages.id` > `trips.site_message_cursor`) and the current state, without posting.
-- **Previews.** Each section (`/t/<id>`, `/itinerary`, `/research`, `/chat`) has its own
+- **Previews.** Each section (`/t/<id>`, `/itinerary`) has its own
   `og:title`/`og:description` and a text-only 1200×630 `opengraph-image`. Links carry
   `?v=<site_version>` because iMessage caches previews by URL.
-- **Research.** Every lock-in queues `research.run`: three lookups through `web_search`'s pipeline
-  (things to do, food, events on the trip dates; keyless search, pages read, every item checked
-  against its page), each saved to `trip_research` with its source, then a one-line-per-topic
-  summary and the research link in the chat. Every `web_search` Atlas runs for a trip during the
-  chat (lists and facts) is saved to the page too.
+- **Research (background, not a page section).** Every lock-in queues `research.run`: three lookups
+  through `web_search`'s pipeline (things to do, food, events on the trip dates; keyless search,
+  pages read, every item checked against its page), each saved to `trip_research` with its source.
+  Nothing is posted: the notes are in Atlas's situation, and events on the dates go out with the
+  things-to-do shortlist. Every `web_search` Atlas runs for a trip is saved as a note too.
 - **Privacy.** `src/site/snapshot.ts` is the boundary: first names only (no handles), no budgets,
   balances or payment plans, and DMs are never published.
 

@@ -6,7 +6,8 @@ atlas joins by maya
 ~agent text: NO_REPLY
 ~extract [{"message":0,"about":"maya","key":"home_city","polarity":"positive","explicit":true,"retracts":false,"confidence":0.95,"quote":"from raleigh","city":"Raleigh"},{"message":0,"about":"maya","key":"date_window","polarity":"positive","explicit":true,"retracts":false,"confidence":0.9,"quote":"nov 13-16","earliest":"2026-11-13","latest":"2026-11-16"}]
 maya: we're all free nov 13-16, i'm from raleigh
-expect atlas quiet
+expect atlas reacted like
+expect atlas says 1
 maya: set my budget to 900
 leo: set my budget to 900
 priya: set my budget to 900

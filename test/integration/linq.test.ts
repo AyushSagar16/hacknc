@@ -191,7 +191,7 @@ describeDb("Linq line end to end (fake Linq API, real webhook server + Spectrum 
     await until(() => linq.sends().some((s) => /it is! 2 of 3 votes/.test(JSON.stringify(s.body))));
   });
 
-  it("4 native votes in a 4-person group lock the trip and post the lock-in and links unprompted, then ask atlas for the plan", async () => {
+  it("4 native votes in a 4-person group lock the trip and post the lock-in and links unprompted, with no plan yet", async () => {
     const { vote, tripStatus, sentText, linq } = await bootWithPoll(FOUR);
     const pollSends = linq.sends().length;
     await q(`UPDATE trips SET start_date = '2026-11-12', end_date = '2026-11-15'`);
@@ -207,8 +207,9 @@ describeDb("Linq line end to end (fake Linq API, real webhook server + Spectrum 
     // A strict majority (3 of 4) already decides; if the 4th lands in the same batch it's unanimous.
     await until(() => /it is! (unanimous, 4 for 4|3 of 4 votes)/.test(sentText()));
     await until(() => /locked in for nov 12–15/.test(sentText()) && /ready to book\?/.test(sentText()));
-    // No agent ran in that turn, so Atlas is nudged to write the day-by-day plan itself.
-    await until(async () => (await q(`SELECT 1 FROM jobs WHERE kind = 'site.itinerary_nudge'`)).length === 1);
+    // The day-by-day plan waits for the stay and the food & activities picks.
+    await new Promise((r) => setTimeout(r, 150));
+    expect(await q(`SELECT 1 FROM jobs WHERE kind = 'site.itinerary_nudge'`)).toEqual([]);
     const skipped = await q<{ n: number }>(`SELECT count(*)::int AS n FROM webhook_events WHERE event_type = 'poll.vote.added' AND error IS NOT NULL`);
     expect(skipped[0]!.n).toBe(0);
   });

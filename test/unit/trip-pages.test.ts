@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { chatSummary, noteFromLookup } from "../../src/agent/features/research.ts";
+import { noteFromLookup } from "../../src/agent/features/research.ts";
 import { matchTrip } from "../../src/agent/features/trips.ts";
 import { firstName } from "../../src/site/snapshot.ts";
 import { pageUrl } from "../../src/site/publish.ts";
@@ -32,12 +32,6 @@ describe("research notes", () => {
     expect(noteFromLookup("winter break", { kind: "dates", start: "2026-12-12", end: "2027-01-05", confidence: "high", note: "" })).toBeNull();
     expect(noteFromLookup("food", { kind: "list", heading: "food", items: [] })).toBeNull();
   });
-
-  it("keeps the chat version to one line per topic", () => {
-    expect(chatSummary("Egypt", [{ topic: "Food", summary: "Top picks: koshary, feteer.", bodyMd: "", sources: [] }])).toBe(
-      "did some digging on egypt for the trip page:\nfood: top picks: koshary, feteer",
-    );
-  });
 });
 
 describe("trips", () => {
@@ -59,7 +53,7 @@ describe("trip page links", () => {
   it("deep-links sections and busts iMessage's preview cache with the version", () => {
     expect(pageUrl("https://x.test", "abc", "overview", 4)).toBe("https://x.test/t/abc?v=4");
     expect(pageUrl("https://x.test", "abc", "itinerary", 5)).toBe("https://x.test/t/abc/itinerary?v=5");
-    expect(pageUrl("https://x.test", "abc", "research")).toBe("https://x.test/t/abc/research");
+    expect(pageUrl("https://x.test", "abc", "chat")).toBe("https://x.test/t/abc/chat");
   });
 
   it("shows people by first name only, never a handle", () => {

@@ -3,7 +3,7 @@
 import "server-only";
 import { cache } from "react";
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
-import type { SiteDay, SiteOverview, SiteResearch, SiteTrip } from "./types";
+import type { SiteDay, SiteOverview, SiteTrip } from "./types";
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
@@ -81,11 +81,4 @@ export const getChatTrips = cache(async (chatId: string): Promise<TripLink[]> =>
     .order("created_at", { ascending: true });
   if (error) throw new Error(`site_trips: ${error.message}`);
   return (data ?? []).map((r) => ({ id: r.id, title: r.title, startDate: r.start_date, endDate: r.end_date, status: r.status }));
-});
-
-export const getResearch = cache(async (tripId: string): Promise<SiteResearch[]> => {
-  if (useFixtures) return tripId === (await fixtures()).FIXTURE_TRIP_ID ? (await fixtures()).FIXTURE_RESEARCH : [];
-  const { data, error } = await db().from("site_research").select("*").eq("trip_id", tripId).order("created_at", { ascending: true });
-  if (error) throw new Error(`site_research: ${error.message}`);
-  return (data ?? []).map((r) => ({ topic: r.topic, summary: r.summary, bodyMd: r.body_md, createdAt: r.created_at }));
 });

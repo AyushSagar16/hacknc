@@ -2,7 +2,7 @@
 // like the site's header. A wide image is what gets iMessage's large card instead of the small
 // title-only one.
 import { ImageResponse } from "next/og";
-import { getResearch, getTrip } from "./data";
+import { getTrip } from "./data";
 import { clip } from "./format";
 import { coverPhoto, type Photo } from "./images";
 import { previewFor, type Preview } from "./meta";
@@ -14,8 +14,7 @@ export const ogContentType = "image/png";
 export async function sectionImage(id: string, section: SiteSection): Promise<ImageResponse> {
   const trip = await getTrip(id);
   if (!trip) return render({ eyebrow: "atlas", title: "Atlas", subtitle: "trip planning in your group chat", description: "" });
-  const extra = section === "research" ? { research: await getResearch(trip.id) } : {};
-  return render(previewFor(section, trip, extra), await coverPhoto(trip));
+  return render(previewFor(section, trip), await coverPhoto(trip));
 }
 
 function render(p: Preview, photo: Photo | null = null): ImageResponse {

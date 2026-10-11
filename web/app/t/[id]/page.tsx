@@ -3,7 +3,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { StageBar } from "@/components/StageBar";
 import { TripFund } from "@/components/TripFund";
-import { getChatTrips, getResearch, getTrip } from "@/lib/data";
+import { getChatTrips, getTrip } from "@/lib/data";
 import { formatRange, itineraryLine } from "@/lib/format";
 import { placesPhoto } from "@/lib/images";
 import { previewFor, toMetadata } from "@/lib/meta";
@@ -23,8 +23,7 @@ export default async function Overview({ params }: Props) {
   const trip = await getTrip(id);
   if (!trip) notFound();
   const { overview } = trip;
-  const [research, siblings, optionPhotos] = await Promise.all([
-    getResearch(trip.id),
+  const [siblings, optionPhotos] = await Promise.all([
     getChatTrips(trip.chatId),
     Promise.all(overview.options.map((o) => placesPhoto(o.name, 640))),
   ]);
@@ -79,23 +78,6 @@ export default async function Overview({ params }: Props) {
           <Link href={`/t/${trip.id}/itinerary`}>Itinerary</Link>
         </h2>
         <p className="muted">{trip.itinerary.length ? itineraryLine(trip.itinerary, 220) : "Not planned yet."}</p>
-      </section>
-
-      <section className="glass panel">
-        <h2>
-          <Link href={`/t/${trip.id}/research`}>Research</Link>
-        </h2>
-        {research.length ? (
-          <ul className="list-plain">
-            {research.map((r) => (
-              <li key={r.topic}>
-                <strong>{r.topic}</strong> <span className="muted">· {r.summary}</span>
-              </li>
-            ))}
-          </ul>
-        ) : (
-          <p className="muted">Nothing researched yet.</p>
-        )}
       </section>
 
       {overview.booking.length ? (

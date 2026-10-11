@@ -30,7 +30,6 @@ export function hubUrl(baseUrl: string, chatPublicId: string): string {
 const FALLBACK: Record<SiteSection, string> = {
   overview: "trip page",
   itinerary: "full itinerary",
-  research: "research notes",
   chat: "chat log",
 };
 

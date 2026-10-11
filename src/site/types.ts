@@ -2,7 +2,7 @@
 // web/lib/types.ts is a copy for the site — change both together.
 // Public means public: first names only, no handles, no budgets or balances.
 
-export type SiteSection = "overview" | "itinerary" | "research" | "chat";
+export type SiteSection = "overview" | "itinerary" | "chat";
 
 export interface SiteOption {
   name: string;

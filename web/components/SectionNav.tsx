@@ -5,7 +5,6 @@ import { usePathname } from "next/navigation";
 const SECTIONS = [
   { href: "", label: "Overview" },
   { href: "/itinerary", label: "Itinerary" },
-  { href: "/research", label: "Research" },
 ];
 
 export function SectionNav({ tripId }: { tripId: string }) {

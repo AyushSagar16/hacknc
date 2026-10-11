@@ -294,7 +294,7 @@ const findStaysTool: Tool = {
   async run(_args, ctx) {
     const tc = ctx as TurnCtx;
     const { options } = await postStayOptions(tc);
-    return { ok: true, data: { options: options.map((o) => ({ name: o.name, kind: o.kind, per_person_night: money(o.perPersonNightCents), total: money(o.totalCents) })) }, next: "the options and poll were posted; reply NO_REPLY" };
+    return { ok: true, data: { options: options.map((o) => ({ name: o.name, kind: o.kind, per_person_night: money(o.perPersonNightCents), total: money(o.totalCents) })) }, next: "the options and poll were posted; reply NO_REPLY. wait for the group to pick one before anything else (no day-by-day plan yet)" };
   },
 };
 

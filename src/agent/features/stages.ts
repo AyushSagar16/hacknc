@@ -145,17 +145,19 @@ const NEXT_GUIDANCE: Record<Stage, string> = {
     "nobody's settled where yet. gather what people want; propose_destinations for options, or lock_destination when the group agrees on a place (any real place works, even one not in your list).",
   dates: "call find_dates to work out when everyone's free (it asks whoever hasn't said and posts the best dates or a poll); set_trip_dates once the group agrees on dates in words.",
   travel: "where and when are settled: call plan_travel to post how everyone gets there (drive or fly, gas or fare, carpools).",
-  stay: "where to stay isn't booked yet: call find_stays to post three places that fit the group and its budget, with a poll (the winner is booked on the trip fund).",
-  food_activities: "food and things to do aren't picked yet: suggest_places posts a shortlist near the stay that fits what people like and eat.",
+  stay: "where to stay isn't booked yet: call find_stays to post three places that fit the group and its budget, with a poll (the winner is booked on the trip fund). wait for the group to pick one; the day-by-day plan comes after.",
+  food_activities:
+    "food and things to do aren't picked yet. once the stay is booked, atlas asks what food everyone's into (it posts on its own), then suggest_places posts a shortlist near the stay that fits what people like and eat; picks go on the plan.",
 };
 
-export function stageLines(map: StageMap, trip: { destination_name: string | null; start_date: string | null; end_date: string | null }): string[] {
+export function stageLines(map: StageMap, trip: { destination_name: string | null; start_date: string | null; end_date: string | null; plan_written_at?: Date | null }): string[] {
   const lines = [`stages: ${describeStages(map)}`];
   if (map.location === "decided" && trip.destination_name) lines.push(`where: ${trip.destination_name}`);
   if (map.dates === "decided" && trip.start_date && trip.end_date) lines.push(`when: ${formatRange(trip.start_date, trip.end_date)}`);
   else if (map.dates !== "decided" && trip.start_date && trip.end_date) lines.push(`dates on file (not confirmed since the place changed): ${formatRange(trip.start_date, trip.end_date)}`);
   const next = nextStage(map);
   if (next) lines.push(`next thing to settle: ${STAGE_LABEL[next]}. ${NEXT_GUIDANCE[next]}`);
+  else if (!trip.plan_written_at) lines.push("every stage is settled: the last step is the day-by-day plan (update_itinerary), around the picks already on it.");
   else lines.push("every stage is settled.");
   lines.push(
     "nudge toward the next thing to settle only when it fits the conversation, in passing, never as a nag. if someone gives info for a later stage (dates before the place, \"i'll drive\"), it's saved anyway: acknowledge it, don't make them repeat it later.",

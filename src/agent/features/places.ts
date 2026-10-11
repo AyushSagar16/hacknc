@@ -1,13 +1,17 @@
-// Food & activities (the last plan stage): once the stay is booked, Atlas posts ~5 places to eat
-// and ~5 things to do around it (SerpApi google_maps, src/trips/nearby.ts), honouring dietary needs
-// and what people like. "add 2", "add chai pani", a 👍 on someone's "let's do chai pani", or the
+// Food & activities (the last plan stage): once the stay is booked, Atlas first asks the group what
+// kind of food they're into (answers become cuisine facts, kept for later trips in the chat). When
+// most of the group has answered (or FOOD_WAIT_MS passes, or what they like is already known), it
+// posts ~5 places to eat and ~5 things to do around the stay (SerpApi google_maps,
+// src/trips/nearby.ts: a general search plus searches for the group's favourite cuisines and
+// interests, merged), honouring dietary needs, cuisines and what people like. "add 2", "add chai pani", a 👍 on someone's "let's do chai pani", or the
 // pick_place tool puts a place on the itinerary (the trip page shows it); "we're good" settles the
 // stage. Prices show as words ("mid-range"), never "$$", so nothing here is a dollar figure.
 import { addDays, daysBetween, now } from "../../clock.ts";
 import { childLog } from "../../log.ts";
-import { one } from "../../db/pool.ts";
+import { one, q } from "../../db/pool.ts";
 import { activeMembers, labelOf, messageByProviderId, type MessageRow } from "../../db/repos/core.ts";
-import { enqueueJob } from "../../pipeline/jobs.ts";
+import { enqueueJob, rescheduleSingleton } from "../../pipeline/jobs.ts";
+import { recordAsk } from "../../profile/store.ts";
 import { groupView, interestWeights, type GroupView } from "../../profile/groupView.ts";
 import { profilesFor } from "../../profile/store.ts";
 import { itineraryInput } from "../../site/content.ts";
@@ -22,10 +26,15 @@ import type { AppServices, Feature, TurnCtx } from "../feature.ts";
 import { ToolError, say, str, strList, type Tool } from "../tools.ts";
 import { nameList } from "./planning.ts";
 import { pricingDeps } from "./proposals.ts";
-import { announceSection } from "./site.ts";
+import { requestItinerary } from "./site.ts";
 
 const log = childLog({ component: "places" });
 export const SUGGEST_JOB = "places.suggest";
+/** How long the food question waits for answers before the shortlist goes out anyway. */
+export const FOOD_WAIT_MS = 10 * 60_000;
+const suggestKey = (tripId: number) => `places:suggest:${tripId}`;
+/** The asks row that marks "asked about food for this trip" (asks are per person and chat). */
+export const foodAskField = (tripId: number) => `food:${tripId}`;
 const first = (label: string) => label.toLowerCase().split(/\s+/)[0] ?? label.toLowerCase();
 const MAX_ITEMS_PER_DAY = 8;
 
@@ -43,15 +52,59 @@ export function originFor(trip: Pick<TripRow, "stay" | "destination_id" | "desti
 export interface GroupPrefs {
   dietary: Map<string, string[]>;
   interests: Record<string, number>;
+  /** Cuisine → + per person who wants it, − per person who doesn't. */
+  cuisines: Record<string, number>;
   lowMobility: boolean;
+}
+
+export function cuisineWeights(view: Pick<GroupView, "cuisines" | "cuisineDislikes">): Record<string, number> {
+  const w: Record<string, number> = {};
+  for (const [c, who] of view.cuisines ?? []) w[c] = (w[c] ?? 0) + who.length;
+  for (const [c, who] of view.cuisineDislikes ?? []) w[c] = (w[c] ?? 0) - who.length;
+  return w;
 }
 
 export function prefsOf(view: GroupView): GroupPrefs {
   return {
     dietary: new Map([...view.dietary].map(([need, people]) => [need, people.map(first)])),
     interests: interestWeights(view),
+    cuisines: cuisineWeights(view),
     lowMobility: view.limits.some((l) => l.kind === "low_mobility"),
   };
+}
+
+/** People who've said what they like to eat (a cuisine either way, or "anything"). */
+export function foodAnswered(view: GroupView): Set<number> {
+  return new Set(view.members.filter((m) => (m.profile.cuisines?.length ?? 0) + (m.profile.cuisineDislikes?.length ?? 0) > 0).map((m) => m.personId));
+}
+
+/** Enough of the group has said what they eat to search for it: a majority (everyone, with two). */
+export function foodKnown(view: GroupView): boolean {
+  const n = view.members.length;
+  return n > 0 && foodAnswered(view).size * 2 > n;
+}
+
+/** "maya: indian, thai · leo: bbq" from what each person likes to eat. */
+export function cuisineSummary(view: GroupView): string {
+  return view.members
+    .map((m) => ({ name: first(m.label), likes: (m.profile.cuisines ?? []).map((c) => c.value).filter((c) => c !== "anything") }))
+    .filter((x) => x.likes.length)
+    .map((x) => `${x.name}: ${x.likes.slice(0, 3).join(", ")}`)
+    .join(" · ");
+}
+
+export const FOOD_QUESTION = "what kind of food is everyone into for this trip? cuisines, a spot you've heard of, anything you're craving";
+
+/** The food question, once per trip, after the stay is booked. */
+export function foodAskText(stayName: string | undefined, waitingOn: string[]): string {
+  const lead = stayName ? `🍽️ ${stayName.toLowerCase()} is locked in, so now food and things to do.` : "🍽️ now food and things to do.";
+  return `${lead}\n${waitingOn.length && waitingOn.length <= 3 ? `${nameList(waitingOn)}, ` : ""}${FOOD_QUESTION}?`;
+}
+
+/** Whether the food question went out for this trip, and who it went to. */
+export async function foodAsked(chatId: number, tripId: number): Promise<{ at: Date | null; people: number[] }> {
+  const rows = await q<{ person_id: number; asked_at: Date }>(`SELECT person_id, asked_at FROM asks WHERE chat_id = $1 AND field = $2`, [chatId, foodAskField(tripId)]);
+  return { at: rows.length ? rows.map((r) => r.asked_at).reduce((a, b) => (a < b ? a : b)) : null, people: rows.map((r) => Number(r.person_id)) };
 }
 
 async function viewForTrip(trip: TripRow): Promise<GroupView> {
@@ -116,7 +169,7 @@ export async function buildShortlist(trip: TripRow, view: GroupView, kinds: Near
     const result = await searchNearby(
       kind,
       origin,
-      { dest, query: kinds.length === 1 ? opts.query : undefined, dietary: [...prefs.dietary.keys()], interests: prefs.interests, lowMobility: prefs.lowMobility, exclude: picked, limit: SHORTLIST_SIZE },
+      { dest, query: kinds.length === 1 ? opts.query : undefined, dietary: [...prefs.dietary.keys()], interests: prefs.interests, cuisines: prefs.cuisines, lowMobility: prefs.lowMobility, exclude: picked, limit: SHORTLIST_SIZE },
       pricingDeps(),
     );
     sources.push(`${kind}:${result.source}`);
@@ -127,8 +180,20 @@ export async function buildShortlist(trip: TripRow, view: GroupView, kinds: Near
     rows.push(...saved);
     texts.push(shortlistText(kind, result.places.map((place, i) => ({ idx: start + i, place })), origin, prefs));
   }
+  // What the trip's research found on during the dates, so nothing good gets missed.
+  if (kinds.includes("activity") && texts.length && !opts.query) {
+    const events = await eventsDuringTrip(trip.id);
+    if (events.length) texts[texts.length - 1] += `\n📅 also on during your dates: ${events.join(", ")}`;
+  }
   if (texts.length) texts[texts.length - 1] += `\n${PICK_HOWTO}`;
   return { texts, rows, sources };
+}
+
+/** "Top picks: a, b, c." from the background research on events during the trip (none if it found none). */
+export async function eventsDuringTrip(tripId: number): Promise<string[]> {
+  const row = (await q<{ summary: string }>(`SELECT summary FROM trip_research WHERE trip_id = $1 AND lower(topic) LIKE 'events%' ORDER BY created_at DESC LIMIT 1`, [tripId]))[0];
+  const m = row ? /^Top picks:\s*(.+?)\.?$/i.exec(row.summary.trim()) : null;
+  return m ? m[1]!.split(/,\s*/).map((x) => x.trim().replace(/\$/g, "")).filter((x) => x.length > 1 && x.length <= 60).slice(0, 3) : [];
 }
 
 // ---------- putting a pick on the itinerary ----------
@@ -320,7 +385,8 @@ async function finish(tc: TurnCtx): Promise<number> {
   await setStage(tc.trip.id, "food_activities", "decided");
   const placed = rows.filter((r) => r.day).length;
   say(tc, `food & activities are set ✓ ${rows.length} ${rows.length === 1 ? "place" : "places"} on the plan${placed < rows.length ? ` (${rows.length - placed} waiting on dates)` : ""}`);
-  if (tc.trip.start_date) await announceSection(tc, "itinerary");
+  // The rest of the day-by-day plan is Atlas's to write now, around the picks (a follow-up turn).
+  if (tc.trip.start_date) await requestItinerary(tc.trip, "picked");
   return rows.length;
 }
 
@@ -473,43 +539,84 @@ export const placesFeature: Feature = {
     const picked = rows.filter((r) => r.status === "picked");
     if (suggested.length) lines.push(`shortlist (posted): ${suggested.map((r) => `${r.idx}. ${r.name} (${r.kind})`).join("; ")}`);
     if (picked.length) lines.push(`picked: ${picked.map((r) => `${r.name}${r.day ? ` on ${dayLabel(r.day)}` : ""}${r.picked_by ? ` (${tc.label(r.picked_by)})` : ""}`).join("; ")}`);
-    if (!rows.length) lines.push(stayBooked(tc.trip) ? `nothing suggested yet near ${origin.label}: suggest_places posts places to eat and things to do` : "suggest_places finds places to eat and things to do there whenever someone asks");
+    if (!rows.length && stayBooked(tc.trip)) {
+      const view = await tc.view();
+      const asked = await foodAsked(tc.chat.id, tc.trip.id);
+      const answered = foodAnswered(view);
+      const likes = cuisineSummary(view);
+      if (asked.at) {
+        const waiting = view.members.filter((m) => !answered.has(m.personId)).map((m) => first(m.label));
+        lines.push(
+          `you asked the group what food they're into${likes ? `; so far: ${likes}` : ""}${waiting.length ? `. still waiting on ${nameList(waiting)}` : ""}.`,
+          foodKnown(view)
+            ? "most of the group has answered: the shortlist posts on its own in a moment, reply NO_REPLY unless someone asked something"
+            : "when someone answers it, reply NO_REPLY (a 👍 goes on their message automatically) unless they asked something; don't re-ask anyone. the shortlist posts on its own once most have answered. if they say to just pick or want to see places now, call suggest_places",
+        );
+      } else lines.push(`nothing suggested yet near ${origin.label}. the food question posts on its own; suggest_places if someone asks for places now${likes ? ` (food they like: ${likes})` : ""}`);
+    } else if (!rows.length) lines.push("suggest_places finds places to eat and things to do there whenever someone asks");
     lines.push(`stage: food & activities ${stages.food_activities.replace("_", " ")}. picks: pick_place. when the group's happy with what's picked: finish_places`);
     return { title: "food & things to do", lines };
   },
 
   async afterTurn(tc) {
-    // Right after the stay is booked: the shortlist follows on its own, once.
+    // Right after the stay is booked: the food question follows on its own, once; the shortlist
+    // follows once most of the group has answered it.
     if (!tc.chat.is_group || !stayBooked(tc.trip)) return;
     const stages = await getStages(tc.trip.id);
-    if (stages.food_activities !== "open" || stages.stay !== "decided") return;
+    if (stages.stay !== "decided" || stages.food_activities === "decided") return;
     if ((await placesFor(tc.trip.id)).length) return;
-    await enqueueJob(SUGGEST_JOB, { tripId: tc.trip.id }, { dueAt: new Date(now().getTime() + 5_000), singletonKey: `places:suggest:${tc.trip.id}` });
+    const asked = await foodAsked(tc.chat.id, tc.trip.id);
+    if (!asked.at) {
+      if (stages.food_activities !== "open") return;
+      await enqueueJob(SUGGEST_JOB, { tripId: tc.trip.id }, { dueAt: new Date(now().getTime() + 5_000), singletonKey: suggestKey(tc.trip.id) });
+      return;
+    }
+    if (foodKnown(await tc.view())) await rescheduleSingleton(suggestKey(tc.trip.id), new Date(now().getTime() + 3_000));
   },
 
   jobs(svc) {
     return {
-      [SUGGEST_JOB]: async (payload, { jobId }) => suggestFromJob(svc, Number(payload.tripId), `places${jobId}`),
+      // The same job runs twice (the question, then the list): each run needs its own outbox ids.
+      [SUGGEST_JOB]: async (payload, { jobId }) => suggestFromJob(svc, Number(payload.tripId), `places${jobId}${payload.asked ? ":list" : ""}`),
     };
   },
 };
 
-/** Post the shortlist from a background job (after the stay is booked). */
-export async function suggestFromJob(svc: Pick<AppServices, "post">, tripId: number, guid: string): Promise<void> {
+/**
+ * After the stay is booked, from a background job. First run: ask what food the group is into
+ * (or, when most of them have said before, go straight to the shortlist), then check back in
+ * FOOD_WAIT_MS. Later runs (most have answered, or the wait is over): post the shortlist.
+ */
+export async function suggestFromJob(svc: Pick<AppServices, "post">, tripId: number, guid: string): Promise<void | { rescheduleAt: Date; payload: Record<string, unknown> }> {
   const trip = await tripById(tripId);
   if (!trip || !stayBooked(trip)) return;
   const focused = await one<{ focus_trip_id: number | null }>(`SELECT focus_trip_id FROM chats WHERE id = $1`, [trip.chat_id]);
   if (focused?.focus_trip_id !== trip.id) return;
   const stages = await getStages(trip.id);
-  if (stages.food_activities !== "open" || (await placesFor(trip.id)).length) return;
+  if (stages.food_activities === "decided" || (await placesFor(trip.id)).length) return;
+  const view = await viewForTrip(trip);
+  const asked = await foodAsked(trip.chat_id, trip.id);
+  if (!asked.at && !foodKnown(view)) {
+    if (stages.food_activities !== "open") return;
+    const at = now();
+    const answered = foodAnswered(view);
+    const waiting = view.members.filter((m) => !answered.has(m.personId));
+    for (const m of view.members) await recordAsk(m.personId, trip.chat_id, foodAskField(trip.id), at);
+    await setStage(trip.id, "food_activities", "in_progress");
+    await svc.post(trip.chat_id, guid, [{ type: "say", text: foodAskText(trip.stay?.name, answered.size ? waiting.map((m) => first(m.label)) : []) }]);
+    return { rescheduleAt: new Date(at.getTime() + FOOD_WAIT_MS), payload: { tripId: trip.id, asked: true } };
+  }
   let list: Shortlist;
   try {
-    list = await buildShortlist(trip, await viewForTrip(trip), ["food", "activity"], { at: now() });
+    list = await buildShortlist(trip, view, ["food", "activity"], { at: now() });
   } catch (err) {
     log.warn({ err: (err as Error).message, tripId }, "no shortlist after the stay was booked");
     return;
   }
   if (!list.texts.length) return;
+  // Known from before the question (an earlier trip in this chat): say what it's going off.
+  const likes = cuisineSummary(view);
+  if (!asked.at && likes) list.texts[0] = `going off what you've said you like to eat (${likes})\n${list.texts[0]}`;
   await setStage(trip.id, "food_activities", "in_progress");
   await svc.post(trip.chat_id, guid, list.texts.map((text) => ({ type: "say" as const, text })));
 }

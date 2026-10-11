@@ -239,6 +239,9 @@ export function describeFact(
     case "dietary":
       text = `${name}: ${neg ? "not " : ""}${words(s("need"))} (dietary)`;
       break;
+    case "cuisine":
+      text = neg ? `${name} doesn't want ${s("name") ?? "that food"}` : `${name} likes ${s("name") ?? "that"} food`;
+      break;
     case "activity":
       text = neg ? `${name} is not into ${words(s("tag"))}` : f.polarity === "neutral" ? `${name} mentioned ${words(s("tag"))}` : `${name} likes ${words(s("tag"))}`;
       break;

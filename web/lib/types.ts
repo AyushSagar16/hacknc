@@ -1,9 +1,9 @@
 // The public trip page's data. Mirrors src/site/types.ts in the Atlas bot, which owns the shape
 // and publishes it to Supabase — change both together. The site reads only what it shows: the
-// published chat log and research sources aren't read here.
+// published chat log and background research notes aren't read here.
 // Public means public: first names only, no handles, no budgets or balances.
 
-export type SiteSection = "overview" | "itinerary" | "research";
+export type SiteSection = "overview" | "itinerary";
 
 export interface SiteOption {
   name: string;
@@ -86,11 +86,4 @@ export interface SiteTrip {
   overview: SiteOverview;
   itinerary: SiteDay[];
   version: number;
-}
-
-export interface SiteResearch {
-  topic: string;
-  summary: string;
-  bodyMd: string;
-  createdAt: string;
 }

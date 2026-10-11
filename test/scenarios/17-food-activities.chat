@@ -1,9 +1,12 @@
 # Food & activities. Asheville is locked for nov 12-15 and the stay gets booked; on its own Atlas
-# posts ~5 places to eat and ~5 things to do around the hotel (google maps results from fixtures),
-# vegetarian-friendly because maya is vegetarian (no steakhouse, no barbecue) and leaning into the
-# live music leo likes. Price levels read as words, never "$$". "add 1 and 6" puts two on the
-# itinerary, a 👍 on priya's "chai pani looks so good" adds that one, and "we're good" settles the
-# stage and links the plan.
+# asks what food everyone's into (no itinerary yet). Maya and leo answer: each answer gets a 👍
+# while atlas waits on the rest, and their cuisines are saved as facts. Once most have answered,
+# Atlas posts ~5 places to eat and ~5 things to do around the hotel (google maps results from
+# fixtures), vegetarian-friendly because maya is vegetarian (no steakhouse, no barbecue), with the
+# indian and mexican places they asked for, leaning into the live music leo likes. Price levels
+# read as words, never "$$". "add 1 and 6" puts two on the itinerary, a 👍 on priya's "chai pani
+# looks so good" adds that one, and "we're good" settles the stage and asks atlas to write the
+# rest of the day-by-day plan around the picks.
 today 2026-10-10 14:00
 members maya leo priya
 atlas joins
@@ -16,15 +19,33 @@ maya: nov 12-15 from raleigh works for all of us. heads up i'm vegetarian, and l
 leo: atlas we all agreed on asheville
 expect trip.status = "locked"
 expect sql SELECT stages->>'food_activities' AS food FROM trips = [{"food":null}]
-# the stay is booked (the stay stage's job); the shortlist follows on its own
+# the stay is booked (the stay stage's job); the food question follows on its own
 nearby food google_maps_asheville_restaurants.json
 nearby activity google_maps_asheville_things_to_do.json
 stay booked Aloft Asheville Downtown | 35.5935 -82.5536
 priya: yay
 clock +1m
+expect atlas says 1
+expect atlas ~ "what kind of food is everyone into"
+expect sql SELECT stages->>'food_activities' AS food, plan_written_at IS NULL AS no_plan FROM trips = [{"food":"in_progress","no_plan":true}]
+expect sql SELECT count(*)::int AS n FROM trip_places = [{"n":0}]
+# one answer: a 👍 while atlas waits on the others, and the cuisine is saved
+~extract [{"message":0,"about":"maya","key":"cuisine","polarity":"positive","explicit":true,"retracts":false,"confidence":0.9,"quote":"indian for sure","cuisine":"indian"}]
+~agent text: NO_REPLY
+maya: indian for sure
+expect atlas reacted like
+expect atlas says 1
+expect sql SELECT value->>'name' AS cuisine FROM facts WHERE key = 'cuisine' = [{"cuisine":"indian"}]
+# a second answer is a majority: the shortlist goes out on its own
+~extract [{"message":0,"about":"leo","key":"cuisine","polarity":"positive","explicit":true,"retracts":false,"confidence":0.9,"quote":"tacos","cuisine":"tacos"},{"message":0,"about":"leo","key":"cuisine","polarity":"negative","explicit":true,"retracts":false,"confidence":0.9,"quote":"not big on seafood","cuisine":"seafood"}]
+~agent text: NO_REPLY
+leo: tacos, not big on seafood tho
+expect atlas reacted like
+clock +1m
 expect atlas says 2
 expect atlas ~ "🍽️ places to eat near aloft asheville downtown (vegetarian-friendly for maya)"
-expect atlas ~ /2\. Chai Pani: indian restaurant, 4\.7★, mid-range, \d+ min walk/
+expect atlas ~ /1\. Chai Pani: indian restaurant, 4\.7★, mid-range, \d+ min walk/
+expect atlas ~ /\d\. Mamacita's Taqueria: mexican restaurant/
 expect atlas ~ /\d\. Laughing Seed Café: vegetarian restaurant, 4\.5★, mid-range, \d+ min walk/
 expect atlas !~ "ruth's chris"
 expect atlas !~ "buxton hall"
@@ -46,10 +67,10 @@ expect sql SELECT idx, status, day IS NOT NULL AS on_plan FROM trip_places WHERE
 expect sql SELECT count(*)::int AS n FROM trips, jsonb_array_elements(itinerary) d, jsonb_array_elements(d->'items') i WHERE i->>'activityId' LIKE 'place:%' = [{"n":2}]
 expect sql SELECT i->>'notes' AS notes FROM trips, jsonb_array_elements(itinerary) d, jsonb_array_elements(d->'items') i WHERE i->>'time' = 'dinner' ~ "★"
 # a 👍 on someone naming a shortlisted place adds it
-priya: chai pani looks so good
-maya react like m15
-expect atlas ~ "✓ added chai pani"
-expect sql SELECT p.display_name AS who FROM trip_places t JOIN people p ON p.id = t.picked_by WHERE t.name = 'Chai Pani' = [{"who":"Maya"}]
+priya: mamacita's taqueria looks so good
+maya react like m21
+expect atlas ~ "✓ added mamacita's taqueria"
+expect sql SELECT p.display_name AS who FROM trip_places t JOIN people p ON p.id = t.picked_by WHERE t.name = 'Mamacita''s Taqueria' = [{"who":"Maya"}]
 # picking one twice
 leo: add chai pani
 expect atlas ~ "chai pani is already on it"
@@ -57,3 +78,5 @@ expect atlas ~ "chai pani is already on it"
 maya: we're good
 expect atlas ~ "food & activities are set ✓ 3 places on the plan"
 expect sql SELECT stages->>'food_activities' AS food FROM trips = [{"food":"decided"}]
+# only now is atlas asked to write the rest of the day-by-day plan
+expect sql SELECT count(*)::int AS n FROM jobs WHERE kind = 'site.itinerary_nudge' = [{"n":1}]

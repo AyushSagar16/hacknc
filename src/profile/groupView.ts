@@ -16,6 +16,9 @@ export interface GroupView {
   dates: { start: string; end: string; nights: number } | null;
   nights: { min: number | null; max: number | null; suggested: number };
   dietary: Map<string, string[]>;
+  /** Kinds of food people like ("thai" → who); "anything" means no preference. */
+  cuisines: Map<string, string[]>;
+  cuisineDislikes: Map<string, string[]>;
   wants: Map<string, { name: string; people: string[] }>;
   vetoes: Map<string, { name: string; people: string[] }>;
   likes: Map<string, string[]>;
@@ -49,6 +52,8 @@ export function groupView(members: GroupMember[], today: string): GroupView {
   const dates = earliest || latest ? pickDates(earliest ?? today, latest, suggested, blackouts) : null;
 
   const dietary = new Map<string, string[]>();
+  const cuisines = new Map<string, string[]>();
+  const cuisineDislikes = new Map<string, string[]>();
   const wants = new Map<string, { name: string; people: string[] }>();
   const vetoes = new Map<string, { name: string; people: string[] }>();
   const likes = new Map<string, string[]>();
@@ -60,6 +65,8 @@ export function groupView(members: GroupMember[], today: string): GroupView {
   for (const m of members) {
     const p = m.profile;
     for (const d of p.dietary) push(dietary, d.value, m.label);
+    for (const c of p.cuisines ?? []) push(cuisines, c.value, m.label);
+    for (const c of p.cuisineDislikes ?? []) push(cuisineDislikes, c.value, m.label);
     for (const w of p.wants) {
       const key = normPlace(w.value);
       const entry = wants.get(key) ?? { name: w.value, people: [] };
@@ -89,6 +96,8 @@ export function groupView(members: GroupMember[], today: string): GroupView {
     dates,
     nights: { min: minNights, max: maxNights, suggested },
     dietary,
+    cuisines,
+    cuisineDislikes,
     wants,
     vetoes,
     likes,

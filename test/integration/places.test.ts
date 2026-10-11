@@ -1,13 +1,14 @@
-// Food & activities in Postgres: the shortlist after a booked stay (dietary needs from facts,
-// distances from the stay), numbered rows in trip_places, picks written onto the itinerary, a new
-// shortlist that keeps picks, and the background job that posts the list once.
+// Food & activities in Postgres: after a booked stay the background job asks what food the group
+// is into, then posts the shortlist (dietary needs and cuisines from facts, distances from the
+// stay) once; numbered rows in trip_places, picks written onto the itinerary, a new shortlist that
+// keeps picks. Cuisines already known from earlier in the chat skip the question.
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import restaurants from "../fixtures/serpapi/google_maps_asheville_restaurants.json" with { type: "json" };
 import things from "../fixtures/serpapi/google_maps_asheville_things_to_do.json" with { type: "json" };
 import { ensureMember, upsertChat, upsertPerson } from "../../src/db/repos/core.ts";
 import { insertFacts } from "../../src/profile/store.ts";
 import { groupView } from "../../src/profile/groupView.ts";
-import { buildShortlist, originFor, pickPlaces, suggestFromJob } from "../../src/agent/features/places.ts";
+import { buildShortlist, foodAsked, originFor, pickPlaces, suggestFromJob } from "../../src/agent/features/places.ts";
 import { clearNearbyStubs, stubNearby } from "../../src/trips/nearby.ts";
 import { placesFor } from "../../src/trips/placesStore.ts";
 import { getStages, setStage } from "../../src/trips/stages.ts";
@@ -52,9 +53,19 @@ describeDb("food & activities (db)", () => {
     expect(originFor(trip)).toEqual({ lat: 35.5935, lon: -82.5536, label: "aloft asheville downtown" });
   });
 
-  it("the background job posts both shortlists once, and the stage moves to in progress", async () => {
+  it("the background job asks about food first, then posts both shortlists once", async () => {
     const posted: Action[][] = [];
     const svc = { post: async (_chat: number, _guid: string, actions: Action[]) => void posted.push(actions) };
+    // First run: the question, to everyone, and a check back once people have had time to answer.
+    const first = await suggestFromJob(svc, trip.id, "g0");
+    expect(posted).toHaveLength(1);
+    expect(posted[0]).toEqual([{ type: "say", text: expect.stringMatching(/aloft asheville downtown is locked in[\s\S]*what kind of food is everyone into for this trip\?/) }]);
+    expect(first).toEqual({ rescheduleAt: expect.any(Date), payload: { tripId: trip.id, asked: true } });
+    expect((await foodAsked(chatId, trip.id)).people).toHaveLength(2);
+    expect((await getStages(trip.id)).food_activities).toBe("in_progress");
+    expect(await placesFor(trip.id)).toEqual([]);
+    // Next run (answers in, or the wait is over): the lists.
+    posted.length = 0;
     await suggestFromJob(svc, trip.id, "g1");
     expect(posted).toHaveLength(1);
     const texts = posted[0]!.map((a) => (a.type === "say" ? a.text : ""));
@@ -109,5 +120,27 @@ describeDb("food & activities (db)", () => {
     expect(food.map((r) => r.idx)).toEqual([1, 2, 3, 4, 5]);
     // Activities from the first list keep their numbers.
     expect(rows.filter((r) => r.kind === "activity" && r.status === "suggested").map((r) => r.idx)).toEqual([7, 8, 9, 10]);
+  });
+
+  it("skips the question when most of the group said what they like to eat earlier in the chat", async () => {
+    const chat2 = await upsertChat("sim", "places-chat-2", true, AT);
+    const ana = (await upsertPerson("+15550000011", AT, "Ana")).id;
+    const sol = (await upsertPerson("+15550000012", AT, "Sol")).id;
+    for (const p of [ana, sol]) await ensureMember(chat2.id, p, AT);
+    await insertFacts([
+      { personId: ana, chatId: chat2.id, key: "cuisine", value: { name: "indian" }, polarity: "positive", explicit: true, confidence: 0.9, sourceMessageId: null, quote: "indian always", observedAt: AT, retracted: false },
+      { personId: sol, chatId: chat2.id, key: "cuisine", value: { name: "tacos" }, polarity: "positive", explicit: true, confidence: 0.9, sourceMessageId: null, quote: "tacos", observedAt: AT, retracted: false },
+    ]);
+    let t2 = await tripFor(chat2.id);
+    t2 = await updateTrip(t2.id, { status: "locked", destination_id: "asheville", destination_name: "Asheville", start_date: "2026-11-12", end_date: "2026-11-15", stay: { name: "Aloft Asheville Downtown", kind: "hotel", lat: 35.5935, lon: -82.5536, booked_at: AT.toISOString() } });
+    await setStage(t2.id, "stay", "decided");
+    const posted: Action[][] = [];
+    await suggestFromJob({ post: async (_c, _g, actions) => void posted.push(actions) }, t2.id, "h1");
+    expect(posted).toHaveLength(1);
+    const food = posted[0]![0]!;
+    expect(food.type === "say" && food.text).toMatch(/^going off what you've said you like to eat \(ana: indian · sol: tacos\)\n🍽️ places to eat/);
+    expect(food.type === "say" && food.text).toMatch(/Chai Pani/);
+    expect(food.type === "say" && food.text).toMatch(/Mamacita's Taqueria/);
+    expect((await foodAsked(chat2.id, t2.id)).at).toBeNull();
   });
 });

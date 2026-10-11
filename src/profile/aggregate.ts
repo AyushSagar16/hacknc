@@ -6,7 +6,7 @@
 //      statement beats an implied one, and the newest of the
 //      strongest kind wins — so a later "actually i can do the 15th" overrides, but a later
 //      vague hint doesn't override something said outright;
-//   4. for preference keys (destination, activity, budget mood) a winning neutral fact clears
+//   4. for preference keys (destination, activity, cuisine, budget mood) a winning neutral fact clears
 //      the slot; for constraint keys (blackout, dietary, travel limit) only a retraction clears it,
 //      whatever polarity the model picked ("omar can't fly" often comes back negative, and it is
 //      still a no-flying limit); for plain facts (home city, dates, name, trip length) polarity
@@ -34,6 +34,9 @@ export interface PersonProfile {
   minNights?: Resolved<number>;
   maxNights?: Resolved<number>;
   dietary: Resolved<string>[];
+  /** Kinds of food they like ("thai", "bbq"; "anything" = no preference) and don't. */
+  cuisines?: Resolved<string>[];
+  cuisineDislikes?: Resolved<string>[];
   wants: Resolved<string>[];
   vetoes: Resolved<string>[];
   likes: Resolved<string>[];
@@ -96,6 +99,8 @@ function claimsOf(f: Fact): Claim[] {
         claim(`destination:${place}`, (p, r) => (f.polarity === "negative" ? p.vetoes : p.wants).push(r as Resolved<string>)),
       ];
     }
+    case "cuisine":
+      return [claim(`cuisine:${normPlace(String(v.name))}`, (p, r) => (f.polarity === "negative" ? (p.cuisineDislikes ??= []) : (p.cuisines ??= [])).push(r as Resolved<string>))];
     case "activity":
       return [claim(`activity:${v.tag}`, (p, r) => (f.polarity === "negative" ? p.dislikes : p.likes).push(r as Resolved<string>))];
     case "travel_limit":
@@ -127,6 +132,8 @@ function valueFor(f: Fact): unknown {
       return String(v.name);
     case "activity":
       return v.tag;
+    case "cuisine":
+      return String(v.name);
     case "travel_limit":
       return { kind: v.kind, hours: (v.hours as number | null | undefined) ?? null };
     case "budget_comment":
@@ -154,6 +161,8 @@ export function aggregate(personId: number, facts: readonly Fact[], minConfidenc
     personId,
     blackouts: [],
     dietary: [],
+    cuisines: [],
+    cuisineDislikes: [],
     wants: [],
     vetoes: [],
     likes: [],

@@ -8,6 +8,7 @@ export const FACT_KEYS = [
   "blackout", // dates they can't travel
   "trip_length", // min/max nights
   "dietary", // a dietary need
+  "cuisine", // a kind of food they like (positive) or don't (negative): "thai", "bbq", "sushi"
   "activity", // an interest tag they like (positive) or dislike (negative)
   "travel_limit", // no flying, max flight/drive hours, no passport, low mobility
   "budget_comment", // "too pricey for me", "i can do 600", "money's tight"
@@ -34,6 +35,7 @@ export const factValueSchemas = {
   blackout: z.object({ start: isoDate, end: isoDate }),
   trip_length: z.object({ minNights: z.number().int().min(1).max(30).nullish(), maxNights: z.number().int().min(1).max(30).nullish() }),
   dietary: z.object({ need: z.enum(DIETARY) }),
+  cuisine: z.object({ name: z.string().trim().min(2).max(40) }),
   activity: z.object({ tag: z.enum(ACTIVITY_TAGS) }),
   travel_limit: z.object({ kind: z.enum(TRAVEL_LIMITS), hours: z.number().min(0).max(48).nullish() }),
   budget_comment: z.object({
@@ -90,6 +92,7 @@ export const EXTRACTION_JSON_SCHEMA = {
           min_nights: { type: "integer" },
           max_nights: { type: "integer" },
           need: { type: "string", enum: [...DIETARY] },
+          cuisine: { type: "string", description: "cuisine: a kind of food or dish, lowercase (\"thai\", \"bbq\", \"sushi\", \"anything\")" },
           tag: { type: "string", enum: [...ACTIVITY_TAGS] },
           limit: { type: "string", enum: [...TRAVEL_LIMITS] },
           hours: { type: "number" },
@@ -126,6 +129,7 @@ export function toFactValue(key: FactKey, raw: Record<string, unknown>): Record<
     blackout: () => ({ start: raw.start, end: raw.end ?? raw.start }),
     trip_length: () => ({ minNights: raw.min_nights ?? null, maxNights: raw.max_nights ?? null }),
     dietary: () => ({ need: raw.need }),
+    cuisine: () => ({ name: typeof raw.cuisine === "string" ? raw.cuisine.toLowerCase() : raw.cuisine }),
     activity: () => ({ tag: raw.tag }),
     travel_limit: () => ({ kind: raw.limit, hours: raw.hours ?? null }),
     budget_comment: () => ({ kind: raw.budget_kind, amountUsd: raw.amount_usd ?? null, about: raw.budget_about ?? null }),
