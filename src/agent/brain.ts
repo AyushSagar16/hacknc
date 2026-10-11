@@ -3,6 +3,8 @@
 //   the addressed check + deterministic hints + speak gate → agent with tools → money guard.
 // When a turn ends with Atlas saying nothing, a message that gave it something (an answer to its
 // question, a date, a preference) gets a 👍 tapback, so the group can see Atlas read it.
+// A private 1:1 chat runs the same turn as a party of one: every message is addressed to Atlas,
+// banking and the person's own budget answer first, and a trip planned there is a solo trip.
 // Money and constraints are decided by code; the models only read and write language.
 import type { Config } from "../config.ts";
 import { isoDate, now as clockNow } from "../clock.ts";
@@ -14,14 +16,14 @@ import { groupView } from "../profile/groupView.ts";
 import { profilesFor } from "../profile/store.ts";
 import type { TurnHandler, TurnInput, TurnResult } from "../pipeline/pipeline.ts";
 import { advanceTripStatus, tripFor } from "../trips/state.ts";
-import { addressedReason } from "./addressed.ts";
+import { addressedReason, type AddressedReason } from "./addressed.ts";
 import { dropUnknownClaims, guardBubbles, runAgent } from "./agent.ts";
 import { parseCommand, type Command } from "./commands.ts";
 import type { Feature, TurnCtx } from "./feature.ts";
 import { Figures } from "./figures.ts";
 import type { Llm } from "./llm.ts";
 import { nameList } from "./features/planning.ts";
-import { CONNECT_QUESTION, offerConnect } from "./features/connect.ts";
+import { CONNECT_QUESTION, isConnected, offerConnect } from "./features/connect.ts";
 import { NAME_QUESTION, recordNameAsks, unnamed } from "./features/names.ts";
 import { warmMemory } from "./features/memory.ts";
 import { oneSiteLink } from "./links.ts";
@@ -62,6 +64,28 @@ export function introLines(agentName: string, opts: { askNames?: boolean } = {})
     ...(opts.askNames ? [NAME_QUESTION] : []),
     `so where are we thinking, and when?\nalso, ${CONNECT_QUESTION}`,
   ];
+}
+
+/** The first message in a private chat: what Atlas does one-on-one. */
+export function dmIntroLines(agentName: string, opts: { askName?: boolean; askConnect?: boolean } = {}): string[] {
+  const n = agentName.toLowerCase();
+  return [
+    `hey, i'm ${n} 👋 in here it's just you and me`,
+    `i can check your balances, spending and bills, move money between your checking and savings, or plan a solo trip with you.\nfor a trip with friends, add me to your group chat`,
+    ...(opts.askName ? [NAME_QUESTION] : []),
+    opts.askConnect ? CONNECT_QUESTION : `try "what's my balance" or "help me plan a weekend away"`,
+  ];
+}
+
+/** "atlas", "hey atlas!", "hi": a hello with nothing to answer beyond the intro. */
+export function isBareGreeting(text: string, agentName: string): boolean {
+  const n = agentName.toLowerCase().replace(/[^a-z0-9]/g, "");
+  const rest = text
+    .toLowerCase()
+    .replace(new RegExp(`@?\\b${n}\\b`, "g"), " ")
+    .replace(/\b(?:hey+|hi+|hello|yo+|sup|wassup|what'?s up|hiya|howdy|there|good (?:morning|afternoon|evening))\b/g, " ")
+    .replace(/[^\p{L}\p{N}]/gu, "");
+  return rest === "";
 }
 
 export function createBrain(deps: BrainDeps): TurnHandler & { settle(): Promise<void> } {
@@ -144,31 +168,20 @@ export function createBrain(deps: BrainDeps): TurnHandler & { settle(): Promise<
     };
     for (const figs of await Promise.all(features.map((f) => (f.figures ? f.figures(tc) : [])))) figures.addAll(figs);
 
-    // ---------- private chats ----------
-    if (!chat.is_group) {
-      // Late deliveries (e.g. a text Linq held until the sender was registered) aren't answered.
-      for (const msg of input.batch.filter((m) => m.kind === "text" && m.speakable)) {
-        tc.senderId = msg.person_id;
-        tc.sourceMessageId = msg.id;
-        let handled = false;
-        for (const f of features) if (!handled && f.directMessage) handled = await f.directMessage(msg, tc);
-        if (!handled) {
-          const firstTime = !history.some((h) => h.direction === "outbound");
-          say(
-            tc,
-            firstTime
-              ? `hey! i'm ${agentName.toLowerCase()}, a trip + money planner for group chats. add this number to your friends' group chat and i'll take it from there`
-              : `i do my planning inside group chats, so add me to yours and say hi.\nin here i can walk you through your own budget, just ask "what's my budget"`,
-          );
-        }
-      }
-      return { actions: tc.out, route: "dm" };
-    }
-
     // ---------- intro ----------
     const actions = tc.out;
     let route = "silent";
-    if (!chat.intro_sent_at && (await markIntroSent(chat.id, now))) {
+    const dm = !chat.is_group;
+    if (dm && !chat.intro_sent_at && input.batch.some((m) => m.kind === "text" && m.speakable && m.person_id !== null) && (await markIntroSent(chat.id, now))) {
+      chat.intro_sent_at = now;
+      const nameless = unnamed(members);
+      const owner = members[0];
+      say(tc, ...dmIntroLines(agentName, { askName: nameless.length > 0, askConnect: owner ? !(await isConnected(owner.id)) : false }));
+      await recordNameAsks(chat.id, nameless.map((m) => m.id), now);
+      // A hello gets just the intro; anything else ("what's my balance") is answered below too.
+      for (const m of input.batch) if (m.kind === "text" && isBareGreeting(m.text, agentName)) tc.consumed.add(m.id);
+      route = "intro";
+    } else if (!dm && !chat.intro_sent_at && (await markIntroSent(chat.id, now))) {
       const nameless = unnamed(members);
       say(tc, ...introLines(agentName, { askNames: nameless.length > 0 }));
       await recordNameAsks(chat.id, nameless.map((m) => m.id), now);
@@ -192,9 +205,22 @@ export function createBrain(deps: BrainDeps): TurnHandler & { settle(): Promise<
 
     // ---------- deterministic per-message handling ----------
     const remaining: MessageRow[] = [];
+    /** In a private chat every message is to Atlas. */
+    const reasonFor = (m: MessageRow): AddressedReason => (dm ? "named" : addressedReason({ message: m, history, agentName, namesById: firstNames }));
     for (const msg of input.batch) {
       tc.senderId = msg.person_id;
       tc.sourceMessageId = msg.id;
+      if (tc.consumed.has(msg.id)) continue;
+      if (dm && msg.kind === "text" && msg.speakable) {
+        // Banking and their own budget: answered by code before anything else.
+        let mine = false;
+        for (const f of features) if (!mine && f.directMessage) mine = await f.directMessage(msg, tc);
+        if (mine) {
+          tc.consumed.add(msg.id);
+          route = route === "silent" ? "dm_fast_path" : route;
+          continue;
+        }
+      }
       if (msg.kind === "membership") {
         if (msg.meta?.change === "added" && route !== "intro" && chat.intro_sent_at) {
           // The message's person is whoever did the adding; the newcomers are in meta.handles.
@@ -224,7 +250,7 @@ export function createBrain(deps: BrainDeps): TurnHandler & { settle(): Promise<
         continue;
       }
       if (msg.kind !== "text") continue;
-      const reason = addressedReason({ message: msg, history, agentName, namesById: firstNames });
+      const reason = reasonFor(msg);
       const cmd = parseCommand(msg.text, { addressed: reason !== null });
       if (cmd && msg.speakable) {
         await runCommand(cmd, msg, tc, features, agentName);
@@ -250,7 +276,7 @@ export function createBrain(deps: BrainDeps): TurnHandler & { settle(): Promise<
     }
 
     // ---------- should Atlas speak? ----------
-    const reasons = new Map(remaining.map((m) => [m.id, addressedReason({ message: m, history, agentName, namesById: firstNames })]));
+    const reasons = new Map(remaining.map((m) => [m.id, reasonFor(m)]));
     const addressedMsgs = remaining.filter((m) => reasons.get(m.id) !== null);
     const explicitlyAddressed = remaining.some((m) => reasons.get(m.id) === "named" || reasons.get(m.id) === "reply_to_atlas");
     const addressed = addressedMsgs.length > 0;
@@ -372,7 +398,7 @@ export function createBrain(deps: BrainDeps): TurnHandler & { settle(): Promise<
     if (actions.length > toolStart && actions.slice(toolStart).some((a) => a.type === "say" && asksForAnswer(a.text))) bubbles = bubbles.filter((b) => !/\?\s*$/.test(b));
     // Unprompted, never restate something Atlas just said.
     if (!explicitlyAddressed) bubbles = bubbles.filter((b) => !repeatsRecent(b, history));
-    const guarded = guardBubbles(bubbles, figures, { isGroup: true });
+    const guarded = guardBubbles(bubbles, figures, audienceOf(tc));
     if (guarded.violations.length) {
       log.warn({ violations: guarded.violations }, "money guard dropped the model's text");
       await q(`INSERT INTO llm_traces (role, model, chat_id, turn_id, decision, reason, created_at) VALUES ('guard', 'money-guard', $1, $2, 'blocked', $3, $4)`, [
@@ -414,13 +440,19 @@ export function createBrain(deps: BrainDeps): TurnHandler & { settle(): Promise<
     // A follow-up that restates an earlier Atlas message is a nag ("sol and ravi, cast your votes…"
     // then "sol and ravi, drop your votes…" two minutes later): drop it.
     const fresh = (out.soloPosted || toolPosts.length ? [] : out.bubbles.slice(0, 2)).filter((b) => !repeatsRecent(b, tc.history));
-    const guarded = guardBubbles(fresh, tc.figures, { isGroup: true });
+    const guarded = guardBubbles(fresh, tc.figures, audienceOf(tc));
     if (guarded.violations.length) log.warn({ violations: guarded.violations }, "money guard dropped the follow-up text");
     for (const b of guarded.bubbles) actions.push({ type: "say", text: b });
     actions.push(...toolPosts);
     const spoke = actions.length > toolStart;
     return { actions, route: spoke ? "nudge" : "nudge_silent", addressed: false, gate: gate(spoke ? "SPEAK" : "NO_REPLY") };
   }
+}
+
+/** Who sees the reply: the group, or in a private chat only the person it's with. */
+export function audienceOf(tc: Pick<TurnCtx, "chat" | "members" | "senderId">): { isGroup: boolean; viewerId?: number } {
+  if (tc.chat.is_group) return { isGroup: true };
+  return { isGroup: false, viewerId: tc.senderId ?? tc.members[0]?.id };
 }
 
 async function runCommand(cmd: Command, msg: MessageRow, tc: TurnCtx, features: Feature[], agentName: string): Promise<void> {
@@ -437,6 +469,13 @@ async function runCommand(cmd: Command, msg: MessageRow, tc: TurnCtx, features: 
       say(tc, "i'm back! i'll jump in when it helps the plan");
       return;
     case "help":
+      if (!tc.chat.is_group) {
+        say(
+          tc,
+          `in here it's just you and me:\n- your balances, spending, bills and recent transactions\n- moving money between your checking and savings\n- your trip budget, from your last few months of spending\n- planning a solo trip: options, a place to stay, food and a day-by-day plan\ntry "what's my balance", "move 100 to savings" or "plan me a beach weekend"`,
+        );
+        return;
+      }
       say(
         tc,
         `i handle the trip and the money side:\n- options with prices, then a poll\n- budgets from your last few months of spending (private unless you share yours)\n- places to stay, a trip fund you pay into on paydays, splitting expenses, settling up\ntry "${n} summarize", "what's our budget", "i paid 64 for dinner" or "settle up". "${n} stay quiet" if i'm too chatty`,

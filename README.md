@@ -44,6 +44,12 @@ mutes it.
   two weeks and three-year climatology beyond that.
 - **It watches the weather.** When the trip's forecast changes materially, it speaks up with a
   concrete swap ("saturday flipped to rain, want to swap the beach day for the food market tour?").
+- **It works one-on-one too.** Text Atlas privately ("atlas") and it's your own money and your own
+  trip: balances, spending by merchant, upcoming bills and recent transactions from your connected
+  Capital One, "move 200 to savings" between your own checking and savings (a Nessie transfer), your
+  budget in full, and a solo trip planned with the same steps as a group one (options, stay, food,
+  the day-by-day plan). Plain banking questions are answered by code; the rest goes to the agent,
+  which always answers in a private chat. The banking tools don't exist in group chats.
 
 Money and constraints are deterministic code. The models only do language, and every dollar
 figure Atlas shows the group traces to a Nessie call or a labeled estimate.

@@ -536,7 +536,7 @@ const webSearch: Tool = {
       return { ok: false, error: kind === "no_key" ? NOT_CONNECTED : BUSY };
     }
     // What Atlas finds for a trip also goes on the trip page's research section.
-    if (found.kind !== "dates" && ctx.chat.is_group) await saveLookupToTrip(ctx.cfg, ctx.trip, found.kind === "list" ? found.heading : query, found);
+    if (found.kind !== "dates") await saveLookupToTrip(ctx.cfg, ctx.trip, found.kind === "list" ? found.heading : query, found);
     if (found.kind === "list") {
       const items = found.items.map((it) => (it.start ? { ...it, detail: `${rangeLabel(it.start, it.end)}${it.detail ? `: ${it.detail}` : ""}` } : it));
       const bubble = formatList(found.heading, items);
