@@ -40,6 +40,8 @@ export interface AgentOutput {
   empty?: boolean;
   /** The model was nudged once after an empty answer. */
   retried?: boolean;
+  /** The model's last word was a deliberate NO_REPLY (even after any nudge). */
+  noReply?: boolean;
 }
 
 /** Sent once when the model answered with nothing at all (Gemini sometimes returns only thought parts). */
@@ -175,6 +177,8 @@ export async function runAgent(input: AgentInput): Promise<AgentOutput> {
         const before = input.ctx.out.length;
         const outcome = await input.tools.run(call.name, call.args, input.ctx);
         toolCalls.push({ name: call.name, ok: outcome.ok, error: outcome.ok ? undefined : outcome.error });
+        if (outcome.ok) log.info({ turnId: input.ctx.turnId, tool: call.name, posted: input.ctx.out.length - before }, `tool ${call.name}: ok`);
+        else log.warn({ turnId: input.ctx.turnId, tool: call.name, err: String(outcome.error).slice(0, 160) }, `tool ${call.name}: error`);
         seenText.push(safeJson(outcome));
         responses.push({ functionResponse: { name: call.name, id: call.id, response: outcome as unknown as Record<string, unknown> } });
         // "Solo" only counts when the tool actually posted: ask_for_missing_info posts nothing when
@@ -260,7 +264,7 @@ export async function runAgent(input: AgentInput): Promise<AgentOutput> {
     bubbles = linked.bubbles;
   }
   const empty = bubbles.length === 0 && !soloPosted && input.ctx.out.length === outStart && (retried || !/\bNO_REPLY\b/.test(text));
-  return { bubbles, toolCalls, soloPosted, empty, retried };
+  return { bubbles, toolCalls, soloPosted, empty, retried, noReply: bubbles.length === 0 && /\bNO_REPLY\b/.test(text) };
 }
 
 /**

@@ -72,3 +72,40 @@ describe("empty model answer", () => {
     expect(String(calls[1])).toContain(EMPTY_NUDGE.slice(0, 20));
   });
 });
+
+describe("move-on and board updates", async () => {
+  const { roomNeed, roomNeedsAtlas, mentionsTrip } = await import("../../src/agent/speakGate.ts");
+  const { hasNewLine } = await import("../../src/pipeline/pipeline.ts");
+  const { repeatsRecent } = await import("../../src/agent/brain.ts");
+  it("treats booking and moving on as the room needing atlas", () => {
+    expect(roomNeedsAtlas("I booked one of the hotels let\u2019s move on", ["sakshi"])).toMatch(/move the plan forward/);
+    expect(roomNeed("I booked one of the hotels let\u2019s move on", ["sakshi"])?.kind).toBe("booked");
+    expect(roomNeedsAtlas("ok what's next", ["sakshi"])).toMatch(/move the plan forward/);
+    expect(roomNeed("ok what\u2019s next", ["sakshi"])?.kind).toBe("move_on");
+    expect(roomNeed("we reserved the cabin", ["sakshi"])?.kind).toBe("booked");
+    expect(roomNeed("it's booked!", ["sakshi"])?.kind).toBe("booked");
+    expect(roomNeed("now what", ["sakshi"])?.kind).toBe("move_on");
+    expect(mentionsTrip("we booked two hotels")).toBe(true);
+    expect(mentionsTrip("the airbnbs look nice")).toBe(true);
+    expect(roomNeedsAtlas("lol same", ["sakshi"])).toBeNull();
+    expect(roomNeedsAtlas("did anyone watch the game", ["sakshi"])).toBeNull();
+    // Said to a friend, not the room.
+    expect(roomNeedsAtlas("sakshi what's next for you after class", ["sakshi"])).toBeNull();
+  });
+  it("reads curly apostrophes like straight ones", () => {
+    expect(roomNeed("what\u2019s the weather like there", [])?.kind).toBe("question");
+    expect(roomNeed("can\u2019t afford that, too expensive for me", [])?.kind).toBe("objection");
+  });
+  it("a board with a changed line isn't a repeat", () => {
+    const before = "how everyone gets to orlando 🚗\n- ayush: drive from chapel hill\n- sakshi: need to know where you're leaving from";
+    const after = "how everyone gets to orlando 🚗\n- ayush: drive from chapel hill\n- sakshi: drive from chapel hill, ~10h";
+    expect(hasNewLine(after, before)).toBe(true);
+    expect(hasNewLine(before, before)).toBe(false);
+    expect(hasNewLine("sakshi, where are you driving from?", "Sakshi, where are you driving from")).toBe(false);
+    // A one-line nag reworded is still a nag: the similarity check decides, not this.
+    expect(hasNewLine("sol and ravi, drop your votes", "sol and ravi, cast your votes")).toBe(false);
+    const history = [{ direction: "outbound" as const, text: before }];
+    expect(repeatsRecent(after, history)).toBe(false);
+    expect(repeatsRecent(before, history)).toBe(true);
+  });
+});

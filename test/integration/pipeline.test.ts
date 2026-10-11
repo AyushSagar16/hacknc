@@ -98,6 +98,33 @@ describeDb("pipeline on the simulator", () => {
     expect(statuses.map((s) => s.status)).toEqual(["cancelled", "done"]);
   });
 
+  it("a turn that crashes before saying anything retries its messages once, and only once", async () => {
+    let calls = 0;
+    h = await harness(async (input) => {
+      calls += 1;
+      if (calls === 1) throw new Error("boom");
+      return echo(input);
+    });
+    const chat = h.chat("crash1", ["maya", "leo", "priya"]);
+    const replies = await chat.say("maya", "atlas what's the plan");
+    await h.world.waitIdle("crash1");
+    expect(calls).toBe(2);
+    expect([...replies, ...chat.transcript.filter((e) => e.from === "atlas")].map((r) => r.text)).toContain("echo: atlas what's the plan");
+    // Crashing every time stops after the one retry.
+    let again = 0;
+    await h.close();
+    h = await harness(async () => {
+      again += 1;
+      throw new Error("always");
+    });
+    const c2 = h.chat("crash2", ["maya", "leo", "priya"]);
+    await c2.say("maya", "hello?");
+    await h.world.waitIdle("crash2");
+    expect(again).toBe(2);
+    const turns = await q<{ status: string }>(`SELECT status FROM turns ORDER BY id`);
+    expect(turns.map((t) => t.status)).toEqual(["failed", "failed"]);
+  });
+
   it("does not cancel once a turn has started a money side effect", async () => {
     let calls = 0;
     h = await harness(async (input) => {

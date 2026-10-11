@@ -10,7 +10,7 @@
 import type { Message, Space } from "spectrum-ts";
 import type { Config } from "../config.ts";
 import { now } from "../clock.ts";
-import { childLog } from "../log.ts";
+import { childLog, maskHandle, preview } from "../log.ts";
 import { one, q, tx } from "../db/pool.ts";
 import {
   activeMembers,
@@ -31,7 +31,9 @@ import { normalize, type InboundEvent } from "../transport/inbound.ts";
 import { soloActions } from "../transport/soloVoice.ts";
 import { render, type Action } from "../transport/outbound.ts";
 import { enqueueJob, recordJobFailure } from "./jobs.ts";
-import { logSent, restates } from "../memory/atlasLog.ts";
+import { hasNewLine, logSent, restates } from "../memory/atlasLog.ts";
+
+export { hasNewLine };
 import { markWebhookProcessed } from "./webhookStore.ts";
 
 export interface TurnInput {
@@ -55,6 +57,14 @@ export interface TurnResult {
   route: string;
   addressed?: boolean;
   gate?: { decision: string; reason: string };
+  /** What made the turn speak or stay silent (named, answers_question, question, booked, gate, …). */
+  trigger?: string;
+  /** Someone needed Atlas (named it, answered its question, asked the room): not a chime-in. */
+  prompted?: boolean;
+  /** Agent tool calls, "name:ok" / "name:error", for the turn summary log. */
+  tools?: string[];
+  /** When nothing visible goes out: why. */
+  silentWhy?: string;
 }
 
 export type TurnHandler = (input: TurnInput) => Promise<TurnResult>;
@@ -87,6 +97,54 @@ export interface PipelineOptions {
 }
 
 class Cancelled extends Error {}
+
+/** What one flush did, for the turn summary. */
+export interface FlushResult {
+  bubbles: number;
+  reactions: number;
+  failed: number;
+}
+
+/** A transient send failure is retried this many times (with backoff) before the row is given up on. */
+export const OUTBOX_MAX_ATTEMPTS = 5;
+/** A pending row older than this (a crash, a long outage) is skipped, not sent. */
+export const OUTBOX_STALE_MS = 30 * 60_000;
+
+/**
+ * Is a send error worth retrying? Network errors, timeouts, 408/425/429 and 5xx are transient.
+ * Other 4xx answers are permanent: Linq 403 code 2006 ("You do not have permission to send from
+ * this phone number") never succeeds on retry. 403 and 404 are about the chat (or the line), so
+ * every later row for that chat would fail the same way.
+ */
+export function classifySendError(err: unknown): { permanent: boolean; chatWide: boolean; status?: number; code?: number } {
+  const e = err as { status?: unknown; code?: unknown; message?: unknown };
+  const message = typeof e?.message === "string" ? e.message : String(err);
+  const status = typeof e?.status === "number" ? e.status : Number(/returned (\d{3})\b/.exec(message)?.[1]) || undefined;
+  let code = typeof e?.code === "number" ? e.code : undefined;
+  if (code === undefined) {
+    const m = /"code"\s*:\s*(\d+)/.exec(message);
+    if (m) code = Number(m[1]);
+  }
+  if (status === undefined || status < 400 || status >= 500 || [408, 425, 429].includes(status)) return { permanent: false, chatWide: false, status, code };
+  return { permanent: true, chatWide: status === 403 || status === 404 || status === 410, status, code };
+}
+
+/** Anything the group sees as Atlas talking (a tapback doesn't count). */
+const isVisible = (a: Action) => a.type !== "react";
+
+/** A short text for logs: what this action shows. */
+function actionPreview(action: Action): string {
+  switch (action.type) {
+    case "say":
+      return action.text;
+    case "react":
+      return `${action.tapback} on ${action.targetId}`;
+    case "poll":
+      return `${action.title} [${action.options.length} options]`;
+    case "link":
+      return action.url;
+  }
+}
 
 /** Never wait longer than this on a typing call before sending (a slow indicator must not delay a reply). */
 const TYPING_TIMEOUT_MS = 1_500;
@@ -163,6 +221,8 @@ export class Pipeline {
   private readonly byChatId = new Map<number, ChatState>();
   private readonly spaces = new Map<number, Space>();
   private readonly log = childLog({ component: "pipeline" });
+  /** Messages whose turn crashed and were put back once (a second crash doesn't loop). */
+  private readonly retriedAfterFailure = new Set<number>();
   /** Turns that spoke without being asked (follow-ups, chime-ins): logged as such in atlas_log. */
   private readonly unpromptedTurns = new Set<number>();
   private readonly debounceMs: number;
@@ -192,8 +252,21 @@ export class Pipeline {
         if (event.eventId) await markWebhookProcessed(event.eventId, event.reason);
         return;
       }
-      const stored = await this.store(event, space);
+      const { row: stored, sender } = await this.store(event, space);
       if (event.eventId) await markWebhookProcessed(event.eventId);
+      if (!stored) this.log.debug({ provider: event.providerMessageId, kind: event.kind }, "inbound duplicate ignored");
+      else
+        this.log.info(
+          {
+            chatId: stored.chat_id,
+            msgId: stored.id,
+            kind: stored.kind,
+            from: sender ?? null,
+            ...(stored.speakable ? {} : { stale: true }),
+            text: preview(stored.text),
+          },
+          stored.speakable ? "inbound" : "inbound (too old to answer; read for facts only)",
+        );
       if (stored && st) this.bump(st, event.kind === "text" && stored.speakable && namesAgentComplete(event.text, this.agentName));
     } catch (err) {
       this.log.error({ err: (err as Error).message, kind: event.kind }, "failed to store inbound message");
@@ -204,8 +277,11 @@ export class Pipeline {
     }
   }
 
-  private async store(event: Exclude<InboundEvent, { kind: "ignored" }>, space: Space): Promise<MessageRow | undefined> {
+  /** Stores one inbound event. sender is who sent it ("Sakshi …4521"), for the inbound log line. */
+  private async store(event: Exclude<InboundEvent, { kind: "ignored" }>, space: Space): Promise<{ row: MessageRow | undefined; sender?: string }> {
     const at = now();
+    let sender: string | undefined;
+    const senderHandle = "sender" in event ? event.sender : "actor" in event ? event.actor : undefined;
     const newMembers: number[] = [];
     const result = await tx(async (client) => {
       const chat = await upsertChat(event.platform, event.chatId, event.isGroup, at, client);
@@ -217,6 +293,7 @@ export class Pipeline {
       const person = async (handle: string) => {
         const p = await upsertPerson(handle, at, this.opts.names?.(handle), client);
         if (await ensureMember(chat.id, p.id, at, client)) newMembers.push(p.id);
+        if (handle === senderHandle) sender = [p.display_name, maskHandle(handle)].filter(Boolean).join(" ");
         return p;
       };
 
@@ -290,7 +367,7 @@ export class Pipeline {
     const chatId = this.state(`${event.platform}:${event.chatId}`).chatId!;
     for (const personId of newMembers) await this.opts.onNewMember?.(chatId, personId);
     await this.refreshMembers(chatId, space);
-    return result;
+    return { row: result, sender };
   }
 
   /** Learn members who haven't spoken yet (Linq, sim). Throttled; unsupported platforms are fine. */
@@ -381,8 +458,9 @@ export class Pipeline {
     st.running = { turnId, abort, cancellable: true, done };
     const t0 = Date.now();
     let answers = false;
+    let batch: MessageRow[] = [];
     try {
-      const batch = await claimUnclaimed(chatId, turnId);
+      batch = await claimUnclaimed(chatId, turnId);
       // New messages win over a follow-up: the turn answers them instead. Stale replays don't count.
       answers = batch.some((m) => m.speakable);
       const nudge = batch.length === 0 ? st.nudge : undefined;
@@ -391,6 +469,10 @@ export class Pipeline {
         await q(`UPDATE turns SET status='done', route='empty', finished_at=$2 WHERE id=$1`, [turnId, now()]);
         return;
       }
+      this.log.info(
+        nudge ? { chatId, turnId, nudge: preview(nudge, 80) } : { chatId, turnId, msgs: batch.map((m) => m.id), count: batch.length, ...(answers ? {} : { staleOnly: true }) },
+        nudge ? "turn start (follow-up, no new messages)" : "turn start",
+      );
       const result = await this.opts.handler({
         chat,
         turnId,
@@ -406,15 +488,38 @@ export class Pipeline {
         },
       });
       if (abort.signal.aborted && st.running?.cancellable) throw new Cancelled();
-      if (!result.addressed && (result.route === "agent" || result.route === "nudge")) {
+      // A chime-in nobody asked for: logged as unprompted, and never allowed to restate a recent ask.
+      // A reply to someone who needed Atlas (named it, answered its question, asked the room) is sent as is.
+      if (!result.addressed && !result.prompted && (result.route === "agent" || result.route === "nudge")) {
         this.unpromptedTurns.add(turnId);
+        const before = result.actions.filter(isVisible).length;
         result.actions = await this.dropRestated(chatId, turnId, result.actions);
+        if (before && !result.actions.some(isVisible)) result.silentWhy ??= "every bubble restated a recent ask";
       }
       await this.enqueue(chatId, `t${turnId}`, result.actions, turnId);
-      await this.flush(chatId, { turnId, signal: abort.signal, onFirstSend: () => st.running && (st.running.cancellable = false) });
+      const sent = await this.flush(chatId, { turnId, signal: abort.signal, onFirstSend: () => st.running && (st.running.cancellable = false) });
+      const latency = Date.now() - t0;
+      const silentWhy = result.actions.some(isVisible) ? (sent.failed ? `send failed (${sent.failed})` : undefined) : (result.silentWhy ?? "nothing to say");
       await q(
-        `UPDATE turns SET status='done', route=$2, addressed=$3, gate_decision=$4, gate_reason=$5, finished_at=$6, latency_ms=$7 WHERE id=$1`,
-        [turnId, result.route, result.addressed ?? null, result.gate?.decision ?? null, result.gate?.reason ?? null, now(), Date.now() - t0],
+        `UPDATE turns SET status='done', route=$2, addressed=$3, gate_decision=$4, gate_reason=$5, finished_at=$6, latency_ms=$7, trigger=$8, prompted=$9, silent_why=$10 WHERE id=$1`,
+        [turnId, result.route, result.addressed ?? null, result.gate?.decision ?? null, result.gate?.reason ?? null, now(), latency, result.trigger ?? null, result.prompted ?? result.addressed ?? null, silentWhy?.slice(0, 300) ?? null],
+      );
+      this.log.info(
+        {
+          chatId,
+          turnId,
+          route: result.route,
+          trigger: result.trigger ?? null,
+          addressed: result.addressed ?? null,
+          ...(result.gate ? { gate: result.gate.decision, gateReason: preview(result.gate.reason, 100) } : {}),
+          ...(result.tools?.length ? { tools: result.tools } : {}),
+          bubbles: sent.bubbles,
+          ...(sent.reactions ? { reactions: sent.reactions } : {}),
+          ...(sent.failed ? { failed: sent.failed } : {}),
+          ...(silentWhy ? { silentWhy } : {}),
+          ms: latency,
+        },
+        silentWhy && !sent.bubbles ? `turn done: silent (${preview(silentWhy, 70)})` : `turn done: sent ${sent.bubbles} bubble${sent.bubbles === 1 ? "" : "s"}`,
       );
     } catch (err) {
       if (err instanceof Cancelled || abort.signal.aborted) {
@@ -425,11 +530,20 @@ export class Pipeline {
           this.log.info({ chatId, turnId }, "turn cancelled by a newer message; messages carried forward");
         } else {
           await q(`UPDATE turns SET status='done', finished_at=$2 WHERE id=$1`, [turnId, now()]);
+          this.log.info({ chatId, turnId, ms: Date.now() - t0 }, "turn done (a newer message arrived after it started sending; it runs next)");
         }
       } else {
-        this.log.error({ chatId, turnId, err: (err as Error).message }, "turn failed");
         await recordJobFailure("turn", turnId, { chatId }, err, chatId);
         await q(`UPDATE turns SET status='failed', finished_at=$2 WHERE id=$1`, [turnId, now()]);
+        // A crash must not leave someone unanswered: if nothing was sent and no side effect ran, the
+        // messages go back on the queue for one more try. A second crash on the same messages stops there.
+        const retry = answers && st.running?.cancellable !== false && batch.every((m) => !this.retriedAfterFailure.has(m.id));
+        this.log.error({ chatId, turnId, err: (err as Error).message, ms: Date.now() - t0, retry }, retry ? "turn failed; retrying its messages once" : "turn failed");
+        if (retry) {
+          for (const m of batch) this.retriedAfterFailure.add(m.id);
+          await q(`UPDATE outbox SET status='skipped', last_error='turn failed; retried' WHERE turn_id=$1 AND status='pending'`, [turnId]).catch(() => {});
+          await releaseClaim(turnId).catch(() => {});
+        }
       }
     } finally {
       this.unpromptedTurns.delete(turnId);
@@ -449,7 +563,8 @@ export class Pipeline {
     for (const action of actions) {
       if (action.type === "say") {
         const prior = await restates(chatId, action.text, now()).catch(() => undefined);
-        if (prior) {
+        // A status board with one changed line ("sakshi: drive from chapel hill") is news, not a repeat.
+        if (prior && !hasNewLine(action.text, prior.text)) {
           this.log.info({ chatId, turnId, similarity: prior.similarity.toFixed(2) }, "dropped a follow-up that restates a recent message");
           continue;
         }
@@ -472,32 +587,44 @@ export class Pipeline {
       actions = soloActions(actions, names.map((n) => (n.display_name ?? "").toLowerCase().split(/\s+/)[0] ?? "").filter(Boolean));
     }
     for (const [idx, action] of actions.entries()) {
-      await q(
-        `INSERT INTO outbox (chat_id, turn_id, idx, client_guid, action, created_at) VALUES ($1,$2,$3,$4,$5,$6) ON CONFLICT (client_guid) DO NOTHING`,
+      const row = await one<{ id: number }>(
+        `INSERT INTO outbox (chat_id, turn_id, idx, client_guid, action, created_at) VALUES ($1,$2,$3,$4,$5,$6) ON CONFLICT (client_guid) DO NOTHING RETURNING id`,
         [chatId, turnId, idx, `${guidPrefix}-${idx}`, JSON.stringify(action), at],
       );
+      if (row) this.log.info({ chatId, turnId, outboxId: row.id, type: action.type, text: preview(actionPreview(action)) }, "queued");
     }
   }
 
-  /** Send a chat's pending outbox rows in order. Serialized per chat; safe to call repeatedly. */
-  flush(chatId: number, opts: { turnId?: number; signal?: AbortSignal; onFirstSend?: () => void } = {}): Promise<void> {
+  /** Send a chat's pending outbox rows in order. Serialized per chat; safe to call repeatedly. Never rejects except on cancellation. */
+  flush(chatId: number, opts: { turnId?: number; signal?: AbortSignal; onFirstSend?: () => void } = {}): Promise<FlushResult> {
     const st = this.byChatId.get(chatId) ?? this.state(`chat:${chatId}`);
     this.byChatId.set(chatId, st);
     st.chatId ??= chatId;
     const run = st.flushing.then(() => this.flushNow(chatId, opts));
-    st.flushing = run.catch(() => {});
+    st.flushing = run.then(
+      () => {},
+      () => {},
+    );
     return run.finally(() => this.checkIdle(st));
   }
 
-  private async flushNow(chatId: number, opts: { turnId?: number; signal?: AbortSignal; onFirstSend?: () => void }): Promise<void> {
-    const rows = await q<{ id: number; client_guid: string; action: Action; attempts: number; turn_id: number | null }>(
-      `SELECT id, client_guid, action, attempts, turn_id FROM outbox WHERE chat_id = $1 AND status = 'pending' ORDER BY id`,
+  private async flushNow(chatId: number, opts: { turnId?: number; signal?: AbortSignal; onFirstSend?: () => void }): Promise<FlushResult> {
+    const stats: FlushResult = { bubbles: 0, reactions: 0, failed: 0 };
+    const rows = await q<{ id: number; client_guid: string; action: Action; attempts: number; turn_id: number | null; created_at: Date }>(
+      `SELECT id, client_guid, action, attempts, turn_id, created_at FROM outbox WHERE chat_id = $1 AND status = 'pending' ORDER BY id`,
       [chatId],
     );
-    if (rows.length === 0) return;
+    if (rows.length === 0) return stats;
     const chat = await getChat(chatId);
-    if (!chat) return;
-    const space = this.spaces.get(chatId) ?? (await this.opts.resolveSpace(chat));
+    if (!chat) return stats;
+    let space: Space;
+    try {
+      space = this.spaces.get(chatId) ?? (await this.opts.resolveSpace(chat));
+    } catch (err) {
+      this.log.error({ chatId, pending: rows.length, err: (err as Error).message }, "send failed: couldn't resolve the chat; will retry");
+      await this.scheduleRetry(chatId, rows[0]!.id, rows[0]!.attempts);
+      return stats;
+    }
     this.spaces.set(chatId, space);
     const st = this.byChatId.get(chatId);
     let sentAny = false;
@@ -505,6 +632,13 @@ export class Pipeline {
     const cancelledBeforeSend = (row: { turn_id: number | null }) => opts.signal?.aborted && !sentAny && row.turn_id === opts.turnId;
     for (const row of rows) {
       if (cancelledBeforeSend(row)) throw new Cancelled();
+      // Left behind by a crash or a long outage: a reply this late answers a conversation that moved on.
+      const age = now().getTime() - new Date(row.created_at).getTime();
+      if (age > OUTBOX_STALE_MS) {
+        await q(`UPDATE outbox SET status = 'skipped', last_error = $2 WHERE id = $1 AND status = 'pending'`, [row.id, `stale: not sent within ${Math.round(OUTBOX_STALE_MS / 60_000)} min`]);
+        this.log.warn({ chatId, outboxId: row.id, type: row.action.type, ageMin: Math.round(age / 60_000), text: preview(actionPreview(row.action)) }, "skipped a stale outbox row (too old to send)");
+        continue;
+      }
       const typed = typedText(row.action);
       if (typed !== null) {
         let pause = this.opts.pacing?.(typed, bubbles) ?? 0;
@@ -525,15 +659,41 @@ export class Pipeline {
       // Never let a late typing "start" land after the bubble it was meant to precede.
       if (st?.typingCall) await settleWithin(st.typingCall, TYPING_TIMEOUT_MS);
       let rendered: Awaited<ReturnType<typeof render>>;
+      const sendStart = Date.now();
       try {
         rendered = await render(space, row.action, row.client_guid);
       } catch (err) {
         const attempts = row.attempts + 1;
-        const failed = attempts >= 5;
-        await q(`UPDATE outbox SET attempts = $2, last_error = $3, status = $4 WHERE id = $1`, [row.id, attempts, (err as Error).message, failed ? "failed" : "pending"]);
+        const kind = classifySendError(err);
+        const message = (err as Error).message;
         await recordJobFailure("outbox", row.id, { chatId, action: row.action }, err, chatId);
-        if (!failed) await enqueueJob("outbox.flush", { chatId }, { dueAt: new Date(now().getTime() + 2_000 * 2 ** attempts), singletonKey: `outbox:${chatId}` });
-        return; // keep order: later rows wait for this one
+        stats.failed += 1;
+        if (kind.permanent) {
+          // The provider will never accept this (no permission to send from the line, chat gone,
+          // bad request): mark it failed now instead of retrying, and don't hold the rest of the chat.
+          await q(`UPDATE outbox SET attempts = $2, last_error = $3, status = 'failed' WHERE id = $1`, [row.id, attempts, message.slice(0, 2_000)]);
+          this.log.error({ chatId, outboxId: row.id, type: row.action.type, status: kind.status ?? null, code: kind.code ?? null, err: preview(message, 160) }, "send failed permanently");
+          if (kind.chatWide) {
+            const rest = await q<{ id: number }>(
+              `UPDATE outbox SET status = 'failed', last_error = $3 WHERE chat_id = $1 AND status = 'pending' AND id > $2 RETURNING id`,
+              [chatId, row.id, `not sent: an earlier send to this chat failed permanently (${kind.status ?? "?"}${kind.code ? ` code ${kind.code}` : ""})`],
+            );
+            if (rest.length) this.log.error({ chatId, rows: rest.length, status: kind.status ?? null, code: kind.code ?? null }, "this chat can't be sent to; dropped the rest of its outbox");
+            stats.failed += rest.length;
+            return stats;
+          }
+          continue;
+        }
+        const failed = attempts >= OUTBOX_MAX_ATTEMPTS;
+        await q(`UPDATE outbox SET attempts = $2, last_error = $3, status = $4 WHERE id = $1`, [row.id, attempts, message.slice(0, 2_000), failed ? "failed" : "pending"]);
+        if (failed) {
+          // Out of retries: give up on this one and let the rest of the chat go out.
+          this.log.error({ chatId, outboxId: row.id, type: row.action.type, attempts, err: preview(message, 160) }, "send failed after every retry; giving up on this message");
+          continue;
+        }
+        const retryIn = await this.scheduleRetry(chatId, row.id, attempts);
+        this.log.warn({ chatId, outboxId: row.id, type: row.action.type, attempt: attempts, retryInMs: retryIn, status: kind.status ?? null, err: preview(message, 160) }, "send failed; will retry");
+        return stats; // keep order: later rows wait for this one
       }
       if (!sentAny) {
         sentAny = true;
@@ -543,6 +703,15 @@ export class Pipeline {
       if (st && rendered.renderedAs !== "skipped") {
         st.typingOn = false;
         st.typingSince = undefined;
+      }
+      if (rendered.renderedAs === "skipped") this.log.info({ chatId, outboxId: row.id, type: row.action.type }, "skipped (the line can't show this and it has no text fallback)");
+      else {
+        if (row.action.type === "react") stats.reactions += 1;
+        else stats.bubbles += 1;
+        this.log.info(
+          { chatId, turnId: row.turn_id, outboxId: row.id, type: row.action.type, as: rendered.renderedAs, provider: rendered.providerMessageIds[0] ?? null, ms: Date.now() - sendStart, ...(row.attempts ? { attempt: row.attempts + 1 } : {}) },
+          "sent",
+        );
       }
       // The bubble is out. Bookkeeping failures past this point must never re-send it.
       try {
@@ -559,6 +728,16 @@ export class Pipeline {
         await recordJobFailure("outbox.log", row.id, { chatId, action: row.action }, err, chatId);
       }
     }
+    return stats;
+  }
+
+  /** Queue a retry of a chat's outbox with backoff. One job per row and attempt, so a retry never swallows the next. */
+  private async scheduleRetry(chatId: number, outboxId: number, attempts: number): Promise<number> {
+    const delay = Math.min(60_000, 2_000 * 2 ** Math.max(0, attempts - 1));
+    await enqueueJob("outbox.flush", { chatId }, { dueAt: new Date(now().getTime() + delay), singletonKey: `outbox:${chatId}:${outboxId}:${attempts}` }).catch((err) =>
+      this.log.error({ chatId, outboxId, err: (err as Error).message }, "could not schedule an outbox retry"),
+    );
+    return delay;
   }
 
   /** Show or clear the typing indicator. Never throws, never blocks longer than TYPING_TIMEOUT_MS. */

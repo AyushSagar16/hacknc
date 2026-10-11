@@ -49,12 +49,12 @@ export function normalize(space: Space, message: Message, now: Date): InboundEve
   switch (content.type) {
     case "text":
       if (!sender) return { kind: "ignored", reason: "no sender", platform, eventId: extras.eventId };
-      return { ...base, kind: "text", sender, text: content.text, replyToId: extras.replyTo?.messageId, hasMedia: false };
+      return { ...base, kind: "text", sender, text: straightQuotes(content.text), replyToId: extras.replyTo?.messageId, hasMedia: false };
     case "group": {
       if (!sender) return { kind: "ignored", reason: "no sender", platform, eventId: extras.eventId };
       const texts = content.items.flatMap((item) => (item.content.type === "text" ? [item.content.text] : []));
       const media = content.items.filter((item) => item.content.type === "attachment" || item.content.type === "voice").length;
-      const text = [texts.join("\n"), media ? `(sent ${media === 1 ? "a photo" : `${media} attachments`})` : ""].filter(Boolean).join(" ");
+      const text = [straightQuotes(texts.join("\n")), media ? `(sent ${media === 1 ? "a photo" : `${media} attachments`})` : ""].filter(Boolean).join(" ");
       return { ...base, kind: "text", sender, text, replyToId: extras.replyTo?.messageId, hasMedia: media > 0 };
     }
     case "attachment":
@@ -111,4 +111,12 @@ function guessGroup(space: Space): boolean | undefined {
   if (space.id.includes(";+;")) return true; // local iMessage chat GUIDs
   if (space.id.includes(";-;")) return false;
   return undefined;
+}
+
+/**
+ * iPhones send smart punctuation ("what’s our budget", "let’s move on"). Every command, fast path and
+ * trigger pattern is written with straight quotes, so inbound text is stored with straight ones.
+ */
+export function straightQuotes(text: string): string {
+  return text.replace(/[\u2018\u2019\u02bc]/g, "'").replace(/[\u201c\u201d]/g, '"');
 }

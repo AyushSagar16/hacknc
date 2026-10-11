@@ -9,7 +9,7 @@ schedules are deterministic code.
 | Component | Files | Responsibility |
 |---|---|---|
 | Transport | `src/transport/*` | Spectrum app per `IMESSAGE_MODE`. The custom Linq platform (webhook server, signature check, durable event log, ordered queue, send dispatcher incl. native polls). The simulator platform. Normalized inbound events. The outbound action model with text fallbacks |
-| Pipeline | `src/pipeline/*` | Inbox (dedupe per chat); per-chat debounce (2.5 s quiet window, 1.5 s when Atlas is named, 8 s cap); typing indicator and length-scaled pauses between bubbles; in-flight cancellation and carry-forward; outbox with stable client GUIDs and resume; Postgres job runner on the app clock; `job_failures` |
+| Pipeline | `src/pipeline/*` | Inbox (dedupe per chat); per-chat debounce (2.5 s quiet window, 1.5 s when Atlas is named, 8 s cap); typing indicator and length-scaled pauses between bubbles; in-flight cancellation and carry-forward; a turn that crashes before sending retries its messages once; outbox with stable client GUIDs and resume (permanent provider errors fail fast, transient ones retry with backoff, rows older than 30 min are skipped); Postgres job runner on the app clock; `job_failures`; one log line per lifecycle event |
 | Brain | `src/agent/brain.ts` | One turn in a fixed order (below). Composes feature modules |
 | Features | `src/agent/features/*` | trips, planning, budgets, proposals, money, weather, memory, self-memory, search, presence, research, site: each adds tools, fast paths, commands, hints, situation sections, money-guard figures, jobs and lifecycle hooks |
 | Profile | `src/profile/*` | Fact schema, Gemini extraction (validated; who reported each fact; refusal words for vetoes, numbers for ceilings; "same dates" resolved), deterministic aggregation, group view |
@@ -121,22 +121,31 @@ for each message in the batch:
   commands (no model): stay quiet · talk again · summarize · help · budgets · privacy · set budget · settle up · balances · options
 remaining messages (in a private chat every one counts as addressed: no gate, always answered, and the money guard allows that person's own figures):
   addressed?  @atlas / "hey atlas" / starts with "atlas" (not "atlas seems…") / "…, atlas?" /
-              threaded reply to an Atlas message id / answer to Atlas's open question (≤3 msgs, 15 min, aimed person only)
+              threaded reply to an Atlas message id / answer to Atlas's open question: a "?" in any bubble
+              of Atlas's latest run (≤3 msgs, 15 min, aimed person only; not a message said to a friend),
+              or a question Atlas put to that person by name (atlas_log, 30 min, they haven't spoken since)
   quiet mode and not addressed → stop
-  a trip/money question to the room, an objection or a change of mind → agent, no gate call
+  a trip/money question to the room, an objection, a change of mind, a booking ("i booked one of the
+  hotels") or a push to keep going ("let's move on", "what's next") → agent, no gate call, never capped
   untagged chatter with no trip or money words → stop, no gate call (extraction still reads it)
   otherwise not addressed → speak gate (gemini-3.5-flash-lite, temp 0, 3.5 s timeout, JSON {decision, reason}, deterministic fallback on quota errors)
                   input: last 12 messages, stage, facts, deterministic hints (stuck poll, date conflict,
                   majority shared, installments due, trip over), minutes since Atlas spoke, unprompted count
-  extraction result: a fresh disagreement can trigger one unprompted line (≤12 unprompted/hour)
+  extraction result: a fresh disagreement can trigger one unprompted line
+  unprompted cap: ≤30 chime-ins an hour (gate SPEAK, disagreements, follow-ups); turns where someone
+         needed Atlas (named, answered its question, a room need above) are prompted: never capped or counted
   agent (gemini-3.5-flash-lite, ≤4 tool rounds): stateless situation (trip, resolved profiles with quotes,
          feature sections, allowed figures, recalled memories, last 30 messages, new messages)
   output guards: a promise with no tool call gets one more round; a claim about someone's dates or
          city that nobody gave is cut; an unprompted bubble that restates a recent ask or nudge
-         (atlas_log, pg_trgm > 0.6) is dropped
+         (atlas_log, pg_trgm > 0.6) is dropped, unless it's a board with a changed line; prompted
+         replies are never dropped as restatements
   money guard: every $ figure must match a registered figure the audience may see, or the text is dropped
-nothing to say: a message extraction took a fact from gets a 👍 tapback (latest per person, ≤4 a
-  turn, not in quiet mode, never small talk), so an answer while Atlas waits on the rest is seen
+  someone waiting and nothing survived (empty model, guards): named, a move-on, a booking or a trip-page
+         ask gets a deterministic line ("which place did you book?", or where things stand); a room
+         question the model deliberately passed on (twice) stays passed
+nothing to say: a message extraction took a fact from, or an answer to Atlas's own question, gets a
+  👍 tapback (latest per person, ≤4 a turn, not in quiet mode, never small talk), so it is seen
 outbox → ordered sends with client GUIDs → text fallbacks
 
 follow-up (no new messages): after a human message Atlas didn't answer, a `chat.nudge` job is
@@ -204,9 +213,25 @@ Research and trade-offs: `docs/memory-research.md`.
   model call (ask, nudge, proposal, decision, money, answer), along with who it named and which
   details it asked for. The agent sees "what you already said" with who's still quiet since each
   ask. An unprompted bubble whose `pg_trgm` similarity to an ask or nudge from the last 6 hours
-  is over 0.6 is dropped before it's sent, so Atlas doesn't nag with the same line twice.
+  is over 0.6 is dropped before it's sent, so Atlas doesn't nag with the same line twice (a status
+  board with a changed line is news, and a reply to someone who needed Atlas is never dropped).
 
 ## Reliability rules
+
+- Inbound text is stored with straight quotes (iPhones send "let’s", "what’s"), so every command,
+  fast path and trigger pattern matches.
+- Outbox: a permanent provider error (a 4xx other than 408/425/429, e.g. Linq 403 code 2006 "no
+  permission to send from this phone number") marks the row failed at once; a 403/404 fails the rest
+  of that chat's queue too. Transient errors (network, 429, 5xx) retry with backoff (one job per row
+  and attempt) up to 5 times, then the row is given up and the chat's later rows still go out. Rows
+  pending longer than 30 minutes (a crash, an outage) are skipped, not sent late. Each chat's queue
+  is independent.
+- A turn that crashes before sending anything puts its messages back once; a second crash stops.
+- Logs: one line per event (`LOG_FORMAT=pretty`, the default for `npm run live`; JSON otherwise):
+  `inbound` (chat, msg id, name + last 4 of the handle, 60-char preview), `turn start`, `routed:`
+  (trigger, addressed, gate decision and reason), `tool <name>: ok|error`, `queued`, `sent`
+  (provider id, ms) or `send failed…`, and `turn done:` (bubbles sent, or why it was silent). The
+  `turns` table keeps `trigger`, `prompted` and `silent_why` for the console.
 
 - Every webhook is persisted before the 200. Unprocessed events replay on boot; anything older
   than 5 minutes is extraction-only, never answered.

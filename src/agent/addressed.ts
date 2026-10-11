@@ -7,6 +7,7 @@
 // a question aimed at one person ("maya, ...?") only counts as answered by that person.
 import type { MessageRow } from "../db/repos/core.ts";
 import { isSmallTalk } from "./smallTalk.ts";
+import { aimedAtSomeone } from "./speakGate.ts";
 
 export interface AddressedInput {
   message: Pick<MessageRow, "text" | "person_id" | "reply_to_provider_id" | "sent_at" | "id">;
@@ -55,7 +56,8 @@ export function addressedReason(input: AddressedInput): AddressedReason {
     return isAtlas ? "reply_to_atlas" : null;
   }
 
-  // Answer to an open question from Atlas?
+  // Answer to an open question from Atlas? Not when it's said to a friend ("priya do u have a car").
+  if (aimedAtSomeone(message.text, [...input.namesById.entries()].filter(([id]) => id !== message.person_id).map(([, n]) => n))) return null;
   const idx = history.findIndex((h) => h.id === message.id);
   // Atlas's own tapbacks (a 👍 on someone's answer) don't close its question for everyone else.
   const before = (idx === -1 ? history : history.slice(0, idx)).filter((h) => (h.kind === "text" || h.direction === "outbound") && !(h.direction === "outbound" && h.kind === "reaction"));
@@ -63,14 +65,21 @@ export function addressedReason(input: AddressedInput): AddressedReason {
   for (let i = before.length - 1; i >= 0; i--) {
     const h = before[i]!;
     if (h.direction === "outbound") {
-      if (h.kind !== "text" || !h.text.trim().endsWith("?")) return null;
-      if (message.sent_at.getTime() - h.sent_at.getTime() > OPEN_QUESTION_MS) return null;
-      const aimedAt = aimedAtName(h.text, input.namesById);
-      if (aimedAt !== null && aimedAt !== message.person_id) return null;
-      // A bare "ok"/"lol" to a question for the room answers nothing; only the person asked by name
-      // can answer with a bare ack.
-      if (aimedAt === null && isSmallTalk(message.text)) return null;
-      return "answers_question";
+      // Atlas's latest run of bubbles, newest first: a question in any of them is open, not only in
+      // the last one ("sakshi, where are you driving from?" then a travel board that ends without "?").
+      let j = i;
+      for (; j >= 0 && before[j]!.direction === "outbound"; j--) {
+        const b = before[j]!;
+        if (b.kind !== "text" || !b.text.trim().endsWith("?")) continue;
+        if (message.sent_at.getTime() - b.sent_at.getTime() > OPEN_QUESTION_MS) break;
+        const aimedAt = aimedAtName(b.text, input.namesById);
+        if (aimedAt !== null && aimedAt !== message.person_id) continue;
+        // A bare "ok"/"lol" to a question for the room answers nothing; only the person asked by name
+        // can answer with a bare ack.
+        if (aimedAt === null && isSmallTalk(message.text)) continue;
+        return "answers_question";
+      }
+      return null;
     }
     humanSince += 1;
     if (humanSince >= OPEN_QUESTION_MESSAGES) return null;
@@ -84,9 +93,11 @@ export function addressedReason(input: AddressedInput): AddressedReason {
  */
 export function aimedAtName(text: string, namesById: ReadonlyMap<number, string>): number | null {
   const lastLine = text.trim().split("\n").at(-1) ?? "";
-  const lead = /^\W*([a-z]+)\s*[,:]/i.exec(lastLine)?.[1]?.toLowerCase() ?? /^\W*([a-z]+)\s*[,:]/i.exec(text)?.[1]?.toLowerCase();
+  // "got it. sakshi, where are you driving from?": the question's own sentence can lead with the name.
+  const lastSentence = lastLine.split(/(?<=[.!])\s+/).at(-1) ?? "";
+  const leadOf = (t: string) => /^\W*(?:(?:ok|okay|so|alright|got it|cool|nice)\W+)?([a-z]+)\s*[,:]/i.exec(t)?.[1]?.toLowerCase();
   const trail = /,\s*([a-z]+)\s*\?\s*$/i.exec(lastLine)?.[1]?.toLowerCase();
-  for (const who of [lead, trail]) {
+  for (const who of [leadOf(lastLine), leadOf(lastSentence), leadOf(text), trail]) {
     if (!who) continue;
     for (const [id, name] of namesById) if (name === who) return id;
   }

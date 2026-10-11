@@ -111,20 +111,29 @@ export function gateFallback(s: Pick<GateSituation, "newest" | "memberNames">): 
     if (why) return `${m.label.toLowerCase().split(/\s+/)[0]} ${why}`;
   }
   for (const m of [...s.newest].reverse()) {
-    if (!isSmallTalk(m.text) && !aimedAtSomeone(m.text, s.memberNames ?? []) && TRIP_WORDS.test(m.text)) return `${m.label.toLowerCase().split(/\s+/)[0]} shared trip details: say what it unlocks or who's still missing`;
+    if (!isSmallTalk(m.text) && !aimedAtSomeone(m.text, s.memberNames ?? []) && mentionsTrip(m.text)) return `${m.label.toLowerCase().split(/\s+/)[0]} shared trip details: say what it unlocks or who's still missing`;
   }
   return null;
 }
 
 const TRIP_WORDS =
-  /\b(trip|there|place|spot|go|going|stay|staying|hotel|airbnb|flights?|fly|flying|drive|driving|gas|car|weather|temps?|temperature|cold|warm|rain|snow|forecast|pack|eat|food|restaurants?|vegan|vegetarian|things to do|activities|events?|festivals?|dates?|week|weekend|budgets?|cost|costs|price|prices|pricey|expensive|cheap|cheaper|split|share|shares|pay|paying|paid|owe|owes|money|total|plan|itinerary|book|booking|vote|poll|options?|destination|leave|leaving|free|available|availability|busy|schedule|voted|votes|beach(?:es)?|mountains?|hike|hiking|ski|skiing|lake|camping|cabin|resort|hostel|cruise|road ?trip|airport|passport|tickets?|dinner|lunch|breakfast|brunch|drinks|bar|bars|uber|lyft|taxi|receipt|bill|tip|venmo|zelle|refund|jan(uary)?|feb(ruary)?|mar(ch)?|apr(il)?|june?|july?|aug(ust)?|sept?(ember)?|oct(ober)?|nov(ember)?|dec(ember)?|break)\b|\$\d|\b\d{2,}\b/i;
+  /\b(trips?|there|places?|spots?|go|going|stays?|staying|hotels?|motels?|airbnbs?|vrbo|rentals?|condo|room|rooms|reservations?|reserved|check[- ]?in|check[- ]?out|nights?|flights?|fly|flying|plane|train|drive|driving|road|gas|car|weather|temps?|temperature|cold|warm|rain|snow|forecast|pack|eat|food|restaurants?|vegan|vegetarian|things to do|activities|events?|festivals?|dates?|week|weekend|budgets?|cost|costs|price|prices|pricey|expensive|cheap|cheaper|split|share|shares|pay|paying|paid|owe|owes|money|total|plans?|planning|itinerary|book|books|booked|booking|bookings|vote|poll|options?|destination|leave|leaving|free|available|availability|busy|schedule|voted|votes|beach(?:es)?|mountains?|hike|hiking|ski|skiing|lake|camping|cabin|resort|hostel|cruise|road ?trip|airport|passport|tickets?|dinner|lunch|breakfast|brunch|drinks|bar|bars|uber|lyft|taxi|receipt|bill|tip|venmo|zelle|refund|fund|jan(uary)?|feb(ruary)?|mar(ch)?|apr(il)?|june?|july?|aug(ust)?|sept?(ember)?|oct(ober)?|nov(ember)?|dec(ember)?|break)\b|\$\d|\b\d{2,}\b/i;
 const QUESTION_START = /^\W*(?:(?:ok|okay|so|wait|hmm+|and|but|also|actually|ya|yeah)\W+)*(?:what|what'?s|whats|how|how'?s|where|when|why|which|who|is|are|can|could|should|would|will|do|does|any|anyone|anything)\b/i;
 const OBJECTION = /\b(too (?:expensive|pricey|much|far|long|cold|hot)|can'?t afford|out of (?:my|our) (?:budget|price range)|over (?:my|our) budget|not in my budget|i'?m (?:so )?broke|that'?s a lot for me)\b/i;
+/** "let's move on", "what's next", "ok now what": the group wants the next step. */
+const MOVE_ON = /\b(?:let'?s (?:move on|keep (?:going|moving)|go ahead|do (?:the )?next|get (?:this|it) going|lock (?:it|this) in)|mov(?:e|ing) on\b|what'?s next|whats next|what next|what now|now what|next steps?\b|what do we (?:do|need) (?:next|now)|what(?:'?s| is) left|where are we (?:at|on)|ready for (?:the )?next)/i;
+/** "i booked one of the hotels", "we reserved the cabin", "it's booked": a decision Atlas has to record. */
+const BOOKED = /\b(?:(?:i|we)(?:'ve| have)?\s+(?:just\s+|already\s+|finally\s+|went ahead and\s+)?(?:booked|reserved)|booked (?:it|the|a|one|our)|(?:it'?s|all|we'?re|everything'?s) booked)\b/i;
 const CHANGE_OF_MIND = /\b(instead|switch(?:ing)? to|change (?:it )?to|rather (?:go|do)|what about|how about|can we (?:do|go to|try|switch)|let'?s do)\b/i;
+
+/** iPhones type curly apostrophes ("let’s", "what’s"); every pattern here is written with straight ones. */
+export function plainQuotes(text: string | null | undefined): string {
+  return (text ?? "").replace(/[\u2018\u2019\u02bc\u0060]/g, "'").replace(/[\u201c\u201d]/g, '"');
+}
 
 /** Anything about the trip or money (places, dates, travel, food, costs, the plan). */
 export function mentionsTrip(text: string): boolean {
-  return TRIP_WORDS.test(text ?? "");
+  return TRIP_WORDS.test(plainQuotes(text));
 }
 
 /** "maya do u have a car", "ravi, are you in?", "…right, kim?": a question for one friend, not the room. */
@@ -135,21 +144,42 @@ export function aimedAtSomeone(text: string, memberNames: readonly string[]): bo
   return new RegExp(`^\\W*(?:${alt})\\b(?:\\s*[,:]|\\s+(?:do|did|are|r|can|could|will|would|u|you|have|pls|please|when|what|where))`, "i").test(text) || new RegExp(`[,]\\s*(?:${alt})\\W*$`, "i").test(text.trim());
 }
 
+/** Why a message needs Atlas without asking the gate (the turn's trigger, for logs and routing). */
+export type RoomNeedKind = "trip_page" | "objection" | "change_of_mind" | "booked" | "move_on" | "question";
+
+export interface RoomNeed {
+  kind: RoomNeedKind;
+  /** The reason handed to the agent. */
+  why: string;
+}
+
 /**
  * Messages that must reach the agent without asking the gate: a trip or money question to the room
  * ("how is the split calculated?", "what's the typical high and low temp there tho"), an objection
- * ("that's too expensive for me") or a change of mind ("can we do asheville instead?"). Returns the
- * reason handed to the agent, or null.
+ * ("that's too expensive for me"), a change of mind ("can we do asheville instead?"), a booking
+ * someone made ("i booked one of the hotels") or a push to keep going ("let's move on", "what's next").
  */
-export function roomNeedsAtlas(text: string, memberNames: readonly string[]): string | null {
-  const t = (text ?? "").trim();
+export function roomNeed(text: string, memberNames: readonly string[]): RoomNeed | null {
+  const t = plainQuotes(text).trim();
   if (!t || isSmallTalk(t) || aimedAtSomeone(t, memberNames)) return null;
-  if (asksForTripPage(t, { memberNames })) return `asked for the itinerary / trip page ("${t.slice(0, 60)}"): give them the trip page link from the situation, or say the plan comes once the stay and food are picked`;
-  if (OBJECTION.test(t)) return `objected ("${t.slice(0, 60)}"): acknowledge it and offer the next step (budgets, cheaper options or a different split)`;
-  if (CHANGE_OF_MIND.test(t) && (t.includes("?") || TRIP_WORDS.test(t))) return `wants to change the plan ("${t.slice(0, 60)}"): acknowledge it and turn it into a quick group decision`;
+  const quote = `("${t.slice(0, 60)}")`;
+  if (asksForTripPage(t, { memberNames })) return { kind: "trip_page", why: `asked for the itinerary / trip page ${quote}: give them the trip page link from the situation, or say the plan comes once the stay and food are picked` };
+  if (OBJECTION.test(t)) return { kind: "objection", why: `objected ${quote}: acknowledge it and offer the next step (budgets, cheaper options or a different split)` };
+  if (BOOKED.test(t))
+    return {
+      kind: "booked",
+      why: `booked something ${quote}: move the plan forward. if they didn't say which place, ask which one (then book_stay with its name, or log_expense with is_stay when they give the price); if they did, record it and say what's next`,
+    };
+  if (CHANGE_OF_MIND.test(t) && (t.includes("?") || TRIP_WORDS.test(t))) return { kind: "change_of_mind", why: `wants to change the plan ${quote}: acknowledge it and turn it into a quick group decision` };
+  if (MOVE_ON.test(t)) return { kind: "move_on", why: `wants to move the plan forward ${quote}: take the next step now (the next thing to settle, and do it or ask the one person it waits on)` };
   const question = t.includes("?") || QUESTION_START.test(t);
-  if (question && TRIP_WORDS.test(t)) return `asked the room a trip/money question ("${t.slice(0, 60)}"): answer it in a line or two`;
+  if (question && TRIP_WORDS.test(t)) return { kind: "question", why: `asked the room a trip/money question ${quote}: answer it in a line or two` };
   return null;
+}
+
+/** roomNeed's reason for the agent, or null. */
+export function roomNeedsAtlas(text: string, memberNames: readonly string[]): string | null {
+  return roomNeed(text, memberNames)?.why ?? null;
 }
 
 /**

@@ -81,6 +81,45 @@ export async function restates(chatId: number, text: string, at: Date): Promise<
   return rows[0] ? { text: rows[0].text, similarity: Number(rows[0].similarity) } : undefined;
 }
 
+/** How long a question Atlas put to one person stays answerable by them. */
+export const AWAIT_ANSWER_MS = 30 * 60_000;
+
+/**
+ * A question Atlas put to this person by name ("sakshi, where are you driving from?") in the last
+ * half hour that they haven't spoken since: their message is the answer, even when other people
+ * talked (and Atlas replied to them) in between. Returns the question, or undefined.
+ */
+export async function awaitingAnswer(chatId: number, personId: number, message: { id: number; sent_at: Date }, at: Date): Promise<string | undefined> {
+  const rows = await q<{ text: string }>(
+    `SELECT l.text FROM atlas_log l
+     WHERE l.chat_id = $1 AND l.at > $4 AND l.at <= $5 AND l.kind IN ('ask', 'nudge') AND $2 = ANY(l.targets) AND l.text ~ '\\?\\s*$'
+       AND NOT EXISTS (SELECT 1 FROM messages m WHERE m.chat_id = l.chat_id AND m.direction = 'inbound' AND m.kind = 'text'
+                         AND m.person_id = $2 AND m.id <> $3 AND m.sent_at > l.at AND m.sent_at <= $5)
+     ORDER BY l.at DESC LIMIT 1`,
+    [chatId, personId, message.id, new Date(at.getTime() - AWAIT_ANSWER_MS), message.sent_at],
+  );
+  return rows[0]?.text;
+}
+
+const lineWords = (l: string) => new Set(l.toLowerCase().replace(/[^\p{L}\p{N}$~]+/gu, " ").split(/\s+/).filter(Boolean));
+
+/**
+ * Does a multi-line post (a status board) carry a line the prior one didn't? A line counts as old
+ * when it shares at least 80% of its words with some line of the prior post. A single line is never
+ * "new" here: whether a one-liner restates an ask is the similarity check's call.
+ */
+export function hasNewLine(text: string, prior: string): boolean {
+  const lines = text.split("\n").map(lineWords).filter((w) => w.size > 0);
+  if (lines.length < 2) return false;
+  const seen = prior.split("\n").map(lineWords).filter((w) => w.size > 0);
+  const overlap = (a: Set<string>, b: Set<string>) => {
+    let shared = 0;
+    for (const w of a) if (b.has(w)) shared += 1;
+    return shared / Math.max(a.size, b.size);
+  };
+  return lines.some((l) => !seen.some((p) => overlap(l, p) >= 0.8));
+}
+
 export interface OpenAsk {
   at: Date;
   kind: LogKind;

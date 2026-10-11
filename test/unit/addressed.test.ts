@@ -70,3 +70,18 @@ describe("addressedReason: who an open question is for", () => {
     expect(reason(msg({ person_id: 2, text: "late jan works" }, 1), [q])).toBe("answers_question");
   });
 });
+
+describe("answers to atlas's question in an earlier bubble", () => {
+  it("a question followed by a board with no '?' stays open for the person it named (live chat 73)", () => {
+    const q1 = msg({ direction: "outbound", person_id: null, text: "got it. priya, where are you driving from?" });
+    const board = msg({ direction: "outbound", person_id: null, text: "how everyone gets there 🚗\n- maya: drive from raleigh\n- priya: need to know where you're leaving from" });
+    expect(reason(msg({ person_id: 3, text: "i'm driving from unc chapel hill" }, 1), [q1, board])).toBe("answers_question");
+    // Not for someone else: the question was priya's.
+    expect(reason(msg({ person_id: 2, text: "i'm driving from durham" }, 1), [q1, board])).toBeNull();
+  });
+  it("a message said to a friend doesn't answer atlas's room question", () => {
+    const ask = msg({ direction: "outbound", person_id: null, text: "maya wants asheville instead. leo, priya, switch?" });
+    expect(reason(msg({ person_id: 2, text: "priya do u have a car or are we flying" }, 1), [ask])).toBeNull();
+    expect(reason(msg({ person_id: 2, text: "yeah let's switch" }, 1), [ask])).toBe("answers_question");
+  });
+});

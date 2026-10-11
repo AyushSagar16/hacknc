@@ -1,0 +1,15 @@
+# Real chat (Orlando, chat 73): Atlas asked "sakshi, where are you driving from?", then posted a
+# travel board that ended without a "?". Sakshi's "I'm driving from unc chapel hill" went to the gate
+# (it said SPEAK), the agent wrote the updated board, and the pipeline dropped it as a restatement of
+# the old board (pg_trgm 0.77). An answer to Atlas's own question is a reply, and a board with a
+# changed line is news.
+today 2026-10-11 15:50
+members ayush sakshi
+atlas joins by ayush
+ayush: atlas let's plan a trip to orlando universal, we're both free oct 16-18
+expect atlas speaks
+ayush: we're both driving down. I'm leaving from chapel hill
+expect atlas speaks
+sakshi: I’m driving from unc chapel hill
+expect atlas speaks
+expect sql SELECT trigger FROM turns WHERE route IS NOT NULL AND route <> 'empty' ORDER BY id DESC LIMIT 1 = [{"trigger":"answers_question"}]

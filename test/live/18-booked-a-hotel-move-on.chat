@@ -1,0 +1,13 @@
+# Real chat (Orlando, chat 73): "I booked one of the hotels let's move on" got only a 👍. "hotels"
+# and "booked" weren't trip words (only "hotel" and "book"), so the message read as off-topic chatter
+# and never reached the gate or the agent. Booking something or asking to move on always reaches
+# Atlas, which asks which place (to record it with book_stay) and moves to the next stage.
+today 2026-10-11 15:50
+members ayush sakshi
+atlas joins by ayush
+ayush: atlas we're doing orlando oct 16-18, both driving from chapel hill
+expect atlas speaks
+ayush: I booked one of the hotels let’s move on
+expect atlas speaks
+expect atlas ~ /which|what|name|hotel|place|stay/i
+expect sql SELECT trigger FROM turns WHERE trigger = 'booked' = [{"trigger":"booked"}]

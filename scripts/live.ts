@@ -13,6 +13,8 @@ import { startAtlas } from "../src/app.ts";
 import { rosterName } from "../src/roster.ts";
 import { WEBHOOK_PATH } from "../src/transport/linq/webhook.ts";
 
+// The terminal is the operator's console: one readable line per event (LOG_FORMAT=json for raw pino).
+process.env.LOG_FORMAT ??= "pretty";
 const cfg = loadConfig({ ...process.env, IMESSAGE_MODE: "linq" });
 setConfig(cfg);
 if (!cfg.LINQ_API_KEY) {

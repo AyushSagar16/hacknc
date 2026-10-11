@@ -31,7 +31,8 @@ import { warmMemory } from "./features/memory.ts";
 import { oneSiteLink } from "./links.ts";
 import { describeSituation } from "./situation.ts";
 import { isSmallTalk } from "./smallTalk.ts";
-import { mentionsTrip, RECENT_MESSAGE_COUNT, roomNeedsAtlas, speakGate } from "./speakGate.ts";
+import { aimedAtSomeone, mentionsTrip, RECENT_MESSAGE_COUNT, roomNeed, speakGate, type RoomNeedKind } from "./speakGate.ts";
+import { awaitingAnswer, hasNewLine } from "../memory/atlasLog.ts";
 import { ToolRegistry, say } from "./tools.ts";
 import type { Action } from "../transport/outbound.ts";
 
@@ -41,7 +42,13 @@ export interface BrainDeps {
   features: Feature[];
 }
 
-export const UNPROMPTED_PER_HOUR = 12;
+/**
+ * Chime-ins nobody asked for (the gate's SPEAK, a disagreement, a follow-up when the chat goes quiet)
+ * per chat per hour. Turns where someone needed Atlas (named it, answered its question, asked the room
+ * a trip question, booked something, said "let's move on") are prompted: they're never capped and
+ * never counted. 12 left a busy demo group with a silent Atlas after twenty minutes.
+ */
+export const UNPROMPTED_PER_HOUR = 30;
 /**
  * How long a reply waits for this turn's extraction. Extraction on a struggling model took 24–36 s
  * live, and the reply doesn't need it: the new messages are in the situation verbatim. Past this,
@@ -296,11 +303,26 @@ export function createBrain(deps: BrainDeps): TurnHandler & { settle(): Promise<
       // Everything was handled by commands and fast paths: send that now, and let extraction
       // finish in the background ("keep my budget private" waited 39 s on a slow extract call).
       if (actions.length === 0) await extraction;
-      return { actions, route };
+      const stale = input.batch.some((m) => m.kind === "text" && !m.speakable);
+      return { actions, route, silentWhy: actions.some(visible) ? undefined : stale ? "messages too old to answer (read for facts only)" : "nothing to answer (tapbacks, votes or handled by a fast path)" };
     }
 
     // ---------- should Atlas speak? ----------
     const reasons = new Map(remaining.map((m) => [m.id, reasonFor(m)]));
+    // A question Atlas put to someone by name that they're answering now, even when others talked in between.
+    /** Answers to a question Atlas asked that person by name: these always get at least a 👍. */
+    const askedByName = new Set<number>();
+    if (!dm) {
+      const others = (m: MessageRow) => [...firstNames.entries()].filter(([id]) => id !== m.person_id).map(([, n]) => n);
+      for (const m of remaining) {
+        if (reasons.get(m.id) !== null || m.person_id === null || isSmallTalk(m.text) || aimedAtSomeone(m.text, others(m))) continue;
+        const question = await awaitingAnswer(chat.id, m.person_id, m, now).catch(() => undefined);
+        if (question) {
+          reasons.set(m.id, "answers_question");
+          askedByName.add(m.id);
+        }
+      }
+    }
     const addressedMsgs = remaining.filter((m) => reasons.get(m.id) !== null);
     const explicitlyAddressed = remaining.some((m) => reasons.get(m.id) === "named" || reasons.get(m.id) === "reply_to_atlas");
     const addressed = addressedMsgs.length > 0;
@@ -310,23 +332,31 @@ export function createBrain(deps: BrainDeps): TurnHandler & { settle(): Promise<
       warmMemory(tc);
     }
     const quiet = chat.quiet_mode;
+    const routed = (fields: Record<string, unknown>, msg: string) =>
+      log.info({ msgs: remaining.map((m) => m.id), addressed, reason: addressedMsgs.map((m) => reasons.get(m.id))[0] ?? null, ...fields }, msg);
     const [hintLists, unprompted] = await Promise.all([Promise.all(features.map((f) => (f.hints ? f.hints(tc) : []))), unpromptedLastHour(chat.id, now)]);
     const hints: string[] = hintLists.flat();
 
     let gate: { decision: string; reason: string } | undefined;
     let speak = addressed;
     if (!addressed && quiet) {
+      routed({ trigger: "quiet", speak: false }, "routed: quiet mode, not addressed");
       if (actions.length === 0) await extraction;
-      return { actions, route: route === "silent" ? "quiet" : route, addressed: false };
+      return { actions, route: route === "silent" ? "quiet" : route, addressed: false, trigger: "quiet", silentWhy: "quiet mode is on and nobody tagged atlas" };
     }
     const memberNames = [...firstNames.values()].filter(Boolean);
     // A trip/money question to the room, an objection or a change of mind always gets an answer:
     // no gate call to get wrong (or to fail on a 429).
-    const needsAtlas = addressed ? null : [...remaining].reverse().map((m) => ({ m, why: roomNeedsAtlas(m.text, memberNames) })).find((x) => x.why);
-    if (needsAtlas?.why) {
-      gate = { decision: "SPEAK", reason: `${firstNames.get(needsAtlas.m.person_id ?? -1) ?? "someone"} ${needsAtlas.why}`.slice(0, 200) };
-      speak = unprompted < UNPROMPTED_PER_HOUR;
+    // Someone needing an answer isn't a chime-in: never capped.
+    // (Also for an answer to Atlas's question that asks something itself: "ok what's next".)
+    const needsAtlas = explicitlyAddressed ? undefined : [...remaining].reverse().map((m) => ({ m, need: roomNeed(m.text, memberNames) })).find((x) => x.need);
+    let trigger: string = addressed ? (addressedMsgs.map((m) => reasons.get(m.id)).find((r) => r === "named" || r === "reply_to_atlas") ?? "answers_question") : "none";
+    if (needsAtlas?.need) {
+      gate = { decision: "SPEAK", reason: `${firstNames.get(needsAtlas.m.person_id ?? -1) ?? "someone"} ${needsAtlas.need.why}`.slice(0, 200) };
+      speak = true;
+      trigger = needsAtlas.need.kind;
     }
+    const needKind: RoomNeedKind | undefined = needsAtlas?.need?.kind;
     // Laughter and acks with nothing pending: no gate call (the deterministic triggers below still run).
     const smallTalk = !addressed && hints.length === 0 && remaining.every((m) => isSmallTalk(m.text));
     // Untagged chatter with no trip or money words ("did anyone watch the game") isn't Atlas's to
@@ -352,7 +382,9 @@ export function createBrain(deps: BrainDeps): TurnHandler & { settle(): Promise<
       );
       gate = { decision: verdict.speak ? "SPEAK" : "NO_REPLY", reason: verdict.reason };
       speak = verdict.speak && unprompted < UNPROMPTED_PER_HOUR;
-    }
+      trigger = verdict.failed ? "gate_fallback" : "gate";
+      if (verdict.speak && !speak) log.warn({ unprompted, cap: UNPROMPTED_PER_HOUR }, "gate said SPEAK but the unprompted cap is reached; staying quiet");
+    } else if (!addressed && !needsAtlas) trigger = smallTalk ? "small_talk" : "off_topic";
 
     // Replying: don't hold the first bubble for a slow extraction. Staying quiet: wait, because
     // what extraction finds (a fresh disagreement) can still be a reason to speak.
@@ -366,12 +398,26 @@ export function createBrain(deps: BrainDeps): TurnHandler & { settle(): Promise<
         speak = true;
         hints.push(`people disagree right now: ${extracted.tensions.map((t) => `${t.topic} (${t.sides.map((s) => label(s)).join(" vs ")})`).join("; ")}`);
       }
-      if (speak) gate = { decision: "SPEAK", reason: "deterministic trigger" };
+      if (speak) {
+        gate = { decision: "SPEAK", reason: "deterministic trigger" };
+        trigger = "proactive";
+      }
     }
+    const prompted = addressed || Boolean(needsAtlas);
     if (!speak) {
       if (!quiet) acknowledge(actions, remaining.filter((m) => extracted.factMessageIds.includes(m.id)));
-      return { actions, route: route === "silent" ? "gate_silent" : route, addressed, gate };
+      const silentWhy =
+        trigger === "small_talk"
+          ? "small talk with nothing pending"
+          : trigger === "off_topic"
+            ? "untagged chatter with no trip or money words"
+            : gate?.decision === "SPEAK"
+              ? `unprompted cap reached (${unprompted}/${UNPROMPTED_PER_HOUR} this hour)`
+              : `gate said NO_REPLY: ${gate?.reason ?? "?"}`;
+      routed({ trigger, speak: false, gate: gate?.decision ?? null, gateReason: gate?.reason ?? null }, `routed: silent (${silentWhy.slice(0, 80)})`);
+      return { actions, route: route === "silent" ? "gate_silent" : route, addressed, gate, trigger, silentWhy };
     }
+    routed({ trigger, speak: true, gate: gate?.decision ?? null, gateReason: gate?.reason ?? null, unprompted }, `routed: agent (${trigger})`);
     input.typing?.();
 
     // ---------- the agent ----------
@@ -379,7 +425,7 @@ export function createBrain(deps: BrainDeps): TurnHandler & { settle(): Promise<
     tc.senderId = (addressedMsgs[addressedMsgs.length - 1] ?? lead).person_id;
     tc.sourceMessageId = (addressedMsgs[addressedMsgs.length - 1] ?? lead).id;
     await refreshTrip();
-    const speakingBecause = addressed ? undefined : gate?.reason === "deterministic trigger" ? "something just changed the plan (see heads up)" : gate?.reason;
+    const speakingBecause = explicitlyAddressed ? undefined : gate?.reason === "deterministic trigger" ? "something just changed the plan (see heads up)" : gate?.reason;
     const situation = await describeSituation(tc, { remaining, reasons, hints, tensions: extracted.tensions, features, agentName, speakingBecause });
     const toolStart = actions.length;
     if (!settled) {
@@ -393,6 +439,12 @@ export function createBrain(deps: BrainDeps): TurnHandler & { settle(): Promise<
       };
     }
     const agentRun = () => runAgent({ llm, model: cfg.GEMINI_MODEL_AGENT, situation, tools, ctx: tc, signal: input.signal, agentName, mustAnswer: explicitlyAddressed || Boolean(needsAtlas) });
+    /** Someone is waiting on a reply: a turn that would end with nothing visible says something short instead. */
+    // (An objection or a change of mind left unanswered gets the 👍 instead: it was a statement.)
+    const mustReply = explicitlyAddressed || (needKind !== undefined && FALLBACK_NEEDS.has(needKind));
+    // Answers that always get at least a 👍: to a question asked by name, or carrying trip details.
+    const answered = remaining.filter((m) => reasons.get(m.id) === "answers_question" && (askedByName.has(m.id) || mentionsTrip(m.text)));
+    const dropped: string[] = [];
     let out = await agentRun();
     // A quota or overload error on a reply someone is waiting for: one retry after a short pause,
     // unless a tool already did something this turn.
@@ -404,24 +456,30 @@ export function createBrain(deps: BrainDeps): TurnHandler & { settle(): Promise<
     if (out.failed) {
       if (actions.length === toolStart && (explicitlyAddressed || needsAtlas)) {
         say(tc, out.failed === "no_key" ? "my language brain isn't connected right now (no gemini key) — commands like \"summarize\", \"what's our budget\" and \"settle up\" still work" : "sorry, my brain glitched for a sec — say that again?");
-      } else if (!quiet) acknowledge(actions, await ackable(remaining, settled, extraction));
-      return { actions, route: "agent_failed", addressed, gate };
+      } else if (!quiet) acknowledge(actions, [...(await ackable(remaining, settled, extraction)), ...answered]);
+      return { actions, route: "agent_failed", addressed, gate, trigger, prompted, silentWhy: actions.some(visible) ? undefined : `agent call failed (${out.failed})` };
     }
-    let bubbles = addressed ? out.bubbles : out.bubbles.slice(0, 1);
+    let bubbles = prompted ? out.bubbles : out.bubbles.slice(0, 1);
+    if (out.bubbles.length === 0 && !out.soloPosted && actions.length === toolStart) dropped.push(out.empty ? "agent came back empty" : "agent said NO_REPLY");
     // Never claim someone's dates or home city that nobody has given ("ravi's dates are set too").
     const known = (await tc.view()).members.map((m) => ({ name: firstNames.get(m.personId) ?? "", dates: Boolean(m.profile.earliest || m.profile.latest), city: Boolean(m.profile.homeCity) }));
     const claims = dropUnknownClaims(bubbles.join("\n\n"), known);
     if (claims.dropped.length) {
       log.warn({ dropped: claims.dropped }, "agent stated a person's dates/city nobody gave; cut it");
       bubbles = claims.text ? claims.text.split(/\n\s*\n/) : [];
+      if (bubbles.length === 0) dropped.push("claim guard cut an invented date/city");
     }
     // A tool already posted the question/breakdown: the model's lead-in would only repeat it.
     if (out.soloPosted || (!addressed && actions.length > toolStart)) bubbles = [];
     // Something this turn already asks ("omar, nina wants to make it $54.00… reply yes", the intro's
     // name question): the model's own question would be a second one in the same go.
     if (asking(actions)) bubbles = bubbles.filter((b) => !/\?\s*$/.test(b));
-    // Unprompted, never restate something Atlas just said.
-    if (!explicitlyAddressed) bubbles = bubbles.filter((b) => !repeatsRecent(b, history));
+    // Never restate something Atlas just said, unless someone named Atlas or asked the room for it.
+    if (!explicitlyAddressed && !needsAtlas) {
+      const before = bubbles.length;
+      bubbles = bubbles.filter((b) => !repeatsRecent(b, history));
+      if (before && !bubbles.length) dropped.push("repeated a recent atlas message");
+    }
     const guarded = guardBubbles(bubbles, figures, audienceOf(tc));
     if (guarded.violations.length) {
       log.warn({ violations: guarded.violations }, "money guard dropped the model's text");
@@ -432,34 +490,40 @@ export function createBrain(deps: BrainDeps): TurnHandler & { settle(): Promise<
         now,
       ]);
       bubbles = guarded.bubbles;
-      if (bubbles.length === 0 && actions.length === toolStart && explicitlyAddressed) bubbles = [`i don't want to guess at numbers. ask me "what's our budget" or "who owes who" and i'll pull them exactly`];
+      if (bubbles.length === 0) dropped.push("money guard blocked an unregistered $ figure");
+      if (bubbles.length === 0 && actions.length === toolStart && mustReply) bubbles = [`i don't want to guess at numbers. ask me "what's our budget" or "who owes who" and i'll pull them exactly`];
     }
-    // Named directly and the model still came back empty: a plain next step beats silence.
-    if (out.empty && explicitlyAddressed && actions.length === toolStart) {
-      log.warn({ retried: out.retried }, "agent stayed empty when addressed; sending the deterministic next step");
-      bubbles = [await nextStepLine(tc, features)];
+    // Someone needed an answer and nothing survived (empty model, NO_REPLY, guards): a plain next step beats silence.
+    // A trip question to the room that the model deliberately passed on (twice: it was pushed back
+    // once) may have been for a friend; anything else someone needed gets the fallback.
+    const passed = needKind === "question" && !explicitlyAddressed && out.noReply;
+    if (mustReply && !passed && bubbles.length === 0 && actions.length === toolStart) {
+      log.warn({ retried: out.retried, dropped, trigger }, "nothing to send to someone waiting on atlas; sending the deterministic fallback");
+      bubbles = [needKind === "booked" ? BOOKED_FALLBACK : await nextStepLine(tc, features, { named: explicitlyAddressed })];
     }
     // The model's words go first, then whatever its tools posted.
     const toolPosts = actions.splice(toolStart);
     for (const b of bubbles) actions.push({ type: "say", text: b });
     actions.push(...toolPosts);
-    // Nothing to say (waiting on the rest of the group, say): a 👍 shows the message landed.
-    if (!quiet && !actions.some(visible)) acknowledge(actions, await ackable(remaining, settled, extraction));
-    return { actions, route: "agent", addressed, gate };
+    // Nothing to say (waiting on the rest of the group, say): a 👍 shows the message landed. An
+    // answer to Atlas's own question always gets one.
+    if (!quiet && !actions.some(visible)) acknowledge(actions, [...(await ackable(remaining, settled, extraction)), ...answered]);
+    const toolsUsed = out.toolCalls.map((c) => `${c.name}:${c.ok ? "ok" : "error"}`);
+    return { actions, route: "agent", addressed, gate, trigger, prompted, tools: toolsUsed, silentWhy: actions.some(visible) ? undefined : dropped.join("; ") || "agent had nothing to add" };
   }
 
   /** Nobody said anything new: look at where the plan stands and move it one step, or stay quiet. */
   async function followUp(tc: TurnCtx, why: string, input: TurnInput, log: ReturnType<typeof childLog>): Promise<TurnResult> {
     const { chat, out: actions } = tc;
     const gate = (decision: string) => ({ decision, reason: `follow-up: ${why}`.slice(0, 200) });
-    if (chat.quiet_mode) return { actions, route: "nudge_quiet", addressed: false };
-    if ((await unpromptedLastHour(chat.id, tc.now)) >= UNPROMPTED_PER_HOUR) return { actions, route: "nudge_capped", addressed: false };
+    if (chat.quiet_mode) return { actions, route: "nudge_quiet", addressed: false, trigger: "nudge", silentWhy: "quiet mode is on" };
+    if ((await unpromptedLastHour(chat.id, tc.now)) >= UNPROMPTED_PER_HOUR) return { actions, route: "nudge_capped", addressed: false, trigger: "nudge", silentWhy: `unprompted cap reached (${UNPROMPTED_PER_HOUR}/hour)` };
     const hints = [why];
     for (const f of features) if (f.hints) hints.push(...(await f.hints(tc)));
     const situation = await describeSituation(tc, { remaining: [], reasons: new Map(), hints, tensions: [], features, agentName });
     const toolStart = actions.length;
     const out = await runAgent({ llm, model: cfg.GEMINI_MODEL_AGENT, situation, tools, ctx: tc, signal: input.signal, agentName });
-    if (out.failed) return { actions, route: "nudge_failed", addressed: false, gate: gate("NO_REPLY") };
+    if (out.failed) return { actions, route: "nudge_failed", addressed: false, gate: gate("NO_REPLY"), trigger: "nudge", silentWhy: `agent call failed (${out.failed})` };
     const toolPosts = actions.splice(toolStart);
     // A follow-up that restates an earlier Atlas message is a nag ("sol and ravi, cast your votes…"
     // then "sol and ravi, drop your votes…" two minutes later): drop it.
@@ -469,7 +533,15 @@ export function createBrain(deps: BrainDeps): TurnHandler & { settle(): Promise<
     for (const b of guarded.bubbles) actions.push({ type: "say", text: b });
     actions.push(...toolPosts);
     const spoke = actions.length > toolStart;
-    return { actions, route: spoke ? "nudge" : "nudge_silent", addressed: false, gate: gate(spoke ? "SPEAK" : "NO_REPLY") };
+    return {
+      actions,
+      route: spoke ? "nudge" : "nudge_silent",
+      addressed: false,
+      gate: gate(spoke ? "SPEAK" : "NO_REPLY"),
+      trigger: "nudge",
+      tools: out.toolCalls.map((c) => `${c.name}:${c.ok ? "ok" : "error"}`),
+      silentWhy: spoke ? undefined : "nothing new to add (or it repeated a recent message)",
+    };
   }
 }
 
@@ -523,12 +595,19 @@ async function runCommand(cmd: Command, msg: MessageRow, tc: TurnCtx, features: 
   }
 }
 
+/** Room needs that get a deterministic line when the model leaves them unanswered. */
+const FALLBACK_NEEDS = new Set<RoomNeedKind>(["question", "move_on", "booked", "trip_page"]);
+
+/** "i booked one of the hotels" and the model produced nothing: ask which, so book_stay can record it. */
+export const BOOKED_FALLBACK = "nice 🙌 which place did you book? tell me the name (and what it cost if you paid) and i'll put it on the plan so we can move on";
+
 /** What to say when Atlas was named but the model produced nothing: where things stand and who's next. */
-export async function nextStepLine(tc: TurnCtx, features: Feature[]): Promise<string> {
+export async function nextStepLine(tc: TurnCtx, features: Feature[], opts: { named?: boolean } = {}): Promise<string> {
+  const named = opts.named ?? true;
   const lines: string[] = [];
   for (const f of features) if (f.summary) lines.push(...(await f.summary(tc).catch(() => [] as string[])));
-  if (lines.length === 0) return "i'm here! where are we thinking, and when?";
-  return `i'm here. where things stand:\n${lines.map((l) => `- ${l}`).join("\n")}`;
+  if (lines.length === 0) return named ? "i'm here! where are we thinking, and when?" : "nothing's planned yet: where are we thinking, and when?";
+  return `${named ? "i'm here. where things stand" : "here's where things stand"}:\n${lines.map((l) => `- ${l}`).join("\n")}`;
 }
 
 interface Extracted {
@@ -619,6 +698,8 @@ export function repeatsRecent(text: string, history: Pick<MessageRow, "direction
   if (mine.size < 5) return false;
   const recent = history.filter((h) => h.direction === "outbound" && h.text).slice(-windowSize);
   return recent.some((h) => {
+    // A board with a changed line ("sakshi: drive from chapel hill") is news, not a repeat.
+    if (hasNewLine(text, h.text)) return false;
     const theirs = words(h.text);
     let shared = 0;
     for (const w of mine) if (theirs.has(w)) shared += 1;
@@ -637,7 +718,7 @@ function tripFacts(tc: TurnCtx): string[] {
 
 async function unpromptedLastHour(chatId: number, now: Date): Promise<number> {
   const row = await one<{ n: number }>(
-    `SELECT count(*)::int AS n FROM turns WHERE chat_id = $1 AND route IN ('agent', 'nudge') AND addressed = false AND started_at > $2`,
+    `SELECT count(*)::int AS n FROM turns WHERE chat_id = $1 AND route IN ('agent', 'nudge') AND addressed = false AND NOT coalesce(prompted, false) AND started_at > $2`,
     [chatId, new Date(now.getTime() - 3_600_000)],
   );
   return row?.n ?? 0;
