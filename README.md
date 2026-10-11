@@ -40,6 +40,9 @@ everyone can spend. From there it keeps the plan moving:
 Budgets are private by default. The group only sees the pooled number, and each person can text
 Atlas to see their own.
 
+Atlas works one-on-one too. Text it privately for your own balances, spending, upcoming bills,
+transfers between your checking and savings, or a solo trip planned the same way as a group one.
+
 ## The stack
 
 | Piece | What it does |
@@ -49,7 +52,7 @@ Atlas to see their own.
 | **[Google Gemini](https://ai.google.dev)** | Language only: replies, the speak gate, pulling preferences out of chat, and embeddings for memory |
 | **[Tiger Data](https://www.tigerdata.com)** (Postgres + TimescaleDB, pgvector, pgvectorscale) | Messages, memory, job queue, spending and forecast history |
 | **[Capital One Nessie](https://nessieisreal.com)** | Generated bank accounts behind each person's budget, the trip fund, purchases and settle-up |
-| **[SerpApi](https://serpapi.com)** + web search | Live flight and hotel prices, things to do, food and events |
+| **[SerpApi](https://serpapi.com)**, [Xotelo](https://xotelo.com), Airbnb + web search | Live flight, hotel and rental prices, things to do, food and events |
 | **[Open-Meteo](https://open-meteo.com)** | Forecasts and climate data |
 | **Next.js on Vercel + Supabase** | The trip pages Atlas publishes for each trip |
 

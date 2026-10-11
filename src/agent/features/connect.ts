@@ -334,7 +334,8 @@ export const connectFeature: Feature = {
         );
         if (!claimed) return;
         const name = labelOf(person ?? { display_name: null, handle: null }).toLowerCase().split(/\s+/)[0] ?? "";
-        await svc.post(chatId, `connect${jobId}`, [{ type: "say", text: `${name}'s connected ✓` }]);
+        const text = chat.is_group ? `${name}'s connected ✓` : `you're connected ✓ ask me "what's my balance", "what did i spend this month" or "what bills are coming up"`;
+        await svc.post(chatId, `connect${jobId}`, [{ type: "say", text }]);
       },
 
       // One nudge, about a day after the ask, for whoever neither connected nor gave a budget.

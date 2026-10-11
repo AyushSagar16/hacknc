@@ -1,8 +1,9 @@
 // Destination proposals and decisions. Hard constraints filter the catalog, soft preferences
-// score it, the top candidates get live prices (SerpApi Google Flights/Hotels, cached) with
-// labeled estimates as fallback, and three options go out with per-person cost breakdowns and
-// a poll. Votes arrive as native poll votes, tapbacks on an option bubble, or plain text ("2",
-// "lisbon"); a majority of the group (or everyone voting) decides and locks the trip in.
+// score it, the top candidates get live prices (SerpApi Google Flights/Hotels, or keyless hotel
+// rates via Xotelo; cached) with labeled estimates as fallback, and three options go out with
+// per-person cost breakdowns and a poll. Votes arrive as native poll votes, tapbacks on an
+// option bubble, or plain text ("2", "lisbon"); a majority of the group (or everyone voting)
+// decides and locks the trip in.
 import { config } from "../../config.ts";
 import { now } from "../../clock.ts";
 import { formatUsd } from "../../money/cents.ts";
@@ -35,8 +36,9 @@ const priceCache: PriceCache = {
     return row ? { body: row.body, fetchedAt: row.fetched_at } : undefined;
   },
   async set(key, body, at) {
-    await q(`INSERT INTO price_cache (cache_key, provider, body, fetched_at) VALUES ($1, 'serpapi', $2, $3) ON CONFLICT (cache_key) DO UPDATE SET body = EXCLUDED.body, fetched_at = EXCLUDED.fetched_at`, [
+    await q(`INSERT INTO price_cache (cache_key, provider, body, fetched_at) VALUES ($1, $2, $3, $4) ON CONFLICT (cache_key) DO UPDATE SET body = EXCLUDED.body, fetched_at = EXCLUDED.fetched_at`, [
       key,
+      key.split(":")[0],
       JSON.stringify(body),
       at,
     ]);
@@ -76,9 +78,11 @@ export function setPricingFetch(f: typeof fetch): void {
   pricingFetch = f;
 }
 
-/** SerpApi access as the proposals use it (key, fetch, cache), for other features' live prices. */
+/** Live price access as the proposals use it (SerpApi key, free stay sources, fetch, cache), for other features too. */
 export function pricingDeps(): PriceDeps {
-  return { apiKey: config().SERPAPI_API_KEY, fetch: pricingFetch, cache: priceCache, now };
+  const cfg = config();
+  const freeStays = cfg.FREE_STAY_PRICES ? cfg.FREE_STAY_PRICES === "on" : cfg.IMESSAGE_MODE !== "sim";
+  return { apiKey: cfg.SERPAPI_API_KEY, fetch: pricingFetch, cache: priceCache, now, freeStays };
 }
 
 export interface StoredOption {
@@ -247,13 +251,12 @@ export async function proposeDestinations(tc: TurnCtx, opts: ProposeOpts = {}): 
   }
 
   // Live prices for the top five, then re-check everyone's ceiling against them.
-  const cfg = config();
   if (built.dates) {
     const top = scored.slice(0, 5);
     const priced: Scored[] = [];
     for (const s of top) {
       try {
-        const perPerson = await priceOption(s.dest, group.members, built.dates, group.tier, { apiKey: cfg.SERPAPI_API_KEY, fetch: pricingFetch, cache: priceCache, now });
+        const perPerson = await priceOption(s.dest, group.members, built.dates, group.tier, pricingDeps());
         const over = group.members.some((m) => m.budgetCeilingCents !== undefined && (perPerson.get(m.personId)?.totalCents ?? 0) > m.budgetCeilingCents);
         if (!over || opts.only) priced.push({ ...s, perPerson });
       } catch {

@@ -42,6 +42,8 @@ export interface Tool {
   sideEffects?: boolean;
   /** Its post says everything (a question, a breakdown); the model's own lead-in is dropped. */
   soloPost?: boolean;
+  /** Only offered in a private 1:1 chat ("dm") or only in a group; both when unset. */
+  scope?: "dm" | "group";
   run(args: Record<string, unknown>, ctx: ToolCtx): Promise<ToolResult>;
 }
 
@@ -74,9 +76,15 @@ export class ToolRegistry {
     return [...this.tools.values()].filter((t) => !filter || filter(t)).map((t) => t.decl);
   }
 
+  /** The tools offered in this chat (see Tool.scope). */
+  declsFor(chat: Pick<ChatRow, "is_group">): ToolDecl[] {
+    return this.decls((t) => inScope(t, chat));
+  }
+
   async run(name: string, args: Record<string, unknown>, ctx: ToolCtx): Promise<ToolResult> {
     const tool = this.tools.get(name);
     if (!tool) return { ok: false, error: `unknown tool ${name}` };
+    if (!inScope(tool, ctx.chat)) return { ok: false, error: `${name} only works in ${tool.scope === "dm" ? "a private chat" : "a group chat"}` };
     try {
       if (tool.sideEffects) await ctx.nonCancellable();
       return await tool.run(args ?? {}, ctx);
@@ -86,3 +94,5 @@ export class ToolRegistry {
     }
   }
 }
+
+const inScope = (t: Tool, chat: Pick<ChatRow, "is_group">) => !t.scope || t.scope === (chat.is_group ? "group" : "dm");

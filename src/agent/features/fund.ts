@@ -1,7 +1,8 @@
 // Where to stay and the trip fund.
 //   find_stays: once the place and dates are settled, hotels and whole-home rentals for the dates
-//     (SerpApi google_hotels, vacation_rentals=true; labeled estimates offline), sized for the
-//     group and filtered to what the group can afford, three named options and a poll.
+//     (SerpApi google_hotels, vacation_rentals=true; else Xotelo hotels and Airbnb rentals; labeled
+//     estimates offline), sized for the group and filtered to what the group can afford, three
+//     named options and a poll.
 //   The winner (poll or book_stay) is booked: trips.stay, stage stay decided, "booked ✓", and the
 //     stay goes on the trip fund.
 //   The trip fund: a shared account per trip. Target = the stay + whatever the group puts on it
@@ -79,7 +80,7 @@ async function stayCap(tc: TurnCtx): Promise<number | null> {
 }
 
 function stayFigures(o: StayOption): Figure[] {
-  const source = o.source === "live" ? "live:serpapi" : "estimate:stay";
+  const source = o.source === "live" ? `live:${o.via ?? "serpapi"}` : "estimate:stay";
   return [
     { cents: o.totalCents, label: `${o.name} total`, source, visibility: "public" },
     { cents: o.perPersonCents, label: `${o.name} per person`, source, visibility: "public" },

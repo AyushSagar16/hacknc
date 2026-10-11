@@ -47,6 +47,12 @@ mutes it.
   two weeks and three-year climatology beyond that.
 - **It watches the weather.** When the trip's forecast changes materially, it speaks up with a
   concrete swap ("saturday flipped to rain, want to swap the beach day for the food market tour?").
+- **It works one-on-one too.** Text Atlas privately ("atlas") and it's your own money and your own
+  trip: balances, spending by merchant, upcoming bills and recent transactions from your connected
+  Capital One, "move 200 to savings" between your own checking and savings (a Nessie transfer), your
+  budget in full, and a solo trip planned with the same steps as a group one (options, stay, food,
+  the day-by-day plan). Plain banking questions are answered by code; the rest goes to the agent,
+  which always answers in a private chat. The banking tools don't exist in group chats.
 
 Money and constraints are deterministic code. The models only do language, and every dollar
 figure Atlas shows the group traces to a Nessie call or a labeled estimate.
@@ -99,7 +105,8 @@ judge console is at http://127.0.0.1:8790. Without a Gemini key, deterministic f
 | `GEMINI_API_KEY` | Gemini for the agent, speak gate, extraction and embeddings. Several keys, comma-separated, are load-balanced (see below) |
 | `GEMINI_MODEL_AGENT` / `_GATE` / `_EXTRACT` / `GEMINI_EMBED_MODEL` | Model overrides |
 | `NESSIE_API_KEY`, `NESSIE_BASE_URL` | Capital One Nessie sandbox |
-| `SERPAPI_API_KEY` | Live Google Flights / Hotels prices (optional; otherwise labeled estimates) |
+| `SERPAPI_API_KEY` | Live Google Flights / Hotels prices (optional; without it, hotels come from Xotelo and rentals from Airbnb, else labeled estimates) |
+| `FREE_STAY_PRICES` | `on`/`off`: keyless hotel (Xotelo) and Airbnb prices when SerpApi has no answer. Default on for a real line, off in the simulator |
 | `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`, `SITE_BASE_URL` | Trip pages: where Atlas publishes each trip, and where `web/` is deployed. Leave empty to turn trip pages off |
 | `CONNECT_SECRET`, `PUBLIC_BASE_URL` | Bank connect: `CONNECT_SECRET` signs connect links and the site's callback (same value in `web/.env`); `PUBLIC_BASE_URL` is where the site calls Atlas back (`npm run live` sets it to its tunnel). See [Bank connect](#bank-connect-onboarding) |
 | `NUDGE_IDLE_SECONDS` | How long a group must be quiet after an unanswered message before Atlas follows up (default 150 on a real line, off in the simulator; 0 = off) |
@@ -316,3 +323,9 @@ supabase        the site's Supabase schema
 video           the launch video (Remotion; see video/README.md)
 scripts         sim, e2e, up, live, persona-server, doctor, demo, ops, nessie-probe, migrate, site-seed
 ```
+
+## Data sources
+
+Hotel rates by [Xotelo](https://xotelo.com) (TripAdvisor partner rates); TripAdvisor ids for
+off-catalog places from [Wikidata](https://www.wikidata.org). Weather data by
+[Open-Meteo](https://open-meteo.com), licensed CC BY 4.0.

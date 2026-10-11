@@ -14,8 +14,9 @@ schedules are deterministic code.
 | Features | `src/agent/features/*` | trips, planning, budgets, proposals, money, weather, memory, self-memory, search, presence, research, site: each adds tools, fast paths, commands, hints, situation sections, money-guard figures, jobs and lifecycle hooks |
 | Profile | `src/profile/*` | Fact schema, Gemini extraction (validated; who reported each fact; refusal words for vetoes, numbers for ceilings; "same dates" resolved), deterministic aggregation, group view |
 | Money | `src/money/*`, `src/trips/ledger.ts` | Cents, splits, exact minimum settle-up, budget engine, paycheck cadence and payment plans, trip ledger, trip fund (`src/money/fund.ts`, `src/trips/fund.ts`) |
+| Private chats | `src/agent/features/banking.ts`, `src/money/bank.ts` | One-on-one with Atlas: balances, spending, bills, recent transactions and checking ↔ savings transfers from the person's ledger (no model for plain asks; `check_my_bank` / `move_my_money` tools, offered only in private chats via `Tool.scope`); everything else runs the normal turn as a solo trip |
 | Nessie | `src/nessie/*` | Client (https, audit, last-good cache, circuit breaker), probe-driven capabilities, personas, resumable seeding, ledger replay, budgets |
-| Trips | `src/trips/*` | Catalog (destinations with vibe tags incl. `holiday`, 105 home airports), per-person drive times, constraints (no-fly and max-drive enforced per person), hard filter, scoring with a required vibe, SerpApi pricing with cache and fallback, votes (ties don't lock), itinerary (no repeats, seasonal), booking links, food & activities near the stay (SerpApi google_maps, `trips/nearby.ts`, `features/places.ts`: dietary-aware shortlist, picks onto the itinerary) |
+| Trips | `src/trips/*` | Catalog (destinations with vibe tags incl. `holiday`, 105 home airports), per-person drive times, constraints (no-fly and max-drive enforced per person), hard filter, scoring with a required vibe, SerpApi pricing with cache and fallback (keyless hotel and Airbnb prices in `trips/freeStays.ts`), votes (ties don't lock), itinerary (no repeats, seasonal), booking links, food & activities near the stay (SerpApi google_maps, `trips/nearby.ts`, `features/places.ts`: dietary-aware shortlist, picks onto the itinerary) |
 | Weather | `src/weather/*`, `features/weather.ts` | Open-Meteo forecast and 3-year climatology (`get_weather`), classification, change detection, cadence, cooldown, swaps |
 | Search | `src/search/*`, `features/search.ts` | `web_search`: result pages read in code, Gemini answers from them, every posted item verified against the source; Wikivoyage fallback |
 | Memory | `src/memory/*`, `features/memory.ts` | Embedding writer, hybrid BM25 + diskann recall (RRF) with recency and importance rerank, `atlas_log` of Atlas's own words |
@@ -40,7 +41,8 @@ schedules are deterministic code.
 - **Money:** `budgets` (formula inputs + Nessie ids + visibility), `installments` (legacy Nessie bill ids), `trip_funds` / `fund_items` / `fund_txns` (the trip
   fund: its Nessie customer and account, what it pays for, every contribution, refund and purchase),
   `expenses` (exact cents, idempotency key, Nessie purchase id), `settlements` (Nessie transfer and
-  deposit ids).
+  deposit ids), `bank_transfers` (checking ↔ savings moves from a private chat, one per message,
+  with their Nessie ids; replayed onto offline profiles).
 - **Nessie:** `nessie_links`, `nessie_merchants`, `nessie_cache`, `nessie_calls`.
 - **Tiger Data features:**
   - `memory_chunks`: `vector(768)` with a `diskann` index (HNSW if pgvectorscale is missing)
@@ -80,8 +82,8 @@ schedules are deterministic code.
    group has voted and nobody votes for 30 s, Atlas names who hasn't, once per poll
    (`poll.remind` job); "skip" closes the poll with the votes in. "can we do X instead?" after a lock
    reopens it as a two-option poll. That fires `onTripLocked`: a recurring **weather.check** job and a decision memory. Once dates
-   are set, `find_stays` searches SerpApi google_hotels (hotels and `vacation_rentals=true`), sized
-   for the group and filtered to its budget, and polls three options. The winner is booked
+   are set, `find_stays` searches SerpApi google_hotels (hotels and `vacation_rentals=true`; without
+   an answer, Xotelo hotel rates and Airbnb's search page, `trips/freeStays.ts`), sized for the group and filtered to its budget, and polls three options. The winner is booked
    (`trips.stay`) onto the **trip fund** (a place someone booked themselves, "i booked mountain
    inn, 2 nights at 100", is logged on the tab and becomes `trips.stay` too, so the plan moves on): a Nessie customer "<Trip> Trip Fund" with a checking
    account. Each person's share (by `split_mode`) is planned as contributions on the day after each
@@ -108,11 +110,12 @@ schedules are deterministic code.
 ## Turn order and the speak gate
 
 ```
-intro (once per chat)
+intro (once per chat; a private chat gets its own: banking + solo trips)
 for each message in the batch:
+  private chat only: banking and own-budget answers (no model): balance · spending · bills · transactions · "move 200 to savings" · "what's my budget"
   fast paths (no model): poll votes · tapback votes · confirmations ("yes"/"confirm") · clean expense statements
   commands (no model): stay quiet · talk again · summarize · help · budgets · privacy · set budget · settle up · balances · options
-remaining messages:
+remaining messages (in a private chat every one counts as addressed: no gate, always answered, and the money guard allows that person's own figures):
   addressed?  @atlas / "hey atlas" / starts with "atlas" (not "atlas seems…") / "…, atlas?" /
               threaded reply to an Atlas message id / answer to Atlas's open question (≤3 msgs, 15 min, aimed person only)
   quiet mode and not addressed → stop
@@ -209,7 +212,8 @@ Research and trade-offs: `docs/memory-research.md`.
   and retries never double-log or double-send.
 - Nessie: last-good cache for reads, circuit breaker, offline generated profiles when no key is set,
   and every call audited.
-- SerpApi failures fall back to labeled estimates per cost component. Open-Meteo failures retry
+- SerpApi failures fall back to the keyless stay sources (Xotelo, Airbnb; unofficial, so best-effort)
+  and then to labeled estimates per cost component. Open-Meteo failures retry
   with backoff, and rehearsal overrides skip the network.
 - Gemini failures: the gate fails closed, extraction retries next turn, the agent says it glitched
   only when it was explicitly addressed, and commands and money keep working without a key.

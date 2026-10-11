@@ -9,7 +9,7 @@ import { formatUsd } from "../../money/cents.ts";
 import { one, q } from "../../db/pool.ts";
 import { activeMembers, getChat, labelOf, type MessageRow } from "../../db/repos/core.ts";
 import { enqueueJob } from "../../pipeline/jobs.ts";
-import { budgetRows, effectiveCents, ensureBudgets, markAnnounced, pool, setAdjusted, setVisibility, type BudgetRow } from "../../nessie/budgets.ts";
+import { budgetRows, effectiveCents, ensureBudgets, markAnnounced, pool, refreshBudget, setAdjusted, setVisibility, type BudgetRow } from "../../nessie/budgets.ts";
 import { linkFor, seedPerson } from "../../nessie/seed.ts";
 import { tripFor, type TripRow } from "../../trips/state.ts";
 import { committedTotals } from "../../trips/fund.ts";
@@ -20,6 +20,7 @@ import { nameList } from "./planning.ts";
 import type { Figure } from "../figures.ts";
 import { ToolError, num, say, type Tool } from "../tools.ts";
 import { parseCommand } from "../commands.ts";
+import { isConnected } from "./connect.ts";
 
 const DISCLAIMER = "based on your last few months of spending";
 
@@ -116,6 +117,12 @@ function saidLoadingRecently(tc: TurnCtx): boolean {
 }
 
 async function postBudgets(tc: TurnCtx, opts: { asked?: boolean } = {}): Promise<void> {
+  // A private chat: their own number, in full (there's no group to pool with).
+  const owner = tc.senderId ?? tc.members[0]?.id;
+  if (!tc.chat.is_group && owner !== undefined) {
+    await sayOwnBudget(tc, owner);
+    return;
+  }
   const view = await tc.view();
   const tripStart = tc.trip.start_date ?? view.dates?.start ?? null;
   const { rows, pending: waiting } = await ensureBudgets(tc.trip.id, tc.members.map((m) => m.id), tc.today, tripStart);
@@ -194,13 +201,19 @@ const setMyBudget: Tool = {
   },
 };
 
-async function privateBreakdown(personId: number): Promise<string[] | null> {
-  // The person's most recent group trip with a budget row.
+async function privateBreakdown(personId: number, tripId?: number): Promise<{ lines: string[]; row: BudgetRow } | null> {
+  // This trip's row when given (a solo trip planned in the private chat), else the person's most recent one.
   const row = await one<BudgetRow & { chat_id: number }>(
-    `SELECT b.*, t.chat_id FROM budgets b JOIN trips t ON t.id = b.trip_id WHERE b.person_id = $1 AND b.suggested_cents IS NOT NULL ORDER BY b.updated_at DESC LIMIT 1`,
-    [personId],
+    `SELECT b.*, t.chat_id FROM budgets b JOIN trips t ON t.id = b.trip_id
+      WHERE b.person_id = $1 AND (b.suggested_cents IS NOT NULL OR b.adjusted_cents IS NOT NULL) AND ($2::bigint IS NULL OR b.trip_id = $2)
+      ORDER BY b.updated_at DESC LIMIT 1`,
+    [personId, tripId ?? null],
   );
-  if (!row?.inputs.result) return null;
+  if (!row) return null;
+  if (!row.inputs.result) {
+    // A number they stated (no connected account behind it).
+    return { row, lines: [`your trip budget: ${formatUsd(effectiveCents(row)!)}, the number you gave me. say "set my budget to ___" to change it, or "connect me" to work it out from your spending`] };
+  }
   const r = row.inputs.result;
   const lines = [
     `your trip budget: ${formatUsd(effectiveCents(row)!)}${row.adjusted_cents !== null ? ` (you set it; your spending suggested ${formatUsd(row.suggested_cents!)})` : ""}, ${DISCLAIMER}`,
@@ -209,7 +222,47 @@ async function privateBreakdown(personId: number): Promise<string[] | null> {
       ? `it's private: the group only sees pooled numbers. say "share my budget" if you want them to see yours`
       : `you're sharing it with the group. "keep my budget private" switches it back`,
   ];
-  return lines;
+  return { lines, row };
+}
+
+/**
+ * The person's own budget for a private chat: the solo trip's when it has one, else their latest
+ * (a group trip's), else worked out for the solo trip when they're connected.
+ */
+async function ownBreakdown(tc: TurnCtx, personId: number): Promise<{ lines: string[]; row: BudgetRow } | null> {
+  const found = (await privateBreakdown(personId, tc.trip.id)) ?? (await privateBreakdown(personId));
+  if (found) return found;
+  if (!(await isConnected(personId))) return null;
+  const fresh = await refreshBudget(personId, tc.trip.id, tc.today, tc.trip.start_date ?? null);
+  return fresh ? privateBreakdown(personId, tc.trip.id) : null;
+}
+
+function registerOwn(tc: TurnCtx, personId: number, row: BudgetRow): void {
+  const r = row.inputs.result;
+  const figures: [number | null, string][] = [[effectiveCents(row), "your budget"]];
+  if (r) {
+    figures.push(
+      [r.suggestedCents, "suggested"],
+      [r.monthlyIncomeCents, "income"],
+      [r.monthlyBillsCents, "bills"],
+      [r.monthlyDiscretionaryCents, "spending"],
+      [r.monthlyFreeCents, "free"],
+      [r.liquidBalanceCents, "balance"],
+      [r.capCents, "cap"],
+    );
+  }
+  for (const [cents, label] of figures) if (cents !== null) tc.figures.add({ cents, label, source: "nessie:dm", visibility: "private", ownerId: personId });
+}
+
+/** "what's my budget" in a private chat: the breakdown, or how to get one. */
+async function sayOwnBudget(tc: TurnCtx, personId: number): Promise<void> {
+  const own = await ownBreakdown(tc, personId);
+  if (!own) {
+    say(tc, `i don't have a budget for you yet. say "connect me" to connect your capital one and i'll work it out from your spending, or just tell me a rough number`);
+    return;
+  }
+  registerOwn(tc, personId, own.row);
+  say(tc, own.lines.join("\n"));
 }
 
 export const budgetsFeature: Feature = {
@@ -289,6 +342,7 @@ export const budgetsFeature: Feature = {
       const r = rows.get(m.id);
       const cents = r ? effectiveCents(r) : null;
       if (!r || cents === null) lines.push(`- ${tc.label(m.id)}: no budget yet (account not linked or not computed; show_budgets computes it)`);
+      else if (!tc.chat.is_group) lines.push(`- ${tc.label(m.id)}: ${formatUsd(cents)}${r.adjusted_cents !== null ? " (set by them)" : " (suggested)"} — their own budget for this solo trip; fine to tell them here`);
       else if (r.visibility === "private") lines.push(`- ${tc.label(m.id)}: PRIVATE (the default) — never mention it; pooled figures only`);
       else lines.push(`- ${tc.label(m.id)}: ${formatUsd(cents)}${r.adjusted_cents !== null ? " (set by them)" : " (suggested)"}, shared by them${r.announced_at ? "" : " — not shown to the group yet"}`);
     }
@@ -314,27 +368,8 @@ export const budgetsFeature: Feature = {
       say(tc, vis === "private" ? "done, your budget is private everywhere. groups only see pooled numbers" : "done, your groups can see your budget now");
       return true;
     }
-    if (/\b(my budget|what can i (spend|afford)|budget breakdown)\b/.test(t)) {
-      const lines = await privateBreakdown(msg.person_id);
-      if (!lines) {
-        say(tc, "i don't have a budget for you yet. once you're in a group chat with me and budgets come up, i'll work it out from your connected account");
-        return true;
-      }
-      const row = await one<BudgetRow>(`SELECT * FROM budgets WHERE person_id = $1 AND suggested_cents IS NOT NULL ORDER BY updated_at DESC LIMIT 1`, [msg.person_id]);
-      if (row?.inputs.result) {
-        const r = row.inputs.result;
-        for (const [cents, label] of [
-          [effectiveCents(row)!, "your budget"],
-          [r.suggestedCents, "suggested"],
-          [r.monthlyIncomeCents, "income"],
-          [r.monthlyBillsCents, "bills"],
-          [r.monthlyDiscretionaryCents, "spending"],
-          [r.monthlyFreeCents, "free"],
-          [r.liquidBalanceCents, "balance"],
-          [r.capCents, "cap"],
-        ] as const) tc.figures.add({ cents, label, source: "nessie:dm", visibility: "private", ownerId: msg.person_id });
-      }
-      say(tc, lines.join("\n"));
+    if (/\b(my budget|what can i (spend|afford)|budget breakdown|what'?s our budget)\b/.test(t)) {
+      await sayOwnBudget(tc, msg.person_id);
       return true;
     }
     return false;

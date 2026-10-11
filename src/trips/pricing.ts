@@ -1,8 +1,9 @@
 // Live price layer over SerpApi (google_flights, google_hotels) with a cache and a per-component
-// fallback to catalog estimates. Every dependency is injected; pricing failures never throw.
+// fallback to catalog estimates. Without SerpApi, lodging can come from Xotelo (freeStays.ts). Every dependency is injected; pricing failures never throw.
 import { airportByIata, resolveHome, type Destination, type Tier } from "./catalog.ts";
 import { daysBetween } from "../clock.ts";
 import { estimateCost, withTotal, type CostBreakdown } from "./estimate.ts";
+import { xoteloHotels } from "./freeStays.ts";
 import type { MemberConstraints } from "./filter.ts";
 
 export interface PriceCache {
@@ -19,6 +20,8 @@ export interface PriceDeps {
   maxAgeMs?: number;
   /** Per-request timeout. Default 8 s. */
   timeoutMs?: number;
+  /** Use the keyless stay sources (Xotelo, Airbnb) when SerpApi has no answer. Off unless set. */
+  freeStays?: boolean;
 }
 
 export const SERPAPI_ENDPOINT = "https://serpapi.com/search.json";
@@ -73,38 +76,39 @@ export function hotelSearchParams(destName: string, start: string, end: string):
   };
 }
 
-interface Fetched {
+export interface Fetched {
   body: unknown;
   fetchedAt: Date;
 }
 
-export async function search(params: Params, deps: PriceDeps): Promise<Fetched | undefined> {
-  const key = cacheKey(params);
-  const maxAge = deps.maxAgeMs ?? DEFAULT_MAX_AGE_MS;
+/**
+ * A cached, time-limited fetch: a fresh cache hit wins; otherwise `load` runs (aborted after the
+ * timeout) and whatever it returns is cached. `load` returns undefined for "no answer", which is
+ * never cached; with no `load` this is a cache-only read. Never throws.
+ */
+export async function cachedGet(key: string, load: ((signal: AbortSignal) => Promise<unknown>) | undefined, deps: PriceDeps, maxAgeMs = deps.maxAgeMs ?? DEFAULT_MAX_AGE_MS): Promise<Fetched | undefined> {
   try {
     const hit = await deps.cache.get(key);
-    if (hit && deps.now().getTime() - new Date(hit.fetchedAt).getTime() <= maxAge) {
+    if (hit && deps.now().getTime() - new Date(hit.fetchedAt).getTime() <= maxAgeMs) {
       return { body: hit.body, fetchedAt: new Date(hit.fetchedAt) };
     }
   } catch {
     // A broken cache is a miss.
   }
-  if (!deps.apiKey) return undefined;
+  if (!load) return undefined;
 
   const controller = new AbortController();
   let timer: ReturnType<typeof setTimeout> | undefined;
   const timeout = new Promise<never>((_, reject) => {
     timer = setTimeout(() => {
       controller.abort();
-      reject(new Error("serpapi timeout"));
+      reject(new Error("price search timeout"));
     }, deps.timeoutMs ?? DEFAULT_TIMEOUT_MS);
   });
   timeout.catch(() => undefined);
   try {
-    const res = await Promise.race([deps.fetch(serpApiUrl(params, deps.apiKey), { signal: controller.signal }), timeout]);
-    if (!res.ok) return undefined;
-    const body: unknown = await Promise.race([res.json(), timeout]);
-    if (!body || typeof body !== "object" || "error" in body) return undefined;
+    const body = await Promise.race([load(controller.signal), timeout]);
+    if (body === undefined || body === null) return undefined;
     const fetchedAt = deps.now();
     try {
       await deps.cache.set(key, body, fetchedAt);
@@ -117,6 +121,20 @@ export async function search(params: Params, deps: PriceDeps): Promise<Fetched |
   } finally {
     clearTimeout(timer);
   }
+}
+
+/** One SerpApi search, cached. With no API key only the cache answers. */
+export async function search(params: Params, deps: PriceDeps): Promise<Fetched | undefined> {
+  const apiKey = deps.apiKey;
+  const load = apiKey
+    ? async (signal: AbortSignal) => {
+        const res = await deps.fetch(serpApiUrl(params, apiKey), { signal });
+        if (!res.ok) return undefined;
+        const body: unknown = await res.json();
+        return body && typeof body === "object" && !("error" in body) ? body : undefined;
+      }
+    : undefined;
+  return cachedGet(cacheKey(params), load, deps);
 }
 
 function positive(n: unknown): n is number {
@@ -164,8 +182,13 @@ export function lodgingPerPersonUsd(body: unknown, tier: Tier, nights: number): 
     if (positive(total)) totals.push(total);
     else if (positive(nightly) && nights > 0) totals.push(nightly * nights);
   }
+  return lodgingFromRoomTotals(totals, tier);
+}
+
+/** Per-person lodging from room totals (each a room for ADULTS_PER_ROOM, all nights). */
+export function lodgingFromRoomTotals(roomTotals: number[], tier: Tier): number | undefined {
+  const totals = roomTotals.filter(positive).sort((a, b) => a - b);
   if (totals.length === 0) return undefined;
-  totals.sort((a, b) => a - b);
   const pool = tier === "budget" ? totals.slice(0, CHEAPEST_HOTELS) : totals;
   return median(pool) / ADULTS_PER_ROOM;
 }
@@ -223,8 +246,15 @@ export async function priceOption(
       for (const id of ids) farePerPerson.set(id, { cents, checkedAt: result!.fetchedAt.toISOString() });
     });
 
-    const lodgingUsd = hotel ? lodgingPerPersonUsd(hotel.body, tier, nights) : undefined;
-    const lodging = lodgingUsd === undefined ? undefined : { cents: Math.round(lodgingUsd * 100), checkedAt: hotel!.fetchedAt.toISOString() };
+    let lodging: { cents: number; checkedAt: string; detail: string } | undefined;
+    const serpLodging = hotel ? lodgingPerPersonUsd(hotel.body, tier, nights) : undefined;
+    if (serpLodging !== undefined) lodging = { cents: Math.round(serpLodging * 100), checkedAt: hotel!.fetchedAt.toISOString(), detail: "google hotels via serpapi" };
+    else if (deps.freeStays) {
+      // No SerpApi answer: TripAdvisor's partner rates via Xotelo (a room for 2, like google_hotels).
+      const free = await xoteloHotels(dest, dates, nights, deps);
+      const usd = free ? lodgingFromRoomTotals(free.hotels.map((h) => h.roomTotalUsd), tier) : undefined;
+      if (usd !== undefined) lodging = { cents: Math.round(usd * 100), checkedAt: free!.fetchedAt.toISOString(), detail: "tripadvisor hotel rates via xotelo" };
+    }
 
     const out = new Map<number, CostBreakdown>();
     for (const m of members) {
@@ -237,7 +267,7 @@ export async function priceOption(
       }
       if (lodging) {
         next.lodgingCents = lodging.cents;
-        next.sources.lodging = { kind: "live", detail: "google hotels via serpapi", checkedAt: lodging.checkedAt };
+        next.sources.lodging = { kind: "live", detail: lodging.detail, checkedAt: lodging.checkedAt };
       }
       out.set(m.personId, withTotal(next));
     }
