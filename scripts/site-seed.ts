@@ -42,6 +42,32 @@ const egypt: SiteTrip = {
       { label: "flights from RDU", url: "https://www.google.com/travel/flights?q=Flights%20from%20RDU%20to%20CAI%20on%202027-03-03%20through%202027-03-10" },
       { label: "stays", url: "https://www.google.com/travel/hotels/Cairo?q=Cairo&dates=2027-03-03,2027-03-10" },
     ],
+    stages: [
+      { key: "location", label: "Location", status: "decided", detail: "Cairo & Luxor" },
+      { key: "dates", label: "Dates", status: "decided", detail: "Mar 3–10" },
+      { key: "travel", label: "Travel", status: "decided", detail: "all 4 fly from RDU" },
+      { key: "stay", label: "Stay", status: "decided", detail: "Nile Garden Suites" },
+      { key: "food_activities", label: "Food & activities", status: "in_progress" },
+    ],
+    fund: {
+      accountLabel: "Capital One · Egypt Trip Fund",
+      targetCents: 160_000,
+      collectedCents: 112_000,
+      deadline: "2027-02-17",
+      members: [
+        { name: "Maya", shareCents: 40_000, contributedCents: 40_000, nextCents: null, nextDate: null },
+        { name: "Leo", shareCents: 40_000, contributedCents: 30_000, nextCents: 10_000, nextDate: "2027-01-15" },
+        { name: "Priya", shareCents: 40_000, contributedCents: 24_000, nextCents: 8_000, nextDate: "2027-01-08" },
+        { name: "Sam", shareCents: 40_000, contributedCents: 18_000, nextCents: 11_000, nextDate: "2027-01-15" },
+      ],
+      transactions: [
+        { at: "2026-12-31T17:00:00Z", kind: "contribution", label: "Leo", amountCents: 10_000 },
+        { at: "2026-12-24T17:00:00Z", kind: "contribution", label: "Priya", amountCents: 8_000 },
+        { at: "2026-12-20T15:30:00Z", kind: "purchase", label: "Nile Garden Suites deposit", amountCents: 48_000 },
+        { at: "2026-12-18T17:00:00Z", kind: "contribution", label: "Sam", amountCents: 9_000 },
+        { at: "2026-12-15T17:00:00Z", kind: "contribution", label: "Maya", amountCents: 40_000 },
+      ],
+    },
   },
   itinerary: [
     { date: "2027-03-03", title: "Arrive", items: [{ name: "Dinner by the Nile in Zamalek", setting: "either", time: "8pm", notes: "Easy first night; the area is close to most hotels." }] },
@@ -88,7 +114,18 @@ const japan: SiteTrip = {
   status: "planning",
   travelers: egypt.travelers,
   timezone: egypt.timezone,
-  overview: { stage: "Still gathering everyone's dates and home cities.", options: [], booking: [] },
+  overview: {
+    stage: "Still gathering everyone's dates and home cities.",
+    options: [],
+    booking: [],
+    stages: [
+      { key: "location", label: "Location", status: "in_progress" },
+      { key: "dates", label: "Dates", status: "open" },
+      { key: "travel", label: "Travel", status: "open" },
+      { key: "stay", label: "Stay", status: "open" },
+      { key: "food_activities", label: "Food & activities", status: "open" },
+    ],
+  },
   itinerary: [],
   version: 1,
 };

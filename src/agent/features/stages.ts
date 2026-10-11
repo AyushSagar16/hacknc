@@ -146,7 +146,7 @@ const NEXT_GUIDANCE: Record<Stage, string> = {
   dates: "call find_dates to work out when everyone's free (it asks whoever hasn't said and posts the best dates or a poll); set_trip_dates once the group agrees on dates in words.",
   travel: "where and when are settled: call plan_travel to post how everyone gets there (drive or fly, gas or fare, carpools).",
   stay: "where to stay isn't booked yet: call find_stays to post three places that fit the group and its budget, with a poll (the winner is booked on the trip fund).",
-  food_activities: "food and things to do aren't picked yet; suggest a few that fit what people like.",
+  food_activities: "food and things to do aren't picked yet: suggest_places posts a shortlist near the stay that fits what people like and eat.",
 };
 
 export function stageLines(map: StageMap, trip: { destination_name: string | null; start_date: string | null; end_date: string | null }): string[] {
