@@ -2,6 +2,11 @@ import { describe, expect, it } from "vitest";
 import { parseCommand } from "../../src/agent/commands.ts";
 
 describe("parseCommand", () => {
+  it("onboard needs the whole message, and Atlas addressed", () => {
+    expect(parseCommand("atlas onboard", { addressed: false })).toBeNull();
+    for (const t of ["we should onboard sam to the trip", "atlas can you onboard sam", "onboarding is annoying"]) expect(parseCommand(t, { addressed: true })?.kind).not.toBe("onboard");
+  });
+
   it.each([
     ["atlas stay quiet", true, "quiet"],
     ["atlas shh", true, "quiet"],
@@ -18,6 +23,12 @@ describe("parseCommand", () => {
     ["let's settle up", false, "settle_up"],
     ["atlas who owes who", true, "balances"],
     ["atlas give us some options", true, "propose"],
+    ["atlas onboard", true, "onboard"],
+    ["Atlas ONBOARD!", true, "onboard"],
+    ["@atlas onboard", true, "onboard"],
+    ["Atlas, onboard", true, "onboard"],
+    ["hey atlas re-onboard", true, "onboard"],
+    ["atlas onboard us again", true, "onboard"],
   ])("%s → %s", (text, addressed, kind) => {
     expect(parseCommand(text, { addressed })?.kind).toBe(kind);
   });

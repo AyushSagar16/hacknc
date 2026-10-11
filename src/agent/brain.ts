@@ -18,6 +18,7 @@ import type { TurnHandler, TurnInput, TurnResult } from "../pipeline/pipeline.ts
 import { advanceTripStatus, tripFor } from "../trips/state.ts";
 import { addressedReason, type AddressedReason } from "./addressed.ts";
 import { dropUnknownClaims, guardBubbles, runAgent } from "./agent.ts";
+import { wipeChat } from "../db/wipe.ts";
 import { parseCommand, type Command } from "./commands.ts";
 import type { Feature, TurnCtx } from "./feature.ts";
 import { Figures } from "./figures.ts";
@@ -173,6 +174,12 @@ export function createBrain(deps: BrainDeps): TurnHandler & { settle(): Promise<
     for (const figs of await Promise.all(features.map((f) => (f.figures ? f.figures(tc) : [])))) figures.addAll(figs);
 
     // ---------- intro ----------
+    const groupIntro = async (forTrip: typeof trip) => {
+      chat.intro_sent_at = now;
+      const ask = await nextAsk(chat, members, forTrip, { intro: true });
+      say(tc, ...introLines(agentName, { ask: ask?.text }));
+      if (ask) await recordAsked(chat.id, ask, now);
+    };
     const actions = tc.out;
     let route = "silent";
     const dm = !chat.is_group;
@@ -185,10 +192,7 @@ export function createBrain(deps: BrainDeps): TurnHandler & { settle(): Promise<
       for (const m of input.batch) if (m.kind === "text" && isBareGreeting(m.text, agentName)) tc.consumed.add(m.id);
       route = "intro";
     } else if (!dm && !chat.intro_sent_at && (await markIntroSent(chat.id, now))) {
-      chat.intro_sent_at = now;
-      const ask = await nextAsk(chat, members, trip, { intro: true });
-      say(tc, ...introLines(agentName, { ask: ask?.text }));
-      if (ask) await recordAsked(chat.id, ask, now);
+      await groupIntro(trip);
       route = "intro";
     }
 
@@ -257,6 +261,21 @@ export function createBrain(deps: BrainDeps): TurnHandler & { settle(): Promise<
       if (msg.kind !== "text") continue;
       const reason = reasonFor(msg);
       const cmd = parseCommand(msg.text, { addressed: reason !== null });
+      if (cmd?.kind === "onboard" && msg.speakable) {
+        // Full reset of this chat, then the intro again from scratch: no model, gate or fast paths.
+        if (dm) say(tc, `"${agentName.toLowerCase()} onboard" works in group chats: it wipes the group's trip and memory and starts over`);
+        else {
+          await extraction; // an extraction still reading old messages must not write facts after the wipe
+          await wipeChat(chat.id, { keepTurnId: input.turnId });
+          chat.quiet_mode = false;
+          tc.trip = await tripFor(chat.id);
+          say(tc, "fresh start 🧹 i wiped this chat's trip and what i'd learned");
+          if (await markIntroSent(chat.id, now)) await groupIntro(tc.trip);
+        }
+        tc.consumed.add(msg.id);
+        route = "onboard";
+        continue;
+      }
       if (cmd && msg.speakable) {
         await runCommand(cmd, msg, tc, features, agentName);
         tc.consumed.add(msg.id);

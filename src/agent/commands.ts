@@ -8,6 +8,7 @@ export type Command =
   | { kind: "unquiet" }
   | { kind: "summarize" }
   | { kind: "help" }
+  | { kind: "onboard" }
   | { kind: "budget_query" }
   | { kind: "budget_private" }
   | { kind: "budget_public" }
@@ -20,6 +21,9 @@ export type Command =
 const QUIET = /\b(stay quiet|be quiet|go quiet|quiet mode|shh+|hush|mute|stop talking|pipe down|chill out|stop (?:chiming|jumping) in|less chatty)\b/i;
 const UNQUIET = /\b(you can talk again|talk again|unmute|speak up|you can chime in|chime in again|come back|un-?quiet|you can (?:speak|jump in) again)\b/i;
 const SUMMARY = /\b(summari[sz]e|summary|recap|where are we|catch me up|tl;?dr|what('?s| is| did we) (?:the plan|decided?)|status)\b/i;
+// "atlas onboard", "@atlas, re-onboard!", "atlas onboard us again": a full reset of this chat. Anchored on
+// purpose (the whole message), so talk about onboarding someone never wipes anything.
+const ONBOARD = /^\W*(?:(?:hey|hi|yo)\W+)?(?:@?[\w.]+\W+)?re-?onboard(?:ing)?(?:\s+(?:us|this chat|the chat|again))*\W*$|^\W*(?:(?:hey|hi|yo)\W+)?(?:@?[\w.]+\W+)?onboard(?:\s+(?:us|me|this chat|the chat|again))*\W*$/i;
 const HELP = /^\W*(?:\w+\W+)?(?:help|commands)\W*$|\b(what can you do|how do(?:es)? (?:this|you) work)\b/i;
 const BUDGET_QUERY = /\b(what('?s| is| are) (?:our|the|everyone'?s?) budgets?|how much (?:can|should) we (?:spend|afford)|what can we afford|budget check)\b/i;
 const BUDGET_PRIVATE = /\b(keep|make) my budget private\b|\bdon'?t (?:share|show) my budget\b|\bmy budget(?: is|'s)? private\b/i;
@@ -51,6 +55,7 @@ export function parseCommand(text: string, ctx: { addressed: boolean }): Command
   if (SPLIT_BY_COST.test(t)) return { kind: "split_mode", mode: "by_cost" };
   if (SPLIT_EVEN.test(t)) return { kind: "split_mode", mode: "even" };
   if (!ctx.addressed) return null;
+  if (ONBOARD.test(t)) return { kind: "onboard" };
   if (UNQUIET.test(t)) return { kind: "unquiet" };
   if (QUIET.test(t)) return { kind: "quiet" };
   if (BALANCES.test(t)) return { kind: "balances" };
