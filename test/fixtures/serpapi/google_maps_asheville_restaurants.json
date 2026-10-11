@@ -1,0 +1,361 @@
+{
+  "search_metadata": {
+    "id": "fixture-maps-asheville-restaurants",
+    "status": "Success",
+    "created_at": "2026-10-10 14:00:02 UTC",
+    "processed_at": "2026-10-10 14:00:02 UTC",
+    "total_time_taken": 1.84
+  },
+  "search_parameters": {
+    "engine": "google_maps",
+    "type": "search",
+    "q": "vegetarian friendly restaurants",
+    "ll": "@35.5935,-82.5536,14z",
+    "google_domain": "google.com",
+    "hl": "en",
+    "gl": "us"
+  },
+  "search_information": {
+    "local_results_state": "Results for exact spelling",
+    "query_displayed": "vegetarian friendly restaurants"
+  },
+  "local_results": [
+    {
+      "position": 1,
+      "title": "Laughing Seed Café",
+      "place_id": "ChIJfixturelaughingseed",
+      "data_id": "0x8859f3fixture:0xlaughingseed",
+      "data_cid": "1000000000",
+      "gps_coordinates": {
+        "latitude": 35.5947,
+        "longitude": -82.5546
+      },
+      "rating": 4.5,
+      "reviews": 2143,
+      "price": "$$",
+      "type": "Vegetarian restaurant",
+      "types": [
+        "Vegetarian restaurant",
+        "Vegan restaurant"
+      ],
+      "type_id": "vegetarian_restaurant",
+      "address": "40 Wall St, Asheville, NC 28801",
+      "open_state": "Open ⋅ Closes 10 PM",
+      "hours": "Open ⋅ Closes 10 PM",
+      "phone": "(828) 555-0110",
+      "website": "https://example.com/laughingseed",
+      "description": "Vegetarian fare with global influences.",
+      "service_options": {
+        "dine_in": true,
+        "takeout": true,
+        "delivery": false
+      },
+      "thumbnail": "https://lh5.googleusercontent.com/p/fixture-laughingseed=w80-h106-k-no"
+    },
+    {
+      "position": 2,
+      "title": "Rosetta's Kitchen",
+      "place_id": "ChIJfixturerosettas",
+      "data_id": "0x8859f3fixture:0xrosettas",
+      "data_cid": "1000000001",
+      "gps_coordinates": {
+        "latitude": 35.5966,
+        "longitude": -82.5521
+      },
+      "rating": 4.6,
+      "reviews": 1587,
+      "price": "$10–20",
+      "type": "Vegetarian restaurant",
+      "types": [
+        "Vegetarian restaurant",
+        "Southern restaurant (US)"
+      ],
+      "type_id": "vegetarian_restaurant",
+      "address": "68 N Lexington Ave, Asheville, NC 28801",
+      "open_state": "Open ⋅ Closes 10 PM",
+      "hours": "Open ⋅ Closes 10 PM",
+      "phone": "(828) 555-0111",
+      "website": "https://example.com/rosettas",
+      "service_options": {
+        "dine_in": true,
+        "takeout": true,
+        "delivery": false
+      },
+      "thumbnail": "https://lh5.googleusercontent.com/p/fixture-rosettas=w80-h106-k-no"
+    },
+    {
+      "position": 3,
+      "title": "Buxton Hall Barbecue",
+      "place_id": "ChIJfixturebuxton",
+      "data_id": "0x8859f3fixture:0xbuxton",
+      "data_cid": "1000000002",
+      "gps_coordinates": {
+        "latitude": 35.5888,
+        "longitude": -82.5577
+      },
+      "rating": 4.4,
+      "reviews": 3120,
+      "price": "$$",
+      "type": "Barbecue restaurant",
+      "types": [
+        "Barbecue restaurant"
+      ],
+      "type_id": "barbecue_restaurant",
+      "address": "32 Banks Ave, Asheville, NC 28801",
+      "open_state": "Open ⋅ Closes 10 PM",
+      "hours": "Open ⋅ Closes 10 PM",
+      "phone": "(828) 555-0112",
+      "website": "https://example.com/buxton",
+      "service_options": {
+        "dine_in": true,
+        "takeout": true,
+        "delivery": false
+      },
+      "thumbnail": "https://lh5.googleusercontent.com/p/fixture-buxton=w80-h106-k-no"
+    },
+    {
+      "position": 4,
+      "title": "Chai Pani",
+      "place_id": "ChIJfixturechaipani",
+      "data_id": "0x8859f3fixture:0xchaipani",
+      "data_cid": "1000000003",
+      "gps_coordinates": {
+        "latitude": 35.5958,
+        "longitude": -82.5555
+      },
+      "rating": 4.7,
+      "reviews": 4876,
+      "price": "$10–20",
+      "type": "Indian restaurant",
+      "types": [
+        "Indian restaurant",
+        "Vegetarian restaurant"
+      ],
+      "type_id": "indian_restaurant",
+      "address": "22 Battery Park Ave, Asheville, NC 28801",
+      "open_state": "Open ⋅ Closes 10 PM",
+      "hours": "Open ⋅ Closes 10 PM",
+      "phone": "(828) 555-0113",
+      "website": "https://example.com/chaipani",
+      "description": "Indian street food, lots of vegetarian plates.",
+      "service_options": {
+        "dine_in": true,
+        "takeout": true,
+        "delivery": false
+      },
+      "thumbnail": "https://lh5.googleusercontent.com/p/fixture-chaipani=w80-h106-k-no"
+    },
+    {
+      "position": 5,
+      "title": "Tupelo Honey Southern Kitchen & Bar",
+      "place_id": "ChIJfixturetupelo",
+      "data_id": "0x8859f3fixture:0xtupelo",
+      "data_cid": "1000000004",
+      "gps_coordinates": {
+        "latitude": 35.5952,
+        "longitude": -82.5508
+      },
+      "rating": 4.5,
+      "reviews": 6209,
+      "price": "$$",
+      "type": "Southern restaurant (US)",
+      "types": [
+        "Southern restaurant (US)"
+      ],
+      "type_id": "southern_restaurant_us_",
+      "address": "12 College St, Asheville, NC 28801",
+      "open_state": "Open ⋅ Closes 10 PM",
+      "hours": "Open ⋅ Closes 10 PM",
+      "phone": "(828) 555-0114",
+      "website": "https://example.com/tupelo",
+      "service_options": {
+        "dine_in": true,
+        "takeout": true,
+        "delivery": false
+      },
+      "thumbnail": "https://lh5.googleusercontent.com/p/fixture-tupelo=w80-h106-k-no"
+    },
+    {
+      "position": 6,
+      "title": "Cúrate Bar de Tapas",
+      "place_id": "ChIJfixturecurate",
+      "data_id": "0x8859f3fixture:0xcurate",
+      "data_cid": "1000000005",
+      "gps_coordinates": {
+        "latitude": 35.5942,
+        "longitude": -82.551
+      },
+      "rating": 4.7,
+      "reviews": 3311,
+      "price": "$$$",
+      "type": "Tapas restaurant",
+      "types": [
+        "Tapas restaurant",
+        "Spanish restaurant"
+      ],
+      "type_id": "tapas_restaurant",
+      "address": "13 Biltmore Ave, Asheville, NC 28801",
+      "open_state": "Open ⋅ Closes 10 PM",
+      "hours": "Open ⋅ Closes 10 PM",
+      "phone": "(828) 555-0115",
+      "website": "https://example.com/curate",
+      "service_options": {
+        "dine_in": true,
+        "takeout": false,
+        "delivery": false
+      },
+      "thumbnail": "https://lh5.googleusercontent.com/p/fixture-curate=w80-h106-k-no"
+    },
+    {
+      "position": 7,
+      "title": "Ruth's Chris Steak House",
+      "place_id": "ChIJfixtureruths",
+      "data_id": "0x8859f3fixture:0xruths",
+      "data_cid": "1000000006",
+      "gps_coordinates": {
+        "latitude": 35.5902,
+        "longitude": -82.5561
+      },
+      "rating": 4.4,
+      "reviews": 912,
+      "price": "$50–100",
+      "type": "Steak house",
+      "types": [
+        "Steak house"
+      ],
+      "type_id": "steak_house",
+      "address": "26 Ashe St, Asheville, NC 28801",
+      "open_state": "Open ⋅ Closes 10 PM",
+      "hours": "Open ⋅ Closes 10 PM",
+      "phone": "(828) 555-0116",
+      "website": "https://example.com/ruths",
+      "service_options": {
+        "dine_in": true,
+        "takeout": true,
+        "delivery": false
+      },
+      "thumbnail": "https://lh5.googleusercontent.com/p/fixture-ruths=w80-h106-k-no"
+    },
+    {
+      "position": 8,
+      "title": "Plant",
+      "place_id": "ChIJfixtureplant",
+      "data_id": "0x8859f3fixture:0xplant",
+      "data_cid": "1000000007",
+      "gps_coordinates": {
+        "latitude": 35.6064,
+        "longitude": -82.5496
+      },
+      "rating": 4.8,
+      "reviews": 1210,
+      "price": "$30–50",
+      "type": "Vegan restaurant",
+      "types": [
+        "Vegan restaurant",
+        "Vegetarian restaurant"
+      ],
+      "type_id": "vegan_restaurant",
+      "address": "165 Merrimon Ave, Asheville, NC 28801",
+      "open_state": "Open ⋅ Closes 10 PM",
+      "hours": "Open ⋅ Closes 10 PM",
+      "phone": "(828) 555-0117",
+      "website": "https://example.com/plant",
+      "service_options": {
+        "dine_in": true,
+        "takeout": true,
+        "delivery": false
+      },
+      "thumbnail": "https://lh5.googleusercontent.com/p/fixture-plant=w80-h106-k-no"
+    },
+    {
+      "position": 9,
+      "title": "Mamacita's Taqueria",
+      "place_id": "ChIJfixturemamacitas",
+      "data_id": "0x8859f3fixture:0xmamacitas",
+      "data_cid": "1000000008",
+      "gps_coordinates": {
+        "latitude": 35.5939,
+        "longitude": -82.5499
+      },
+      "rating": 4.3,
+      "reviews": 1888,
+      "price": "$",
+      "type": "Mexican restaurant",
+      "types": [
+        "Mexican restaurant"
+      ],
+      "type_id": "mexican_restaurant",
+      "address": "77 Biltmore Ave, Asheville, NC 28801",
+      "open_state": "Open ⋅ Closes 10 PM",
+      "hours": "Open ⋅ Closes 10 PM",
+      "phone": "(828) 555-0118",
+      "website": "https://example.com/mamacitas",
+      "service_options": {
+        "dine_in": true,
+        "takeout": true,
+        "delivery": false
+      },
+      "thumbnail": "https://lh5.googleusercontent.com/p/fixture-mamacitas=w80-h106-k-no"
+    },
+    {
+      "position": 10,
+      "title": "Gan Shan Station",
+      "place_id": "ChIJfixtureganshan",
+      "data_id": "0x8859f3fixture:0xganshan",
+      "data_cid": "1000000009",
+      "gps_coordinates": {
+        "latitude": 35.6097,
+        "longitude": -82.5476
+      },
+      "rating": 4.6,
+      "reviews": 1046,
+      "price": "$20–30",
+      "type": "Asian fusion restaurant",
+      "types": [
+        "Asian fusion restaurant"
+      ],
+      "type_id": "asian_fusion_restaurant",
+      "address": "143 Charlotte St, Asheville, NC 28801",
+      "open_state": "Open ⋅ Closes 10 PM",
+      "hours": "Open ⋅ Closes 10 PM",
+      "phone": "(828) 555-0119",
+      "website": "https://example.com/ganshan",
+      "service_options": {
+        "dine_in": true,
+        "takeout": true,
+        "delivery": false
+      },
+      "thumbnail": "https://lh5.googleusercontent.com/p/fixture-ganshan=w80-h106-k-no"
+    },
+    {
+      "position": 11,
+      "title": "Late Night Grill",
+      "place_id": "ChIJfixturelatenight",
+      "data_id": "0x8859f3fixture:0xlatenight",
+      "data_cid": "1000000010",
+      "gps_coordinates": {
+        "latitude": 35.5978,
+        "longitude": -82.5589
+      },
+      "rating": 3.4,
+      "reviews": 88,
+      "price": "$",
+      "type": "Diner",
+      "types": [
+        "Diner"
+      ],
+      "type_id": "diner",
+      "address": "5 Patton Ave, Asheville, NC 28801",
+      "open_state": "Open ⋅ Closes 10 PM",
+      "hours": "Open ⋅ Closes 10 PM",
+      "phone": "(828) 555-0120",
+      "website": "https://example.com/latenight",
+      "service_options": {
+        "dine_in": true,
+        "takeout": true,
+        "delivery": false
+      },
+      "thumbnail": "https://lh5.googleusercontent.com/p/fixture-latenight=w80-h106-k-no"
+    }
+  ]
+}
