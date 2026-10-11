@@ -1,6 +1,6 @@
 // A small Markdown subset for research notes (model output): headings, bullet and numbered
-// lists, paragraphs, **bold**, *italic* and [links](https://…). Renders React elements only —
-// never raw HTML — and only http(s) links.
+// lists, paragraphs, **bold** and *italic*. [Links](https://…) render as their text: the page
+// reads as a plan, not a list of sources. React elements only, never raw HTML.
 import type { ReactNode } from "react";
 
 const INLINE = /(\*\*[^*]+\*\*|\*[^*\s][^*]*\*|\[[^\]]+\]\([^)\s]+\))/g;
@@ -11,16 +11,7 @@ function inline(text: string, key: string): ReactNode[] {
     if (part.startsWith("**") && part.endsWith("**") && part.length > 4) return <strong key={k}>{part.slice(2, -2)}</strong>;
     if (part.startsWith("*") && part.endsWith("*") && part.length > 2) return <em key={k}>{part.slice(1, -1)}</em>;
     const link = /^\[([^\]]+)\]\(([^)\s]+)\)$/.exec(part);
-    if (link) {
-      const href = link[2]!;
-      return /^https?:\/\//.test(href) ? (
-        <a key={k} href={href} rel="noopener noreferrer nofollow" target="_blank">
-          {link[1]}
-        </a>
-      ) : (
-        link[1]
-      );
-    }
+    if (link) return link[1];
     return part;
   });
 }

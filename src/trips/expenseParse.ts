@@ -18,9 +18,9 @@ const SELF = new Set(["me", "i", "myself", "my", "mine"]);
 
 const QUESTION =
   /\?|^(?:should|can|could|would|will|shall|do|does|did|is|are|was|were|who|what|how|when|where|why|which|may|might)\b/i;
-// Refunds and paybacks, negations, plans, and per-person prices.
+// Refunds and paybacks, negations, plans, per-person prices, and the trip fund ("put the boat on the fund").
 const NOT_A_PAYMENT =
-  /\b(?:refunds?|refunded|reimburs\w*|back|owes?|owed|owing|not|never|didn'?t|haven'?t|hasn'?t|won'?t|can'?t|don'?t|dont|i'?ll|i will|we'?ll|we will|gonna|going to|about to|might|would|could|should|if|maybe|probably|per|each|apiece|pp)\b/i;
+  /\b(?:refunds?|refunded|reimburs\w*|back|owes?|owed|owing|not|never|didn'?t|haven'?t|hasn'?t|won'?t|can'?t|don'?t|dont|i'?ll|i will|we'?ll|we will|gonna|going to|about to|might|would|could|should|if|maybe|probably|per|each|apiece|pp|fund|kitty)\b/i;
 // A rate right after the amount: "120 a night", "$30/person".
 const RATE =
   /\d(?:\s?k)?(?:\s*(?:bucks?|dollars?|usd))?\s*(?:\/\s*|\b(?:a|an)\s+)(?:person|head|night|day|week|pop|piece|ticket|hour)\b/i;
@@ -39,7 +39,7 @@ const AMOUNT_FIRST = new RegExp(
 );
 // "i covered gas $45", "i got dinner, it was 64", "bought tickets for $30"
 const AMOUNT_LAST = new RegExp(
-  String.raw`${PREFIX}(?:${PAID}|${GOT})\s+(?:for\s+)?(?<rest>.+?)\s*(?:[,:\-–—]\s*)?(?:(?:it|that|which|this)\s+(?:was|came to|came out to|cost|ran)\s+|(?:was|for|at|costs?)\s+|=\s*)?${AMOUNT}(?<tail>\s*,.*|\s+(?:and\s+)?${SPLIT_WORD}\b.*)?$`,
+  String.raw`${PREFIX}(?:${PAID}|(?<got>${GOT}))\s+(?:for\s+)?(?<rest>.+?)\s*(?:[,:\-–—]\s*)?(?:(?:it|that|which|this)\s+(?:was|came to|came out to|cost|ran)\s+|(?:was|for|at|costs?)\s+|=\s*)?${AMOUNT}(?<tail>\s*,.*|\s+(?:and\s+)?${SPLIT_WORD}\b.*)?$`,
   "i",
 );
 
@@ -74,9 +74,12 @@ export function parseExpense(text: string, memberNames: readonly string[]): Pars
   if (first) {
     detail = groups.rest ?? (groups.tail ?? "").replace(/^,\s*(?:(?:for|on)\s+)?/i, "");
   } else {
-    const rest = groups.rest ?? "";
+    let rest = groups.rest ?? "";
+    // "bought priya dinner", "got leo and sam tickets": the thing is for them.
+    const forThem = groups.got !== undefined ? indirectObject(rest, memberNames) : null;
+    if (forThem) rest = `${forThem.thing} for ${forThem.who}`;
     // "paid maya 40" is paying a person back, not buying something.
-    if (PERSON_PAID.test(rest) || (startsWithName(rest, memberNames) && !/'s\b/i.test(rest))) return null;
+    else if (PERSON_PAID.test(rest) || (startsWithName(rest, memberNames) && !/'s\b/i.test(rest))) return null;
     detail = rest + (groups.tail ?? "");
   }
 
@@ -209,6 +212,18 @@ function parseNames(text: string, members: readonly string[]): string[] | null {
     if (!names.includes(name)) names.push(name);
   }
   return names;
+}
+
+/** "priya dinner" → { who: "priya", thing: "dinner" }: the longest run of names, then something. */
+function indirectObject(text: string, members: readonly string[]): { who: string; thing: string } | null {
+  const words = text.trim().split(/\s+/);
+  for (let n = words.length - 1; n >= 1; n--) {
+    const who = words.slice(0, n).join(" ");
+    if (/'s$/i.test(who) || !parseNames(who, members)) continue;
+    const thing = words.slice(n).join(" ");
+    return /^(?:back|for|a|an|the|some)?$/i.test(thing) ? null : { who, thing };
+  }
+  return null;
 }
 
 function startsWithName(text: string, members: readonly string[]): boolean {

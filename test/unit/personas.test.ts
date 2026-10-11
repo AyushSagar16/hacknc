@@ -1,8 +1,8 @@
-// Synthetic Nessie profiles: determinism, obviously-fake identities, date bounds, Nessie
-// request-body shapes, pay cadences and the ledger conversion.
+// Generated Nessie profiles: determinism, realistic identities (real first name, generated last
+// name), date bounds, Nessie request-body shapes, pay cadences and the ledger conversion.
 import { describe, expect, it } from "vitest";
 import { inferPaycheckCadence } from "../../src/money/paymentPlan.ts";
-import { generateProfile, MERCHANTS, PERSONA_IDS, PERSONAS, pickPersona, profileToLedger, type GeneratedProfile } from "../../src/nessie/personas.ts";
+import { cleanFirstName, generateProfile, MERCHANTS, PERSONA_IDS, PERSONAS, pickPersona, profileToLedger, type GeneratedProfile } from "../../src/nessie/personas.ts";
 
 const AS_OF = "2026-10-10";
 const CATEGORIES = ["food", "groceries", "transport", "entertainment", "shopping", "health", "travel", "personal_care", "education"];
@@ -18,22 +18,50 @@ describe("generateProfile", () => {
     expect(b.purchases).not.toEqual(a.purchases);
   });
 
-  it("keeps the same synthetic customer for a seed regardless of history length", () => {
+  it("keeps the same customer for a seed regardless of history length", () => {
     const six = generateProfile({ seedKey: "riley", months: 6, asOf: AS_OF });
     const twelve = generateProfile({ seedKey: "riley", months: 12, asOf: "2026-12-01" });
     expect(twelve.customer).toEqual(six.customer);
   });
 
-  it("uses obviously synthetic names and well-formed addresses", () => {
+  it("uses realistic names and well-formed addresses", () => {
     for (let i = 0; i < 50; i++) {
       const { customer } = generateProfile({ seedKey: `seed-${i}`, months: 6, asOf: AS_OF });
-      expect(customer.last_name).toMatch(/^Atlasdemo[A-Z]$/);
+      expect(customer.last_name).toMatch(/^[A-Z][a-z]+$/);
       expect(customer.first_name).toMatch(/^[A-Z][a-z]+$/);
       expect(customer.address.street_number).toMatch(/^\d{3,4}$/);
       expect(customer.address.state).toBe("NC");
       expect(customer.address.zip).toMatch(/^\d{5}$/);
-      expect(customer.address.street_name.length).toBeGreaterThan(0);
+      expect(customer.address.street_name).toMatch(/^[A-Z][a-z]+ (St|Ave)$|^Ninth St$/);
     }
+  });
+
+  it("uses the person's real first name when known, with the same generated last name and address", () => {
+    const anon = generateProfile({ seedKey: "+15555550123", months: 6, asOf: AS_OF }).customer;
+    const maya = generateProfile({ seedKey: "+15555550123", firstName: "maya", months: 6, asOf: AS_OF }).customer;
+    expect(maya.first_name).toBe("Maya");
+    expect(maya.last_name).toBe(anon.last_name);
+    expect(maya.address).toEqual(anon.address);
+    expect(generateProfile({ seedKey: "+15555550123", firstName: null, months: 6, asOf: AS_OF }).customer).toEqual(anon);
+  });
+
+  it("cleans display names down to a first name", () => {
+    expect(cleanFirstName("maya")).toBe("Maya");
+    expect(cleanFirstName("Maya R.")).toBe("Maya");
+    expect(cleanFirstName("  leo 🏄 ")).toBe("Leo");
+    expect(cleanFirstName("mary-kate")).toBe("Mary-kate");
+    expect(cleanFirstName("…0123")).toBeNull();
+    expect(cleanFirstName("")).toBeNull();
+    expect(cleanFirstName(null)).toBeNull();
+  });
+
+  it("reads like a real bank account: no demo, sandbox or placeholder wording anywhere", () => {
+    for (const p of all(6)) {
+      expect(JSON.stringify(p)).not.toMatch(/demo|sandbox|synthetic|placeholder|fixture|mock|testbed|fake|atlas/i);
+    }
+    const payees = PERSONA_IDS.flatMap((id) => PERSONAS[id].bills.map((b) => b.payee));
+    expect(payees).toContain("Verizon Wireless");
+    expect(payees).toContain("Duke Energy");
   });
 
   it("never dates anything after asOf or before the history start", () => {
@@ -144,7 +172,7 @@ describe("persona catalog", () => {
     }
   });
 
-  it("lists about 25 uniquely named synthetic merchants in known categories", () => {
+  it("lists about 25 uniquely named merchants in known categories", () => {
     expect(MERCHANTS.length).toBeGreaterThanOrEqual(20);
     expect(MERCHANTS.length).toBeLessThanOrEqual(30);
     expect(new Set(MERCHANTS.map((m) => m.name)).size).toBe(MERCHANTS.length);

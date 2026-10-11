@@ -1,0 +1,277 @@
+{
+  "search_metadata": {
+    "id": "fixture-maps-asheville-things",
+    "status": "Success",
+    "created_at": "2026-10-10 14:00:02 UTC",
+    "processed_at": "2026-10-10 14:00:02 UTC",
+    "total_time_taken": 1.84
+  },
+  "search_parameters": {
+    "engine": "google_maps",
+    "type": "search",
+    "q": "things to do",
+    "ll": "@35.5935,-82.5536,14z",
+    "google_domain": "google.com",
+    "hl": "en",
+    "gl": "us"
+  },
+  "search_information": {
+    "local_results_state": "Results for exact spelling",
+    "query_displayed": "things to do"
+  },
+  "local_results": [
+    {
+      "position": 1,
+      "title": "Biltmore Estate",
+      "place_id": "ChIJfixturebiltmore",
+      "data_id": "0x8859f3fixture:0xbiltmore",
+      "data_cid": "1000000000",
+      "gps_coordinates": {
+        "latitude": 35.5401,
+        "longitude": -82.5521
+      },
+      "rating": 4.7,
+      "reviews": 31244,
+      "type": "Historical landmark",
+      "types": [
+        "Historical landmark",
+        "Tourist attraction"
+      ],
+      "type_id": "historical_landmark",
+      "address": "1 Lodge St, Asheville, NC 28803",
+      "open_state": "Open ⋅ Closes 5 PM",
+      "hours": "Open ⋅ Closes 5 PM",
+      "phone": "(828) 555-0110",
+      "website": "https://example.com/biltmore",
+      "description": "Vanderbilt's 250-room mansion with gardens and a winery.",
+      "thumbnail": "https://lh5.googleusercontent.com/p/fixture-biltmore=w80-h106-k-no"
+    },
+    {
+      "position": 2,
+      "title": "River Arts District",
+      "place_id": "ChIJfixturerad",
+      "data_id": "0x8859f3fixture:0xrad",
+      "data_cid": "1000000001",
+      "gps_coordinates": {
+        "latitude": 35.5852,
+        "longitude": -82.5708
+      },
+      "rating": 4.6,
+      "reviews": 5320,
+      "type": "Art center",
+      "types": [
+        "Art center",
+        "Tourist attraction"
+      ],
+      "type_id": "art_center",
+      "address": "Riverside Dr, Asheville, NC 28801",
+      "open_state": "Open ⋅ Closes 10 PM",
+      "hours": "Open ⋅ Closes 10 PM",
+      "phone": "(828) 555-0111",
+      "website": "https://example.com/rad",
+      "description": "Former industrial buildings full of working artist studios.",
+      "thumbnail": "https://lh5.googleusercontent.com/p/fixture-rad=w80-h106-k-no"
+    },
+    {
+      "position": 3,
+      "title": "Asheville Pinball Museum",
+      "place_id": "ChIJfixturepinball",
+      "data_id": "0x8859f3fixture:0xpinball",
+      "data_cid": "1000000002",
+      "gps_coordinates": {
+        "latitude": 35.5946,
+        "longitude": -82.5517
+      },
+      "rating": 4.7,
+      "reviews": 4410,
+      "price": "$",
+      "type": "Museum",
+      "types": [
+        "Museum",
+        "Amusement center"
+      ],
+      "type_id": "museum",
+      "address": "1 Battle Square #1B, Asheville, NC 28801",
+      "open_state": "Open ⋅ Closes 10 PM",
+      "hours": "Open ⋅ Closes 10 PM",
+      "phone": "(828) 555-0112",
+      "website": "https://example.com/pinball",
+      "thumbnail": "https://lh5.googleusercontent.com/p/fixture-pinball=w80-h106-k-no"
+    },
+    {
+      "position": 4,
+      "title": "The Orange Peel",
+      "place_id": "ChIJfixtureorangepeel",
+      "data_id": "0x8859f3fixture:0xorangepeel",
+      "data_cid": "1000000003",
+      "gps_coordinates": {
+        "latitude": 35.5907,
+        "longitude": -82.5519
+      },
+      "rating": 4.7,
+      "reviews": 3987,
+      "type": "Live music venue",
+      "types": [
+        "Live music venue"
+      ],
+      "type_id": "live_music_venue",
+      "address": "101 Biltmore Ave, Asheville, NC 28801",
+      "open_state": "Open ⋅ Closes 10 PM",
+      "hours": "Open ⋅ Closes 10 PM",
+      "phone": "(828) 555-0113",
+      "website": "https://example.com/orangepeel",
+      "thumbnail": "https://lh5.googleusercontent.com/p/fixture-orangepeel=w80-h106-k-no"
+    },
+    {
+      "position": 5,
+      "title": "Craggy Gardens Trail",
+      "place_id": "ChIJfixturecraggy",
+      "data_id": "0x8859f3fixture:0xcraggy",
+      "data_cid": "1000000004",
+      "gps_coordinates": {
+        "latitude": 35.6997,
+        "longitude": -82.3801
+      },
+      "rating": 4.9,
+      "reviews": 2210,
+      "type": "Hiking area",
+      "types": [
+        "Hiking area",
+        "Scenic spot"
+      ],
+      "type_id": "hiking_area",
+      "address": "Blue Ridge Pkwy, Barnardsville, NC 28709",
+      "open_state": "Open 24 hours",
+      "hours": "Open 24 hours",
+      "phone": "(828) 555-0114",
+      "website": "https://example.com/craggy",
+      "thumbnail": "https://lh5.googleusercontent.com/p/fixture-craggy=w80-h106-k-no"
+    },
+    {
+      "position": 6,
+      "title": "The North Carolina Arboretum",
+      "place_id": "ChIJfixturearboretum",
+      "data_id": "0x8859f3fixture:0xarboretum",
+      "data_cid": "1000000005",
+      "gps_coordinates": {
+        "latitude": 35.4997,
+        "longitude": -82.6111
+      },
+      "rating": 4.8,
+      "reviews": 6012,
+      "type": "Arboretum",
+      "types": [
+        "Arboretum",
+        "Garden",
+        "Hiking area"
+      ],
+      "type_id": "arboretum",
+      "address": "100 Frederick Law Olmsted Way, Asheville, NC 28806",
+      "open_state": "Open ⋅ Closes 10 PM",
+      "hours": "Open ⋅ Closes 10 PM",
+      "phone": "(828) 555-0115",
+      "website": "https://example.com/arboretum",
+      "thumbnail": "https://lh5.googleusercontent.com/p/fixture-arboretum=w80-h106-k-no"
+    },
+    {
+      "position": 7,
+      "title": "Wicked Weed Brewing Pub",
+      "place_id": "ChIJfixturewickedweed",
+      "data_id": "0x8859f3fixture:0xwickedweed",
+      "data_cid": "1000000006",
+      "gps_coordinates": {
+        "latitude": 35.5918,
+        "longitude": -82.5512
+      },
+      "rating": 4.5,
+      "reviews": 5875,
+      "price": "$$",
+      "type": "Brewpub",
+      "types": [
+        "Brewpub",
+        "Bar"
+      ],
+      "type_id": "brewpub",
+      "address": "91 Biltmore Ave, Asheville, NC 28801",
+      "open_state": "Open ⋅ Closes 10 PM",
+      "hours": "Open ⋅ Closes 10 PM",
+      "phone": "(828) 555-0116",
+      "website": "https://example.com/wickedweed",
+      "thumbnail": "https://lh5.googleusercontent.com/p/fixture-wickedweed=w80-h106-k-no"
+    },
+    {
+      "position": 8,
+      "title": "Pack Square Park",
+      "place_id": "ChIJfixturepacksquare",
+      "data_id": "0x8859f3fixture:0xpacksquare",
+      "data_cid": "1000000007",
+      "gps_coordinates": {
+        "latitude": 35.5951,
+        "longitude": -82.5508
+      },
+      "rating": 4.5,
+      "reviews": 2733,
+      "type": "Park",
+      "types": [
+        "Park"
+      ],
+      "type_id": "park",
+      "address": "80 Court Plaza, Asheville, NC 28801",
+      "open_state": "Open 24 hours",
+      "hours": "Open 24 hours",
+      "phone": "(828) 555-0117",
+      "website": "https://example.com/packsquare",
+      "thumbnail": "https://lh5.googleusercontent.com/p/fixture-packsquare=w80-h106-k-no"
+    },
+    {
+      "position": 9,
+      "title": "Malaprop's Bookstore/Cafe",
+      "place_id": "ChIJfixturemalaprops",
+      "data_id": "0x8859f3fixture:0xmalaprops",
+      "data_cid": "1000000008",
+      "gps_coordinates": {
+        "latitude": 35.5961,
+        "longitude": -82.5534
+      },
+      "rating": 4.8,
+      "reviews": 1622,
+      "type": "Book store",
+      "types": [
+        "Book store"
+      ],
+      "type_id": "book_store",
+      "address": "55 Haywood St, Asheville, NC 28801",
+      "open_state": "Open ⋅ Closes 10 PM",
+      "hours": "Open ⋅ Closes 10 PM",
+      "phone": "(828) 555-0118",
+      "website": "https://example.com/malaprops",
+      "thumbnail": "https://lh5.googleusercontent.com/p/fixture-malaprops=w80-h106-k-no"
+    },
+    {
+      "position": 10,
+      "title": "The Omni Grove Park Inn Spa",
+      "place_id": "ChIJfixturegrovepark",
+      "data_id": "0x8859f3fixture:0xgrovepark",
+      "data_cid": "1000000009",
+      "gps_coordinates": {
+        "latitude": 35.6202,
+        "longitude": -82.5409
+      },
+      "rating": 4.6,
+      "reviews": 1508,
+      "price": "$$$$",
+      "type": "Spa",
+      "types": [
+        "Spa",
+        "Day spa"
+      ],
+      "type_id": "spa",
+      "address": "290 Macon Ave, Asheville, NC 28804",
+      "open_state": "Open ⋅ Closes 10 PM",
+      "hours": "Open ⋅ Closes 10 PM",
+      "phone": "(828) 555-0119",
+      "website": "https://example.com/grovepark",
+      "thumbnail": "https://lh5.googleusercontent.com/p/fixture-grovepark=w80-h106-k-no"
+    }
+  ]
+}

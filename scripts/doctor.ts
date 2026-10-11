@@ -123,6 +123,10 @@ if (cfg.SUPABASE_URL && cfg.SUPABASE_SERVICE_ROLE_KEY && cfg.SITE_BASE_URL) {
   }
 } else add("trip pages", "warn", "SUPABASE_URL / SUPABASE_SERVICE_ROLE_KEY / SITE_BASE_URL not all set: no trip pages or links");
 
+// Bank connect (consent page on the site, callback to Atlas)
+if (cfg.CONNECT_SECRET && cfg.SITE_BASE_URL) add("bank connect", true, `${cfg.SITE_BASE_URL}/connect/<token> → ${cfg.PUBLIC_BASE_URL ?? "tunnel set by npm run live"}/connect-callback`);
+else add("bank connect", "warn", "CONNECT_SECRET / SITE_BASE_URL not both set: connect links point at localhost or can't be verified by the site");
+
 // Open-Meteo
 try {
   const res = await fetch("https://api.open-meteo.com/v1/forecast?latitude=35.9&longitude=-79.05&daily=weather_code&forecast_days=1", { signal: AbortSignal.timeout(8_000) });

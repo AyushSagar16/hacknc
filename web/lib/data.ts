@@ -3,7 +3,7 @@
 import "server-only";
 import { cache } from "react";
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
-import type { SiteDay, SiteMessage, SiteOverview, SiteResearch, SiteTrip } from "./types";
+import type { SiteDay, SiteOverview, SiteResearch, SiteTrip } from "./types";
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
@@ -49,8 +49,13 @@ const toTrip = (r: TripRow): SiteTrip => ({
   version: r.version,
 });
 
+// Local preview without Supabase: `ATLAS_SITE_FIXTURES=1 npm run dev`. Never in production.
+const useFixtures = process.env.NODE_ENV !== "production" && process.env.ATLAS_SITE_FIXTURES === "1";
+const fixtures = () => import("./fixtures");
+
 export const getTrip = cache(async (id: string): Promise<SiteTrip | null> => {
   if (!UUID.test(id)) return null;
+  if (useFixtures) return (await fixtures()).FIXTURE_TRIPS.find((t) => t.id === id) ?? null;
   const { data, error } = await db().from("site_trips").select("*").eq("id", id).maybeSingle<TripRow>();
   if (error) throw new Error(`site_trips: ${error.message}`);
   return data ? toTrip(data) : null;
@@ -66,6 +71,9 @@ export interface TripLink {
 
 export const getChatTrips = cache(async (chatId: string): Promise<TripLink[]> => {
   if (!UUID.test(chatId)) return [];
+  if (useFixtures) {
+    return (await fixtures()).FIXTURE_TRIPS.filter((t) => t.chatId === chatId).map((t) => ({ id: t.id, title: t.title, startDate: t.startDate, endDate: t.endDate, status: t.status }));
+  }
   const { data, error } = await db()
     .from("site_trips")
     .select("id, title, start_date, end_date, status")
@@ -76,20 +84,8 @@ export const getChatTrips = cache(async (chatId: string): Promise<TripLink[]> =>
 });
 
 export const getResearch = cache(async (tripId: string): Promise<SiteResearch[]> => {
+  if (useFixtures) return tripId === (await fixtures()).FIXTURE_TRIP_ID ? (await fixtures()).FIXTURE_RESEARCH : [];
   const { data, error } = await db().from("site_research").select("*").eq("trip_id", tripId).order("created_at", { ascending: true });
   if (error) throw new Error(`site_research: ${error.message}`);
-  return (data ?? []).map((r) => ({ topic: r.topic, summary: r.summary, bodyMd: r.body_md, sources: r.sources ?? [], createdAt: r.created_at }));
-});
-
-export const getMessages = cache(async (tripId: string, limit = 500): Promise<SiteMessage[]> => {
-  const { data, error } = await db()
-    .from("site_messages")
-    .select("*")
-    .eq("trip_id", tripId)
-    .order("sent_at", { ascending: false })
-    .limit(limit);
-  if (error) throw new Error(`site_messages: ${error.message}`);
-  return (data ?? [])
-    .map((r) => ({ localId: Number(r.local_id), sender: r.sender, fromAtlas: r.from_atlas, text: r.text, sentAt: r.sent_at }))
-    .reverse();
+  return (data ?? []).map((r) => ({ topic: r.topic, summary: r.summary, bodyMd: r.body_md, createdAt: r.created_at }));
 });

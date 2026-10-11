@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { notFound } from "next/navigation";
 import { getResearch, getTrip } from "@/lib/data";
 import { Markdown } from "@/lib/markdown";
 import { previewFor, toMetadata } from "@/lib/meta";
@@ -16,31 +17,18 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
 
 export default async function Research({ params }: Props) {
   const { id } = await params;
-  const trip = (await getTrip(id))!;
+  const trip = await getTrip(id);
+  if (!trip) notFound();
   const notes = await getResearch(trip.id);
-  if (!notes.length) return <p className="muted">Nothing researched yet. Ask Atlas in the chat to look into visas, weather, neighborhoods or food.</p>;
+  if (!notes.length)
+    return <p className="glass panel muted">Nothing researched yet. Ask Atlas in the chat to look into visas, weather, neighborhoods or food.</p>;
   return (
     <>
       {notes.map((n) => (
-        <section key={n.topic}>
-          <h2>{n.topic}</h2>
-          <p>
-            <em>{n.summary}</em>
-          </p>
+        <section key={n.topic} className="glass panel">
+          <h3>{n.topic}</h3>
+          <p className="muted">{n.summary}</p>
           <Markdown source={n.bodyMd} />
-          {n.sources.length ? (
-            <p className="sources">
-              Sources:{" "}
-              {n.sources.map((s, i) => (
-                <span key={s.url}>
-                  {i ? ", " : ""}
-                  <a href={s.url} rel="noopener noreferrer nofollow" target="_blank">
-                    {s.title}
-                  </a>
-                </span>
-              ))}
-            </p>
-          ) : null}
         </section>
       ))}
     </>

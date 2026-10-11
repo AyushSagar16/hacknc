@@ -13,9 +13,9 @@ schedules are deterministic code.
 | Brain | `src/agent/brain.ts` | One turn in a fixed order (below). Composes feature modules |
 | Features | `src/agent/features/*` | trips, planning, budgets, proposals, money, weather, memory, self-memory, search, presence, research, site: each adds tools, fast paths, commands, hints, situation sections, money-guard figures, jobs and lifecycle hooks |
 | Profile | `src/profile/*` | Fact schema, Gemini extraction (validated; who reported each fact; refusal words for vetoes, numbers for ceilings; "same dates" resolved), deterministic aggregation, group view |
-| Money | `src/money/*`, `src/trips/ledger.ts` | Cents, splits, exact minimum settle-up, budget engine, paycheck cadence and payment plans, trip ledger |
+| Money | `src/money/*`, `src/trips/ledger.ts` | Cents, splits, exact minimum settle-up, budget engine, paycheck cadence and payment plans, trip ledger, trip fund (`src/money/fund.ts`, `src/trips/fund.ts`) |
 | Nessie | `src/nessie/*` | Client (https, audit, last-good cache, circuit breaker), probe-driven capabilities, personas, resumable seeding, ledger replay, budgets |
-| Trips | `src/trips/*` | Catalog (destinations with vibe tags incl. `holiday`, 105 home airports), per-person drive times, constraints (no-fly and max-drive enforced per person), hard filter, scoring with a required vibe, SerpApi pricing with cache and fallback, votes (ties don't lock), itinerary (no repeats, seasonal), booking links |
+| Trips | `src/trips/*` | Catalog (destinations with vibe tags incl. `holiday`, 105 home airports), per-person drive times, constraints (no-fly and max-drive enforced per person), hard filter, scoring with a required vibe, SerpApi pricing with cache and fallback, votes (ties don't lock), itinerary (no repeats, seasonal), booking links, food & activities near the stay (SerpApi google_maps, `trips/nearby.ts`, `features/places.ts`: dietary-aware shortlist, picks onto the itinerary) |
 | Weather | `src/weather/*`, `features/weather.ts` | Open-Meteo forecast and 3-year climatology (`get_weather`), classification, change detection, cadence, cooldown, swaps |
 | Search | `src/search/*`, `features/search.ts` | `web_search`: result pages read in code, Gemini answers from them, every posted item verified against the source; Wikivoyage fallback |
 | Memory | `src/memory/*`, `features/memory.ts` | Embedding writer, hybrid BM25 + diskann recall (RRF) with recency and importance rerank, `atlas_log` of Atlas's own words |
@@ -37,7 +37,8 @@ schedules are deterministic code.
   `facts.trip_id` (destination, date window, trip length, budget talk) record which trip they were
   about (a trip fact always gets one, the focused trip if need be); facts about the person carry
   across that chat's trips.
-- **Money:** `budgets` (formula inputs + Nessie ids + visibility), `installments` (Nessie bill ids),
+- **Money:** `budgets` (formula inputs + Nessie ids + visibility), `installments` (legacy Nessie bill ids), `trip_funds` / `fund_items` / `fund_txns` (the trip
+  fund: its Nessie customer and account, what it pays for, every contribution, refund and purchase),
   `expenses` (exact cents, idempotency key, Nessie purchase id), `settlements` (Nessie transfer and
   deposit ids).
 - **Nessie:** `nessie_links`, `nessie_merchants`, `nessie_cache`, `nessie_calls`.
@@ -51,16 +52,21 @@ schedules are deterministic code.
 1. A friend adds the Atlas number to a group. Linq sends `participant.added` (or `chat.created`),
    which goes through the signature check, `webhook_events`, the Spectrum `addMember` record and
    the inbox. That runs a turn and sends the **intro** once. Members Atlas hasn't heard from are
-   learned with `GET /chats/{id}`. Each new person gets a **Nessie link job**, which seeds a
-   persona-varied demo profile.
+   learned with `GET /chats/{id}`. The intro (and each late joiner's welcome) asks everyone to
+   **connect their capital one**: "yes" gets a signed link to the consent page on the trip site, whose
+   callback (`POST /connect-callback`) links and seeds that person's Nessie customer
+   (a persona-varied profile) and computes their budget. "no" gets asked for a rough number; one
+   nudge after a day (`bank_connections`, `features/connect.ts`). The chat calls it their connected Capital One account and never says Nessie,
+   sandbox or demo.
 2. Friends talk. Each burst becomes one turn. **Extraction** runs on every batch in parallel with
    the **speak gate**, so Atlas learns even when it stays silent. Facts land with quotes; the
    aggregator resolves the current truth.
 3. Atlas asks for missing dates and home cities **once per person** (`asks`). Once a majority has
    shared, it moves on.
 4. "what's our budget" runs deterministically: budgets from each person's Nessie data, the formula
-   in three lines, "based on demo spending profiles", the pooled range. Private budgets only appear
-   pooled.
+   in three lines, "based on everyone's last few months of spending". Budgets are **private by
+   default**: the group sees only the pooled per-person number (none at all with two people);
+   individual numbers appear only for people who said "share my budget", and in each person's DM.
 5. "atlas give us some options" goes through constraints, the hard filter, scoring, live pricing
    for the top five, three options with per-person breakdowns, and a **native poll**.
 6. Votes come in (native, tapback or text), reconciled against Linq's voter list. A majority (or
@@ -68,11 +74,19 @@ schedules are deterministic code.
    links. A tie is called out once ("pick for us" takes the cheaper option). If at least half the
    group has voted and nobody votes for 30 s, Atlas names who hasn't, once per poll
    (`poll.remind` job); "skip" closes the poll with the votes in. "can we do X instead?" after a lock
-   reopens it as a two-option poll. That fires `onTripLocked`: a **payment plan** (Nessie bills on each
-   person's paydays), a recurring **weather.check** job, and a decision memory.
+   reopens it as a two-option poll. That fires `onTripLocked`: a recurring **weather.check** job and a decision memory. Once dates
+   are set, `find_stays` searches SerpApi google_hotels (hotels and `vacation_rentals=true`), sized
+   for the group and filtered to its budget, and polls three options. The winner is booked
+   (`trips.stay`) onto the **trip fund**: a Nessie customer "<Trip> Trip Fund" with a checking
+   account. Each person's share (by `split_mode`) is planned as contributions on the day after each
+   payday before a deposit deadline two weeks out; the `fund.collect` job moves them as Nessie
+   transfers checking → fund (ledger only for people with no bank) and pays the stay as a fund
+   purchase once it's covered. `add_to_fund` puts shared costs on it; `show_fund` is the status.
 7. During the trip, "i paid 64 for dinner" becomes a Nessie purchase on the payer's account, a
    ledger row and a spend event. Disputes from anyone but the payer wait for the payer's "yes".
-8. "settle up" proposes the fewest transfers. Each payer's "confirm" executes a Nessie transfer
+8. "settle up" squares the tab and the fund together (`src/money/fund.ts`): a fund leftover is
+   refunded pro-rata (fund → checking) first; a shortfall makes the fund one more creditor. It
+   proposes the fewest transfers. Each payer's "confirm" executes a Nessie transfer
    (plus a payee-side deposit when this Nessie can't name a payee). When the last one is done, the
    trip is marked done.
 
@@ -174,7 +188,7 @@ Research and trade-offs: `docs/memory-research.md`.
   `app.messages` ever ends.
 - Money side effects mark the turn non-cancellable and are keyed by source message, so redeliveries
   and retries never double-log or double-send.
-- Nessie: last-good cache for reads, circuit breaker, offline demo profiles when no key is set,
+- Nessie: last-good cache for reads, circuit breaker, offline generated profiles when no key is set,
   and every call audited.
 - SerpApi failures fall back to labeled estimates per cost component. Open-Meteo failures retry
   with backoff, and rehearsal overrides skip the network.
@@ -190,7 +204,7 @@ Research and trade-offs: `docs/memory-research.md`.
 | Extraction + profiles | Gemini, General | "cancun is too pricey for me" shows up as a veto with its quote and confidence |
 | Nessie linking + budgets | Capital One | Customers, accounts, deposits, bills, withdrawals, purchases, merchants created live; budgets with formula and customer ids |
 | Proposals + polls | General, Photon | Three options with live fares or labeled estimates; native poll; majority locks |
-| Payment plan, expenses, settle-up | Capital One | Bills on paydays; "i paid 64" becomes a Nessie purchase; settle-up becomes Nessie transfers after "confirm" |
+| Trip fund, expenses, settle-up | Capital One | Fund account filled by transfers on paydays, stay paid as a fund purchase; "i paid 64" becomes a Nessie purchase; settle-up becomes Nessie transfers after "confirm" |
 | Memory + aggregates | Tiger Data, Gemini | Recall weeks later; diskann; `trip_spend_daily` and `forecast_drift_daily` in chat and console |
 | Weather watch | General | Injected or real forecast flip leads to a swap offer and poll |
 | Write-up | DEV challenge | `docs/dev-post.md` |

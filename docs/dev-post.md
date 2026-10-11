@@ -45,8 +45,10 @@ produce with its source (a Nessie object id, "live fare" or "estimate") and its 
 model writes a number that no tool produced, or one that belongs to someone's private budget, the
 model's text is dropped and the deterministic template goes out instead.
 
-Budgets come from the [Capital One Nessie](https://nessieisreal.com) sandbox. Atlas creates a
-fictional customer for each friend, with months of paychecks, bills and purchases, and computes:
+Budgets come from the [Capital One Nessie](https://nessieisreal.com) API. Atlas creates a customer
+for each friend (their first name, a generated last name) with months of generated paychecks, bills
+and purchases at real-sounding payees and merchants, presents it in the chat as their connected
+Capital One account, and computes:
 
 1. `monthly_free = median paychecks − recurring bills − median everyday spending`
 2. `suggested = monthly_free × months until the trip × 0.5`

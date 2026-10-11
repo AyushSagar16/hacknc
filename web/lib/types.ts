@@ -1,8 +1,9 @@
-// The public trip page's data. A copy of src/site/types.ts in the Atlas bot, which owns the
-// shape and publishes it to Supabase — change both together.
+// The public trip page's data. Mirrors src/site/types.ts in the Atlas bot, which owns the shape
+// and publishes it to Supabase — change both together. The site reads only what it shows: the
+// published chat log and research sources aren't read here.
 // Public means public: first names only, no handles, no budgets or balances.
 
-export type SiteSection = "overview" | "itinerary" | "research" | "chat";
+export type SiteSection = "overview" | "itinerary" | "research";
 
 export interface SiteOption {
   name: string;
@@ -19,6 +20,46 @@ export interface SiteOverview {
   /** "egypt won 3 of 4" once a poll decided. */
   decision?: string;
   booking: { label: string; url: string }[];
+  /**
+   * Where each part of the plan stands, in order (location, dates, travel, stay, food &
+   * activities). Optional: pages published before stages existed don't have it.
+   */
+  stages?: SiteStage[];
+  fund?: SiteFund;
+  /** The booked stay, once there is one. */
+  stay?: SiteStay;
+}
+
+export interface SiteStay {
+  name: string;
+  kind: "hotel" | "rental";
+  checkIn: string;
+  checkOut: string;
+  totalCents: number;
+  link: string | null;
+  rating: number | null;
+}
+
+export interface SiteFund {
+  /** e.g. "Capital One · Tahoe Trip Fund" */
+  accountLabel: string;
+  targetCents: number;
+  collectedCents: number;
+  /** ISO date (YYYY-MM-DD) contributions are due by, if set */
+  deadline: string | null;
+  /** first names only; never budgets */
+  members: { name: string; shareCents: number; contributedCents: number; nextCents: number | null; nextDate: string | null }[];
+  /** newest first */
+  transactions: { at: string; kind: "contribution" | "purchase" | "refund" | "transfer"; label: string; amountCents: number }[];
+}
+
+export interface SiteStage {
+  key: "location" | "dates" | "travel" | "stay" | "food_activities";
+  /** "Location", "Dates", "Travel", "Stay", "Food & activities". */
+  label: string;
+  status: "open" | "in_progress" | "decided";
+  /** What was decided, when it was ("Boone, NC", "Nov 12–16"). */
+  detail?: string;
 }
 
 export interface SiteDay {
@@ -40,7 +81,7 @@ export interface SiteTrip {
   endDate: string | null;
   status: string;
   travelers: string[];
-  /** The chat's IANA timezone, for message times. */
+  /** The chat's IANA timezone. */
   timezone: string;
   overview: SiteOverview;
   itinerary: SiteDay[];
@@ -51,14 +92,5 @@ export interface SiteResearch {
   topic: string;
   summary: string;
   bodyMd: string;
-  sources: { title: string; url: string }[];
   createdAt: string;
-}
-
-export interface SiteMessage {
-  localId: number;
-  sender: string;
-  fromAtlas: boolean;
-  text: string;
-  sentAt: string;
 }

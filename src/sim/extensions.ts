@@ -2,11 +2,17 @@
 import type { ScenarioRunner } from "./script.ts";
 import type { SimSession } from "./session.ts";
 import { weatherSimExtension } from "./weatherExtension.ts";
+import { placesSimExtension } from "./placesExtension.ts";
+import { staysSimExtension } from "./staysExtension.ts";
+import { nearbySimExtension } from "./nearbyExtension.ts";
 
 export type Extension = (args: string, runner: ScenarioRunner) => Promise<void>;
 
 const registry: ((session: SimSession) => Record<string, Extension>)[] = [];
 registerSimExtension(weatherSimExtension);
+registerSimExtension(placesSimExtension);
+registerSimExtension(staysSimExtension);
+registerSimExtension(nearbySimExtension);
 
 export function registerSimExtension(factory: (session: SimSession) => Record<string, Extension>): void {
   registry.push(factory);

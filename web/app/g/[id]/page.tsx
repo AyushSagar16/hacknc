@@ -22,7 +22,7 @@ export default async function ChatTrips({ params }: Props) {
     <>
       <h1>Trips</h1>
       <p className="facts">Every trip planned in this group chat.</p>
-      <ul>
+      <ul className="glass panel list-plain">
         {trips.map((t) => (
           <li key={t.id}>
             <Link href={`/t/${t.id}`}>{t.title}</Link>

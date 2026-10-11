@@ -1,10 +1,10 @@
 // What each section looks like as an iMessage link preview. iMessage reads og:title,
 // og:description, og:site_name and og:image from the page; the image comes from each route's
 // opengraph-image.tsx. Every section gets its own title and description so a link to the
-// itinerary doesn't preview like a link to the chat.
+// itinerary doesn't preview like a link to the research.
 import type { Metadata } from "next";
 import { clip, formatRange, itineraryLine, tripFacts } from "./format";
-import type { SiteMessage, SiteResearch, SiteSection, SiteTrip } from "./types";
+import type { SiteResearch, SiteSection, SiteTrip } from "./types";
 
 export interface Preview {
   /** Small line above the title on the OG image ("itinerary"). */
@@ -21,7 +21,7 @@ const placeOf = (t: SiteTrip) => t.destination ?? t.title;
 export function previewFor(
   section: SiteSection,
   trip: SiteTrip,
-  extra: { research?: SiteResearch[]; messages?: SiteMessage[] } = {},
+  extra: { research?: SiteResearch[] } = {},
 ): Preview {
   const when = formatRange(trip.startDate, trip.endDate);
   const place = placeOf(trip);
@@ -35,7 +35,7 @@ export function previewFor(
         description: clip(
           trip.summary ??
             (sentences([trip.overview.stage, trip.overview.decision, trip.travelers.length ? `With ${listNames(trip.travelers)}` : undefined]) ||
-              "The plan, the research and the group chat in one place."),
+              "The plan and the research in one place."),
           180,
         ),
       };
@@ -53,15 +53,6 @@ export function previewFor(
         title: place,
         subtitle: notes.length ? `${notes.length} topic${notes.length === 1 ? "" : "s"}: ${clip(notes.map((n) => n.topic.toLowerCase()).join(", "), 70)}` : "nothing researched yet",
         description: notes.length ? clip(notes.map((n) => n.summary).join(" "), 180) : "Ask Atlas to look into visas, weather, neighborhoods or food.",
-      };
-    }
-    case "chat": {
-      const msgs = extra.messages ?? [];
-      return {
-        eyebrow: "group chat",
-        title: place,
-        subtitle: msgs.length ? `${msgs.length} message${msgs.length === 1 ? "" : "s"}` : "no messages yet",
-        description: trip.travelers.length ? `The planning chat between ${listNames(trip.travelers)} and Atlas.` : "The planning chat with Atlas.",
       };
     }
   }

@@ -58,6 +58,14 @@ const schema = z.object({
   SITE_BASE_URL: optionalString.transform((v) => v?.replace(/\/+$/, "")),
 
   /**
+   * Bank connect: links to SITE_BASE_URL/connect/<token> are signed with CONNECT_SECRET (the web
+   * site must have the same value), and the consent page calls back PUBLIC_BASE_URL/connect-callback.
+   * `npm run live` sets PUBLIC_BASE_URL to its tunnel at runtime. Missing either → local fallbacks.
+   */
+  CONNECT_SECRET: optionalString,
+  PUBLIC_BASE_URL: optionalString.transform((v) => v?.replace(/\/+$/, "")),
+
+  /**
    * When a group goes quiet after a human message Atlas didn't answer, follow up after this many
    * seconds to move the plan forward. 0 turns it off. Default: 150 on a real line, off in the simulator.
    */
