@@ -19,6 +19,20 @@ export interface SiteOverview {
   /** "egypt won 3 of 4" once a poll decided. */
   decision?: string;
   booking: { label: string; url: string }[];
+  /**
+   * Where each part of the plan stands, in order (location, dates, travel, stay, food &
+   * activities). Optional: pages published before stages existed don't have it.
+   */
+  stages?: SiteStage[];
+}
+
+export interface SiteStage {
+  key: "location" | "dates" | "travel" | "stay" | "food_activities";
+  /** "Location", "Dates", "Travel", "Stay", "Food & activities". */
+  label: string;
+  status: "open" | "in_progress" | "decided";
+  /** What was decided, when it was ("Boone, NC", "Nov 12–16"). */
+  detail?: string;
 }
 
 export interface SiteDay {

@@ -6,8 +6,9 @@ import { activeMembers, labelOf, type ChatRow } from "../db/repos/core.ts";
 import { formatUsd } from "../money/cents.ts";
 import type { StoredOption } from "../agent/features/proposals.ts";
 import type { PollRow } from "../trips/pollStore.ts";
+import { STAGES, stagesOf } from "../trips/stages.ts";
 import { tripName, tripsForChat, type TripRow } from "../trips/state.ts";
-import type { SiteMessage, SiteOverview, SiteResearch, SiteTrip } from "./types.ts";
+import type { SiteMessage, SiteOverview, SiteResearch, SiteStage, SiteTrip } from "./types.ts";
 
 /** Message kinds that read as chat lines (membership changes, reactions and votes don't). */
 const SHOWN_KINDS = ["text", "poll", "link"];
@@ -84,7 +85,27 @@ async function overviewOf(trip: TripRow, groupSize: number): Promise<SiteOvervie
     const winner = poll.options[poll.winner_idx]?.title.split(" (")[0];
     if (winner) decision = `${winner} won the vote (${counts.get(poll.winner_idx) ?? 0} of ${groupSize}).`;
   }
-  return { stage: stageOf(trip, options.length), options, decision, booking: trip.booking ?? [] };
+  return { stage: stageOf(trip, options.length), options, decision, booking: trip.booking ?? [], stages: stagesFor(trip) };
+}
+
+const STAGE_TITLE: Record<SiteStage["key"], string> = {
+  location: "Location",
+  dates: "Dates",
+  travel: "Travel",
+  stay: "Stay",
+  food_activities: "Food & activities",
+};
+
+/** The stage progress bar: no money, no names. */
+export function stagesFor(trip: TripRow): SiteStage[] {
+  const map = stagesOf(trip);
+  const fmt = (iso: string) => new Date(`${iso}T12:00:00Z`).toLocaleDateString("en-US", { month: "short", day: "numeric", timeZone: "UTC" });
+  const detail: Partial<Record<SiteStage["key"], string>> = {
+    location: map.location === "decided" ? (trip.destination_name ?? undefined) : undefined,
+    dates: map.dates === "decided" && trip.start_date && trip.end_date ? `${fmt(trip.start_date)} – ${fmt(trip.end_date)}` : undefined,
+    stay: map.stay === "decided" && trip.stay?.name ? trip.stay.name : undefined,
+  };
+  return STAGES.map((key) => ({ key, label: STAGE_TITLE[key], status: map[key], ...(detail[key] ? { detail: detail[key] } : {}) }));
 }
 
 function stageOf(trip: TripRow, optionCount: number): string {

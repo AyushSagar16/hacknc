@@ -245,3 +245,34 @@ export async function priceOption(
     return estimates;
   }
 }
+
+/**
+ * Live round-trip fares per flyer (cents), one search per origin airport, for an arrival airport.
+ * People with no live answer are left out (callers keep their estimate). Never throws.
+ */
+export async function liveFlightFares(
+  destIata: string,
+  flyers: { personId: number; originIata: string }[],
+  dates: { start: string; end: string },
+  deps: PriceDeps,
+): Promise<Map<number, { cents: number; checkedAt: string }>> {
+  const out = new Map<number, { cents: number; checkedAt: string }>();
+  if (!destIata) return out;
+  try {
+    const byOrigin = new Map<string, number[]>();
+    for (const f of flyers) if (f.originIata && f.originIata !== destIata) byOrigin.set(f.originIata, [...(byOrigin.get(f.originIata) ?? []), f.personId]);
+    const origins = [...byOrigin.keys()].sort();
+    const results = await Promise.all(origins.map((o) => search(flightSearchParams(o, destIata, dates.start, dates.end, byOrigin.get(o)!.length), deps)));
+    origins.forEach((origin, i) => {
+      const result = results[i];
+      const ids = byOrigin.get(origin)!;
+      const total = result ? cheapestFlightUsd(result.body) : undefined;
+      if (total === undefined) return;
+      const cents = Math.round((total * 100) / ids.length);
+      for (const id of ids) out.set(id, { cents, checkedAt: result!.fetchedAt.toISOString() });
+    });
+  } catch {
+    // Live fares are best-effort; estimates stand.
+  }
+  return out;
+}

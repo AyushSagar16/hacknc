@@ -21,7 +21,7 @@ import { linkFor, sharedNessie, tripMerchant } from "../../nessie/seed.ts";
 import { parseExpense } from "../../trips/expenseParse.ts";
 import { activeExpenses, categorize, expenseByKey, expenseNumber, insertExpense, numberOf, openSettlements, proposeSettlements, setExpenseNessie, spentSoFar, tripBalances, voidExpense, type ExpenseRow, type SettlementRow } from "../../trips/ledger.ts";
 import { updateTrip, type TripRow } from "../../trips/state.ts";
-import { destinationById } from "../../trips/catalog.ts";
+import { tripDestination } from "../../trips/place.ts";
 import { buildConstraints } from "../../trips/constraints.ts";
 import { estimateCost } from "../../trips/estimate.ts";
 import { budgetRows, effectiveCents } from "../../nessie/budgets.ts";
@@ -348,7 +348,7 @@ export async function reconcilePlanMembers(svc: Pick<AppServices, "post">, tripI
 
 /** Change how the trip is shared and re-post the plan. */
 export async function setSplitMode(tc: TurnCtx, mode: "by_cost" | "even"): Promise<void> {
-  if (!tc.trip.destination_id || !tc.trip.start_date) {
+  if (!tc.trip.destination_name || !tc.trip.start_date) {
     tc.trip = await updateTrip(tc.trip.id, { split_mode: mode });
     say(tc, mode === "even" ? "got it, everyone pays the same. i'll split it evenly once we lock a place" : "got it, everyone covers their own travel. i'll split it that way once we lock a place");
     return;
@@ -364,7 +364,7 @@ export async function setSplitMode(tc: TurnCtx, mode: "by_cost" | "even"): Promi
 
 /** No proposal behind this destination (locked by name): estimate each share from the catalog. */
 async function estimatedShares(tc: TurnCtx): Promise<Map<number, number>> {
-  const dest = tc.trip.destination_id ? destinationById(tc.trip.destination_id) : undefined;
+  const dest = tripDestination(tc.trip);
   if (!dest || !tc.trip.start_date || !tc.trip.end_date) return new Map();
   const built = buildConstraints(await tc.view(), await budgetRows(tc.trip.id), { tripStart: tc.trip.start_date, tripEnd: tc.trip.end_date });
   const out = new Map<number, number>();
@@ -788,7 +788,7 @@ const paymentPlanTool: Tool = {
   sideEffects: true,
   async run(_args, ctx) {
     const tc = ctx as TurnCtx;
-    if (!tc.trip.destination_id) throw new ToolError("no destination locked yet");
+    if (!tc.trip.destination_name) throw new ToolError("no destination locked yet");
     await setupPaymentPlan(tc);
     return { ok: true, next: "posted" };
   },
