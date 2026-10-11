@@ -21,7 +21,7 @@ npm run live
 ```
 
 - `doctor` should be all green, or green apart from optional SerpApi.
-- `warm` seeds Nessie demo profiles for the roster and prints each budget, so you know the numbers.
+- `warm` seeds Nessie profiles for the roster and prints each budget, so you know the numbers.
 - `live` starts Atlas plus the Linq relay. Leave it running.
 - Pick trip dates within the next 16 days so the forecast is real (the weather beat injects a
   change either way).
@@ -65,17 +65,21 @@ is a **veto** at 0.95 confidence, plus vegetarian, "no flying" and the date wind
 ## 4. Budgets from account data (Capital One)
 
 > **Leo:** what's our budget?
-> **Atlas:** trip budgets, based on demo spending profiles (synthetic sandbox data, not your real bank): maya $375 · leo $1,500 · priya $225…
-> **Atlas:** how i got these: typical paychecks minus recurring bills minus typical everyday spending, times the months until the trip, times half, capped so next month's bills stay covered…
+> **Atlas:** 💰 budgets stay private, so here's just the pooled number: everyone's good up to $225 each (based on everyone's last few months of spending, from your connected accounts)
+> **Atlas:** how i got these: what you earn, minus bills and everyday spending, for each month until the trip, then half of that… yours stays private unless you say "share my budget"…
 
-> **Priya:** keep my budget private
-> **Atlas:** got it priya, your budget stays private. i'll only ever use it in pooled numbers…
+> **Maya:** share my budget
+> **Atlas:** ok maya, i'll share your budget with the group 👍
+
+(DM Atlas "what's my budget?" to show the full private breakdown.)
 
 **Console, budgets and Nessie calls:** each person has a Nessie customer id, with the formula
 inputs and the API calls that created their paychecks, bills and purchases.
 
-**Say:** "When Atlas first sees you, it creates a Nessie sandbox customer for you with months of
-synthetic history. There's no linking step."
+**Say:** "When Atlas first sees you, it creates a Capital One Nessie customer for you with months of
+generated history: paychecks, Verizon and Duke Energy bills, Harris Teeter runs. In the chat it's
+just your connected Capital One account, and budgets are private by default: the group only sees
+the pooled number."
 
 ## 5. Three options and a poll (General · Photon)
 

@@ -14,6 +14,7 @@
 //   maya: text                      (append & for a burst: don't wait)
 //   maya reply atlas.last: text     maya react like atlas.last|"words"|m3     maya vote 2|"lisbon"
 //   maya leaves | sam joins
+//   maya connects                   maya taps Connect on her bank-connect page (signed callback, then jobs)
 //   clock +3d | jobs | wait
 //   ~gate SPEAK reason | ~extract [{...}] | ~agent text: words | ~agent call tool {"json":1}
 //   expect atlas ~ "words" | !~ "words" | ~ /regex/ | !~ /regex/ | quiet | speaks | says 2 | reacted like
@@ -24,7 +25,9 @@
 import { readFile } from "node:fs/promises";
 import { now } from "../clock.ts";
 import { parseDuration } from "../clock.ts";
-import { q } from "../db/pool.ts";
+import { one, q } from "../db/pool.ts";
+import { atlasBase, connectSecret, handleConnectCallback } from "../agent/features/connect.ts";
+import { signBody, signToken, verifyToken } from "../connect/token.ts";
 import { findChat } from "../db/repos/core.ts";
 import type { LlmRole } from "../agent/llm.ts";
 import { isTapback } from "../transport/tapbacks.ts";
@@ -122,6 +125,7 @@ export class ScenarioRunner {
     if ((m = /^atlas joins(?:\s+by\s+(\w+))?$/.exec(text))) return this.act(() => this.need().addAtlas(m![1]));
     if ((m = /^(\w+) joins$/.exec(text))) return this.act(() => this.need().addMember(m![1]!, `+1555019${String(this.need().members.length + 1).padStart(4, "0")}`));
     if ((m = /^(\w+) leaves$/.exec(text))) return this.act(() => this.need().removeMember(m![1]!));
+    if ((m = /^(\w+) connects$/.exec(text))) return this.connects(m[1]!);
     if ((m = /^(\w+) reply ([^:]+):\s*(.+)$/.exec(text))) return this.act(() => this.need().reply(m![1]!, unquote(m![2]!), m![3]!));
     if ((m = /^(\w+) (react|unreact) (\w+) (.+)$/.exec(text))) {
       const tapback = m[3]!;
@@ -158,6 +162,35 @@ export class ScenarioRunner {
       }
     }
     throw new Error(`don't understand "${text}"`);
+  }
+
+  /**
+   * The consent page's Connect button: the token from the link Atlas posted for this person (or a
+   * freshly signed one if none was posted), POSTed to the same handler as /connect-callback.
+   */
+  private async connects(name: string): Promise<void> {
+    const chat = this.need();
+    const cfg = this.session.app.cfg;
+    const secret = connectSecret(cfg);
+    const at = now().getTime();
+    const tokens = chat.transcript
+      .filter((e) => e.from === "atlas" && e.text.includes("/connect/"))
+      .map((e) => /\/connect\/([A-Za-z0-9_-]+\.[A-Za-z0-9_-]+)/.exec(e.text)?.[1])
+      .filter((t): t is string => Boolean(t));
+    let token = tokens.reverse().find((t) => {
+      const v = verifyToken(t, secret, at);
+      return v.ok && v.payload.n.toLowerCase() === name.toLowerCase();
+    });
+    if (!token) {
+      const row = await findChat("sim", chat.id);
+      const person = await one<{ id: number }>(`SELECT id FROM people WHERE handle = $1`, [chat.member(name).handle]);
+      if (!row || !person) throw new Error(`no chat or person for ${name}`);
+      token = signToken({ p: person.id, c: row.id, n: name, cb: atlasBase(cfg) }, secret, at);
+    }
+    const body = JSON.stringify({ token });
+    const res = await handleConnectCallback(body, signBody(body, secret), { cfg });
+    if (res.status !== 200) throw new Error(`connect callback failed: ${res.status} ${JSON.stringify(res.json)}`);
+    await this.runJobs();
   }
 
   need(): SimChat {

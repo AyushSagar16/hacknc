@@ -44,7 +44,39 @@ export interface TripRow {
   site_version: number;
   booking: { label: string; url: string }[];
   site_message_cursor: number;
+  /** Where each stage of the plan stands (src/trips/stages.ts); absent keys are inferred. */
+  stages?: Partial<Record<"location" | "dates" | "travel" | "stay" | "food_activities", "open" | "in_progress" | "decided">>;
+  /** An off-catalog place locked by name (geocoded); destination_id is null then. */
+  destination_place?: TripPlace | null;
+  /** The booked stay (written by the stay workstream). */
+  stay?: TripStay | null;
   created_at: Date;
+}
+
+/** A geocoded place that isn't in the destination catalog. */
+export interface TripPlace {
+  name: string;
+  admin1?: string;
+  country?: string;
+  countryCode?: string;
+  lat: number;
+  lon: number;
+  timezone?: string;
+}
+
+export interface TripStay {
+  name: string;
+  kind: "hotel" | "rental";
+  address?: string | null;
+  lat?: number | null;
+  lon?: number | null;
+  check_in?: string | null;
+  check_out?: string | null;
+  total_cents?: number | null;
+  per_person_night_cents?: number | null;
+  rating?: number | null;
+  link?: string | null;
+  booked_at?: string | null;
 }
 
 /** The chat's focused trip; the first one is created (and focused) on first use. */
@@ -88,11 +120,13 @@ export function tripName(trip: Pick<TripRow, "title" | "destination_name">, inde
   return trip.title ?? trip.destination_name ?? (index !== undefined ? `trip ${index + 1}` : "the trip");
 }
 
+const JSON_COLUMNS = new Set<string>(["itinerary", "booking", "stages", "destination_place", "stay"]);
+
 export async function updateTrip(tripId: number, patch: Partial<Omit<TripRow, "id" | "chat_id" | "public_id" | "created_at">>, on: Queryable = db()): Promise<TripRow> {
   const keys = Object.keys(patch) as (keyof typeof patch)[];
   if (keys.length === 0) return (await one<TripRow>(`SELECT * FROM trips WHERE id = $1`, [tripId], on))!;
   const sets = keys.map((k, i) => `${k} = $${i + 2}`);
-  const values = keys.map((k) => (k === "itinerary" || k === "booking" ? JSON.stringify(patch[k]) : patch[k]));
+  const values = keys.map((k) => (JSON_COLUMNS.has(k) && patch[k] !== null && patch[k] !== undefined ? JSON.stringify(patch[k]) : patch[k]));
   const row = await one<TripRow>(
     `UPDATE trips SET ${sets.join(", ")}, updated_at = $${keys.length + 2} WHERE id = $1 RETURNING *`,
     [tripId, ...values, now()],

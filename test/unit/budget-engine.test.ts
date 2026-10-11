@@ -31,7 +31,7 @@ function baseLedger(opts: { checking?: number; savings?: number; paycheck?: numb
       { id: "cc", type: "Credit Card", openingBalanceCents: usd(800) },
     ],
     txns,
-    bills: [bill("Maple Court Apartments", 1200), bill("Sandbox Wireless", 50)],
+    bills: [bill("Maple Court Apartments", 1200), bill("Verizon Wireless", 50)],
   };
 }
 
@@ -143,7 +143,7 @@ describe("line 3: balance cap, floor and rounding", () => {
     const input = baseLedger({ checking: openingChecking });
     for (const m of MONTHS) {
       input.txns.push(txn("bill_payment", `${m}-01`, 1200, "Maple Court Apartments"));
-      input.txns.push(txn("bill_payment", `${m}-09`, 50, "Sandbox Wireless"));
+      input.txns.push(txn("bill_payment", `${m}-09`, 50, "Verizon Wireless"));
       input.txns.push(txn("transfer_out", `${m}-28`, 1000, "Transfer to brokerage"));
     }
     return input; // liquid = opening + 6 x (3000 - 500 - 1250 - 1000) = opening + 1500

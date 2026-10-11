@@ -1,6 +1,8 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
+import { StageBar } from "@/components/StageBar";
+import { TripFund } from "@/components/TripFund";
 import { getChatTrips, getResearch, getTrip } from "@/lib/data";
 import { formatRange, itineraryLine } from "@/lib/format";
 import { placesPhoto } from "@/lib/images";
@@ -32,8 +34,11 @@ export default async function Overview({ params }: Props) {
 
   return (
     <>
+      {overview.stages?.length ? <StageBar stages={overview.stages} /> : null}
       {trip.summary || overview.stage ? <p className="lede">{trip.summary ?? overview.stage}</p> : null}
       {trip.travelers.length ? <p className="muted small">With {trip.travelers.join(", ")}</p> : null}
+
+      {overview.fund ? <TripFund fund={overview.fund} /> : null}
 
       {overview.options.length ? (
         <section className="glass panel">

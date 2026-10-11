@@ -1,6 +1,7 @@
 // Budgets per person per trip: computed from Nessie accounts by the budget engine, adjustable by
-// text, public by default or private (pooled-only). Every stored row keeps the formula inputs,
-// the data source (live Nessie, cached Nessie, or the offline demo profile) and the Nessie ids.
+// text, private by default (the group sees pooled numbers only) or shared ("share my budget").
+// Every stored row keeps the formula inputs, the data source (live Nessie, cached Nessie, or the
+// offline generated profile) and the Nessie ids.
 import { now } from "../clock.ts";
 import { one, q } from "../db/pool.ts";
 import { computeBudget, poolBudgets, type BudgetResult, type PoolSummary } from "../money/budget.ts";
@@ -36,7 +37,7 @@ export async function budgetRows(tripId: number): Promise<BudgetRow[]> {
 
 async function upsert(personId: number, tripId: number, patch: Partial<Pick<BudgetRow, "suggested_cents" | "adjusted_cents" | "inputs" | "visibility" | "announced_at">>): Promise<BudgetRow> {
   const existing = await one<BudgetRow>(`SELECT * FROM budgets WHERE person_id = $1 AND trip_id = $2`, [personId, tripId]);
-  const next = { suggested_cents: null, adjusted_cents: null, inputs: {}, visibility: "public" as const, announced_at: null, ...existing, ...patch };
+  const next = { suggested_cents: null, adjusted_cents: null, inputs: {}, visibility: "private" as const, announced_at: null, ...existing, ...patch };
   const row = await one<BudgetRow>(
     `INSERT INTO budgets (person_id, trip_id, suggested_cents, adjusted_cents, inputs, visibility, announced_at, updated_at)
      VALUES ($1,$2,$3,$4,$5,$6,$7,$8)

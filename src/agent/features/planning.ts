@@ -3,7 +3,11 @@
 import { daysBetween } from "../../clock.ts";
 import { normPlace } from "../../profile/aggregate.ts";
 import { recordAsk } from "../../profile/store.ts";
+import { closePoll, openPolls } from "../../trips/pollStore.ts";
+import { getStages, reopenStage, setStage, type Stage } from "../../trips/stages.ts";
 import { updateTrip } from "../../trips/state.ts";
+import { resetTravelPlans } from "../../trips/travel.ts";
+import type { ToolCtx } from "../tools.ts";
 import { startWeatherWatch } from "./weather.ts";
 import type { Feature, TurnCtx } from "../feature.ts";
 import { ToolError, say, str, strList, type Tool } from "../tools.ts";
@@ -130,9 +134,7 @@ const setTripDates: Tool = {
     if (start < ctx.today) throw new ToolError(`start ${start} is in the past (today is ${ctx.today})`);
     const nights = daysBetween(start, end);
     if (nights < 1 || nights > 21) throw new ToolError("a trip is 1 to 21 nights");
-    ctx.trip = await updateTrip(ctx.trip.id, { start_date: start, end_date: end });
-    // A locked trip watches the forecast for its dates; restart the watch for the new ones.
-    if (ctx.trip.status === "locked" || ctx.trip.status === "ongoing") await startWeatherWatch(ctx.trip);
+    const applied = await applyTripDates(ctx, start, end);
     // Someone's own window got trimmed (the overlap is narrower, or the trip is shorter than their
     // window): say so instead of silently changing what they said.
     const tc = ctx as Partial<TurnCtx>;
@@ -141,12 +143,38 @@ const setTripDates: Tool = {
       .filter((m) => m.profile.earliest && m.profile.latest && (m.profile.earliest.value < start || m.profile.latest.value > end))
       .map((m) => `${m.label.toLowerCase().split(/\s+/)[0]} said ${formatRange(m.profile.earliest!.value, m.profile.latest!.value)}`);
     const range = formatRange(start, end);
+    const travelNext = applied.travelNext ? " where and when are both settled now, so call plan_travel next to post how everyone gets there." : "";
     const next = trimmed.length
-      ? `dates saved as ${range}. that's narrower than what some people said (${trimmed.join("; ")}), so say it in one line, e.g. "overlap is ${range}, that work?"`
-      : `dates saved as ${range}; mention them in one line`;
+      ? `dates saved as ${range}. that's narrower than what some people said (${trimmed.join("; ")}), so say it in one line, e.g. "overlap is ${range}, that work?"${travelNext}`
+      : `dates saved as ${range}; mention them in one line.${travelNext}`;
     return { ok: true, data: { start, end, nights, range }, next };
   },
 };
+
+/**
+ * Make these the trip's dates: the dates stage is decided, any open dates poll closes, and a
+ * locked trip's weather watch restarts. Changing dates that were already decided resets what
+ * depended on them (travel, stay, food & activities). Callers validate the dates.
+ */
+export async function applyTripDates(ctx: ToolCtx, start: string, end: string): Promise<{ changed: boolean; reset: Stage[]; travelNext: boolean }> {
+  const before = await getStages(ctx.trip.id);
+  const changed = ctx.trip.start_date !== start || ctx.trip.end_date !== end;
+  let reset: Stage[] = [];
+  if (changed && before.dates === "decided") {
+    reset = (await reopenStage(ctx.trip.id, "dates")).reset;
+    await resetTravelPlans(ctx.trip.id);
+  }
+  ctx.trip = await updateTrip(ctx.trip.id, { start_date: start, end_date: end });
+  const stages = await setStage(ctx.trip.id, "dates", "decided");
+  ctx.trip = { ...ctx.trip, stages };
+  for (const p of await openPolls(ctx.chat.id, ctx.trip.id)) if (p.kind === DATES_POLL_KIND) await closePoll(p.id, null, ctx.now);
+  // A locked trip watches the forecast for its dates; restart the watch for the new ones.
+  if (ctx.trip.status === "locked" || ctx.trip.status === "ongoing") await startWeatherWatch(ctx.trip);
+  return { changed, reset, travelNext: stages.location === "decided" && stages.travel !== "decided" };
+}
+
+/** Polls that decide the trip's dates (find_dates). */
+export const DATES_POLL_KIND = "dates";
 
 export const planningFeature: Feature = {
   name: "planning",

@@ -12,7 +12,7 @@ import type { ChatRow } from "../db/repos/core.ts";
 import { markWebhookProcessed, unprocessedWebhookEvents, webhookSink } from "../pipeline/webhookStore.ts";
 import { LinqApi } from "./linq/api.ts";
 import { linqPlatform } from "./linq/platform.ts";
-import { startWebhookServer, type WebhookEvent } from "./linq/webhook.ts";
+import { startWebhookServer, type RouteHandler, type WebhookEvent } from "./linq/webhook.ts";
 import { EventQueue } from "./queue.ts";
 import { SimWorld, simPlatform } from "./sim/platform.ts";
 
@@ -28,7 +28,7 @@ export interface Transport {
   linq?: { api: LinqApi; setSecret(secret: string | undefined): void; setNativePolls(on: boolean): void; selfHandles: Set<string> };
 }
 
-export async function createTransport(cfg: Config, opts: { world?: SimWorld; onRival?: (chatId: string) => void } = {}): Promise<Transport> {
+export async function createTransport(cfg: Config, opts: { world?: SimWorld; onRival?: (chatId: string) => void; routes?: Record<string, RouteHandler> } = {}): Promise<Transport> {
   setLogLevel("warn");
   const log = childLog({ component: "transport", mode: cfg.IMESSAGE_MODE });
   let stopping = false;
@@ -67,6 +67,7 @@ export async function createTransport(cfg: Config, opts: { world?: SimWorld; onR
         secret: () => secret,
         allowUnsigned: cfg.LINQ_WEBHOOK_MODE === "relay",
         sink: webhookSink((event) => queue.push(event)),
+        routes: opts.routes,
       });
       // Replay anything persisted but never handled before the last shutdown.
       for (const event of await unprocessedWebhookEvents()) queue.push(event);

@@ -45,6 +45,13 @@ export function tripFacts(t: { travelers: string[]; status: string; startDate: s
     .join(" · ");
 }
 
+/** "$1,200" or "$12.50" from cents. */
+export function money(cents: number): string {
+  const abs = Math.abs(cents);
+  const s = (abs / 100).toLocaleString("en-US", { minimumFractionDigits: abs % 100 ? 2 : 0, maximumFractionDigits: 2 });
+  return `${cents < 0 ? "−" : ""}$${s}`;
+}
+
 export function clip(s: string, max: number): string {
   const flat = s.replace(/\s+/g, " ").trim();
   return flat.length <= max ? flat : `${flat.slice(0, max - 1).trimEnd()}…`;

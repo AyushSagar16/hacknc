@@ -1,16 +1,19 @@
-// Automatic Nessie linking: the first time Atlas sees a person, it finds or creates a sandbox
+// Automatic Nessie linking: the first time Atlas sees a person, it finds or creates a Nessie
 // customer for them with checking, savings and a credit card, months of paychecks, recurring
-// bills, autopay withdrawals and purchases across Atlas-created merchants. No manual step.
+// bills, autopay withdrawals and purchases across Atlas-created merchants. No manual step. The
+// chat presents this as the person's connected Capital One account.
 //
-// The data is synthetic and the customer name is fictional ("<Name> Atlasdemo"); Nessie data
-// is publicly visible, so real names and phone numbers never leave Atlas. Seeding is resumable:
+// The data is generated. The customer gets the person's first name (so the account reads as
+// theirs) and a generated last name and address; Nessie data is publicly visible, so last names,
+// phone numbers and handles never leave Atlas. Seeding is resumable:
 // the profile is regenerated deterministically from the stored seed, and progress counters
 // skip what was already created if a job retries.
 import { config } from "../config.ts";
 import { addDays, isoDate, now } from "../clock.ts";
 import { childLog } from "../log.ts";
 import { one, q } from "../db/pool.ts";
-import { generateProfile, MERCHANTS, PERSONA_IDS, type AccountKey, type GeneratedProfile, type PersonaId } from "./personas.ts";
+import { getPerson } from "../db/repos/core.ts";
+import { cleanFirstName, generateProfile, MERCHANTS, PERSONA_IDS, type AccountKey, type GeneratedProfile, type PersonaId } from "./personas.ts";
 import { capabilities } from "./capabilities.ts";
 import { NessieClient } from "./client.ts";
 
@@ -28,6 +31,8 @@ export interface LinkRow {
 
 export interface SeedProgress {
   seedKey?: string;
+  /** The person's first name at seeding time, so retries regenerate the same customer. */
+  firstName?: string | null;
   asOf?: string;
   months?: number;
   offline?: boolean;
@@ -40,7 +45,7 @@ export interface SeedProgress {
 
 let clientOverride: NessieClient | null | undefined;
 
-/** The configured client, or null when no key is set (offline demo profiles). */
+/** The configured client, or null when no key is set (offline generated profiles). */
 export function nessieClient(): NessieClient | null {
   if (clientOverride !== undefined) return clientOverride;
   const cfg = config();
@@ -82,7 +87,7 @@ export async function ensureLink(personId: number, opts: { persona?: PersonaId }
 
 export function profileFor(link: LinkRow): GeneratedProfile {
   const p = link.seed_progress;
-  return generateProfile({ seedKey: p.seedKey ?? `atlas-${link.person_id}`, persona: link.persona, months: p.months ?? 6, asOf: p.asOf ?? isoDate(now()) });
+  return generateProfile({ seedKey: p.seedKey ?? `atlas-${link.person_id}`, persona: link.persona, firstName: p.firstName, months: p.months ?? 6, asOf: p.asOf ?? isoDate(now()) });
 }
 
 async function saveProgress(personId: number, patch: Partial<LinkRow>): Promise<void> {
@@ -119,15 +124,17 @@ export async function seedPerson(personId: number, opts: { client?: NessieClient
   let link = await ensureLink(personId, { persona: opts.persona });
   if (link.seed_status === "ready") return link;
   const client = opts.client === undefined ? sharedNessie() : opts.client;
+  const person = link.seed_progress.firstName === undefined ? await getPerson(personId) : undefined;
   const progress: SeedProgress = {
     seedKey: link.seed_progress.seedKey ?? `atlas-${personId}`,
+    firstName: link.seed_progress.firstName === undefined ? cleanFirstName(person?.display_name) : link.seed_progress.firstName,
     asOf: link.seed_progress.asOf ?? addDays(isoDate(now()), -1),
     months: link.seed_progress.months ?? opts.months ?? 6,
     ...link.seed_progress,
   };
 
   if (!client) {
-    // No key: the same deterministic demo profile, computed locally and labeled as such.
+    // No key: the same deterministic profile, computed locally (source "offline-profile").
     await saveProgress(personId, { seed_status: "ready", seed_progress: { ...progress, offline: true }, seeded_at: now() });
     return (await linkFor(personId))!;
   }
@@ -138,7 +145,7 @@ export async function seedPerson(personId: number, opts: { client?: NessieClient
   try {
     let customerId = link.customer_id;
     if (!customerId) {
-      // Always the fictional persona name: Nessie data is public.
+      // First name + generated last name and address only: Nessie data is public.
       customerId = (await client.createCustomer(profile.customer, personId)).id;
       await saveProgress(personId, { customer_id: customerId });
     }
@@ -175,7 +182,7 @@ export async function seedPerson(personId: number, opts: { client?: NessieClient
       body: { merchant_id: merchants.get(p.merchantName)!, medium: p.medium, purchase_date: p.purchase_date, amount: p.amount, status: p.status, description: p.description },
     }));
     await saveProgress(personId, { seed_status: "ready", seeded_at: now() });
-    log.info({ persona: link.persona, customerId }, "nessie demo profile seeded");
+    log.info({ persona: link.persona, customerId }, "nessie profile seeded");
   } catch (err) {
     await saveProgress(personId, { seed_status: "failed", seed_progress: { ...progress, error: (err as Error).message.slice(0, 300) } });
     throw err;

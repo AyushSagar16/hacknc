@@ -16,6 +16,10 @@
   --accent-soft: rgba(21, 132, 196, 0.1);
   --chosen: #2f9e6a;
   --radius: 20px;
+  --surface: var(--glass);
+  --good: var(--chosen);
+  --track: rgba(15, 43, 60, 0.08);
+  --link: var(--accent);
   color-scheme: light;
 }
 @media (prefers-color-scheme: dark) {
@@ -34,6 +38,10 @@
     --accent: #5cc0f0;
     --accent-soft: rgba(92, 192, 240, 0.14);
     --chosen: #5fd39c;
+    --surface: var(--glass);
+    --good: var(--chosen);
+    --track: rgba(228, 241, 248, 0.1);
+    --link: var(--accent);
     color-scheme: dark;
   }
 }
@@ -205,3 +213,59 @@ nav.sections a[aria-current="page"] {
 
 .credit { margin-top: 32px; text-align: center; font-size: 12px; color: var(--muted); }
 .credit a { color: inherit; }
+
+/* Planning stages: location → dates → travel → stay → food & activities */
+.stages { margin: 4px 0 24px; }
+.stages-head { margin: 0 0 8px; }
+.stages ol { list-style: none; padding: 0; margin: 0; display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 6px; }
+.stage { margin: 0; min-width: 0; display: flex; flex-direction: column; gap: 3px; }
+.stage-bar { display: block; height: 6px; border-radius: 3px; box-shadow: inset 0 1px 1px rgba(0, 0, 0, 0.06); background: var(--track); overflow: hidden; position: relative; }
+.stage.decided .stage-bar { background: linear-gradient(180deg, #5cc4f4, var(--accent)); }
+.stage.in_progress .stage-bar::after { content: ""; position: absolute; inset: 0; width: 50%; background: var(--accent); border-radius: 3px; }
+.stage-label { font-size: 13px; font-weight: 600; line-height: 1.25; }
+.stage.open .stage-label { color: var(--muted); font-weight: 500; }
+.stage-detail { font-size: 12px; line-height: 1.3; color: var(--muted); overflow-wrap: anywhere; }
+.stage.decided .stage-detail { color: var(--text); }
+.stage[aria-current="step"] .stage-label { color: var(--accent); }
+
+/* Trip fund */
+.fund {
+  background: var(--glass);
+  border: 1px solid var(--glass-edge);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow), inset 0 1px 0 var(--glass-edge);
+  -webkit-backdrop-filter: blur(18px) saturate(1.4);
+  backdrop-filter: blur(18px) saturate(1.4);
+  padding: 20px 22px 16px;
+  margin: 0 0 16px;
+}
+.fund-top { display: flex; justify-content: space-between; align-items: flex-start; gap: 12px; }
+.fund-bank { font-size: 12px; font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase; color: var(--accent); }
+.fund h2 { margin: 2px 0 0; font-size: 19px; text-transform: none; letter-spacing: -0.01em; color: var(--text); }
+.fund-pct { font-size: 13px; font-weight: 600; color: var(--muted); font-variant-numeric: tabular-nums; padding-top: 2px; }
+.fund-amount { margin: 14px 0 8px; font-size: 15px; }
+.fund-amount strong { font-size: 30px; letter-spacing: -0.02em; font-variant-numeric: tabular-nums; margin-right: 2px; }
+.meter { height: 10px; border-radius: 5px; background: var(--track); overflow: hidden; }
+.meter > span { display: block; height: 100%; background: var(--accent); border-radius: 5px; min-width: 0; transition: width 0.4s ease; }
+.meter.thin { height: 4px; margin: 4px 0 3px; }
+.meter.thin > span { background: var(--good); }
+.fund-sub { margin: 8px 0 0; }
+.fund-members { list-style: none; padding: 0; margin: 16px 0 0; display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 10px 18px; }
+.fund-members li { margin: 0; padding-top: 10px; border-top: 1px solid var(--rule); min-width: 0; }
+.fm-row { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; }
+.fm-name { font-weight: 600; }
+.fm-amt { font-size: 14px; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.fund-h3 { font-size: 13px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.06em; color: var(--muted); margin: 20px 0 4px; }
+.fund-tx { list-style: none; padding: 0; margin: 0; }
+.fund-tx li { display: grid; grid-template-columns: 52px minmax(0, 1fr) auto; gap: 10px; align-items: baseline; padding: 8px 0; border-top: 1px solid var(--rule); margin: 0; }
+.fund-tx li:first-child { border-top: 0; }
+.tx-label { min-width: 0; overflow-wrap: anywhere; font-size: 15px; }
+.tx-amt { font-variant-numeric: tabular-nums; font-size: 15px; white-space: nowrap; }
+.tx-amt.in { color: var(--good); }
+
+@media (max-width: 420px) {
+  .stages ol { gap: 4px; }
+  .stage-label { font-size: 12px; }
+  .stage-detail { font-size: 11px; }
+  .fund { padding: 16px 14px 12px; margin-left: -4px; margin-right: -4px; }
+}

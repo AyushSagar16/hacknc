@@ -1,0 +1,66 @@
+# The trip fund. Booking the stay opens a fund for the trip: target = the stay, each person's
+# share in small payments before the deposit deadline (two weeks before the trip). maya and leo
+# connected their bank, so theirs moves from checking; priya didn't, so hers is only tracked.
+# "put the boat rental on the fund" raises the target and re-plans everyone. On each payday the
+# collection job moves what's due and says it in one message; once the fund covers the stay, the
+# stay is paid from it. show_fund is the one-line status.
+today 2026-10-10 14:00
+members maya leo priya
+atlas joins
+~agent text: NO_REPLY
+maya: hi
+maya connects
+leo connects
+~extract [{"message":0,"about":"maya","key":"date_window","polarity":"positive","explicit":true,"retracts":false,"confidence":0.9,"quote":"dec 10-14","earliest":"2026-12-10","latest":"2026-12-14"},{"message":0,"about":"maya","key":"home_city","polarity":"positive","explicit":true,"retracts":false,"confidence":0.9,"quote":"raleigh","city":"Raleigh"}]
+maya: dec 10-14 from raleigh works for all of us
+maya: set my budget to 1500
+leo: set my budget to 1500
+priya: set my budget to 1500
+~agent call lock_destination {"destination":"charleston"}
+~agent text: NO_REPLY
+maya: atlas we're doing charleston
+expect trip.status = "locked"
+stays test/fixtures/serpapi/google_hotels_charleston.json | test/fixtures/serpapi/google_vacation_rentals_charleston.json
+~agent call find_stays {}
+~agent text: NO_REPLY
+leo: atlas where should we stay?
+~agent call book_stay {"option":"townhouse"}
+~agent text: NO_REPLY
+priya: atlas let's just book the townhouse
+expect atlas ~ "🏠 booked ✓ Harleston Village Townhouse"
+expect atlas ~ "🏦 charleston trip fund: $1,240 ($1,240 for the stay)"
+expect atlas ~ "everyone puts in $413.33"
+expect atlas ~ "all in by nov 26"
+expect atlas ~ "priya, no bank's connected for you, so i'll just track yours here"
+expect sql SELECT count(*)::int AS n, sum(amount_cents)::int AS total FROM fund_txns WHERE kind = 'contribution' AND status = 'scheduled' = [{"n":9,"total":124000}]
+expect sql SELECT deadline FROM trip_funds = [{"deadline":"2026-11-26"}]
+# a shared cost goes on the fund: new target, everyone re-planned
+~agent call add_to_fund {"description":"boat rental","amount_usd":240}
+~agent text: NO_REPLY
+maya: atlas put the boat rental on the fund, it's 240
+expect atlas ~ "🏦 charleston trip fund: $1,480 ($1,240 for the stay + $240 boat rental)"
+expect atlas ~ "everyone puts in $493.33"
+expect sql SELECT sum(amount_cents)::int AS total FROM fund_txns WHERE kind = 'contribution' AND status = 'scheduled' = [{"total":148000}]
+~agent call show_fund {}
+~agent text: NO_REPLY
+leo: atlas how's the fund looking
+expect atlas ~ /🏦 fund's at \$0 \/ \$1,480, next ones go in oct 17: maya \$164\.4\d, leo \$164\.4\d, priya \$164\.4\d/
+expect atlas ~ "• boat rental: $240, paid from the fund once it's covered"
+expect atlas ~ "Harleston Village Townhouse: $1,240, booked, paid from the fund once it's covered"
+# the first payday: the job moves what's due and says it once
+clock +7d
+expect atlas ~ /💸 trip fund: maya \$[\d.]+ and leo \$[\d.]+ went in ✓/
+expect atlas ~ /priya \$[\d.]+ is due, marked as in \(no bank connected/
+expect atlas ~ /fund's at \$4\d\d(\.\d\d)? \/ \$1,480/
+expect sql SELECT count(*)::int AS n FROM fund_txns WHERE kind = 'contribution' AND status = 'done' = [{"n":3}]
+# by the deadline everything's in and the stay is paid from the fund
+clock +45d
+expect transcript ~ /fund's at \$1,480 \/ \$1,480/
+expect transcript ~ /Harleston Village Townhouse is paid in full from the fund ✓/
+expect transcript ~ /boat rental is paid in full from the fund ✓/
+expect sql SELECT paid_at IS NOT NULL AS paid FROM fund_items ORDER BY id = [{"paid":true},{"paid":true}]
+expect sql SELECT kind, sum(amount_cents)::int AS total FROM fund_txns WHERE status = 'done' GROUP BY kind ORDER BY kind = [{"kind":"contribution","total":148000},{"kind":"purchase","total":148000}]
+~agent call show_fund {}
+~agent text: NO_REPLY
+priya: atlas how's the fund
+expect atlas ~ "🏦 fund's at $1,480 / $1,480, fully funded ✓"
