@@ -169,6 +169,8 @@ export class Pipeline {
   private readonly staleAfterMs: number;
   private readonly addressedDebounceMs: number;
   private readonly agentName: string;
+  /** Set by stop(): no new turns are scheduled, so nothing touches the database after shutdown. */
+  private stopped = false;
 
   constructor(private readonly opts: PipelineOptions) {
     this.debounceMs = opts.debounceMs ?? 2_500;
@@ -320,6 +322,7 @@ export class Pipeline {
 
   /** urgent: the newest message names Atlas and reads complete, so wait the shorter quiet window. */
   private bump(st: ChatState, urgent = false): void {
+    if (this.stopped) return;
     if (st.running) {
       if (st.running.cancellable) st.running.abort.abort();
       return; // the running turn reschedules when it ends
@@ -363,6 +366,7 @@ export class Pipeline {
   private async runTurn(st: ChatState): Promise<void> {
     st.timer = undefined;
     st.firstPendingAt = undefined;
+    if (this.stopped) return;
     const chatId = st.chatId;
     if (chatId === undefined) return;
     const chat = await getChat(chatId);
@@ -644,6 +648,17 @@ export class Pipeline {
       if (!this.isIdle(st)) return;
       for (const w of st.waiters.splice(0)) w();
     });
+  }
+
+  /** Shutdown: cancel debounced turns and wait for running turns and sends to finish. */
+  async stop(): Promise<void> {
+    this.stopped = true;
+    for (const st of this.states.values()) {
+      if (st.timer) clearTimeout(st.timer);
+      st.timer = undefined;
+    }
+    await Promise.all([...this.states.values()].map((st) => Promise.all([st.running?.done, st.flushing])));
+    for (const st of this.states.values()) for (const w of st.waiters.splice(0)) w();
   }
 
   // ---------- recovery ----------

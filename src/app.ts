@@ -181,6 +181,7 @@ export async function startAtlas(opts: AppOptions): Promise<AtlasApp> {
       consoleServer?.close();
       await transport.stop();
       await done;
+      await pipeline.stop();
       await brain.settle();
     },
   };

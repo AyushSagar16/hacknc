@@ -29,8 +29,8 @@ export function quietFake(): FakeLlm {
 }
 
 export async function testAtlas(opts: { llm?: Llm; env?: Record<string, string>; features?: Feature[] } = {}): Promise<TestAtlas> {
-  const { drop } = await freshDb();
-  const cfg = loadConfig({ ...process.env, IMESSAGE_MODE: "sim", LLM_MODE: "fake", ...opts.env });
+  const { url, drop } = await freshDb();
+  const cfg = loadConfig({ ...process.env, IMESSAGE_MODE: "sim", LLM_MODE: "fake", ...opts.env, DATABASE_URL: url });
   setConfig(cfg);
   const world = new SimWorld();
   const llm = opts.llm ?? quietFake();

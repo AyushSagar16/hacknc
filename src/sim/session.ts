@@ -5,7 +5,7 @@ import pg from "pg";
 import { loadConfig, setConfig, type Config } from "../config.ts";
 import { OffsetClock, setClock } from "../clock.ts";
 import { migrate } from "../db/migrate.ts";
-import { closeDb, useDb } from "../db/pool.ts";
+import { closeDb, requireDisposableDb, useDb } from "../db/pool.ts";
 import { resetLogger } from "../log.ts";
 import { startAtlas, type AtlasApp } from "../app.ts";
 import { createLlm, type Llm } from "../agent/llm.ts";
@@ -27,7 +27,7 @@ export interface SessionOptions {
   llmMode: "scripted" | "live";
   debounceMs?: number;
   pacing?: boolean;
-  database?: string; // reuse a named database (REPL); default: a fresh clone
+  database?: string; // reuse a named atlas_sim_<hex> database (REPL); default: a fresh clone
   env?: Record<string, string>;
   logFile?: string;
   console?: boolean;
@@ -76,6 +76,8 @@ async function dropDatabase(cfg: Config, name: string): Promise<void> {
 }
 
 export async function startSession(opts: SessionOptions): Promise<SimSession> {
+  // The simulator never writes to the real database: from here on db() takes atlas_sim_* clones only.
+  requireDisposableDb();
   if (opts.logFile) {
     process.env.LOG_FILE = opts.logFile;
     resetLogger();

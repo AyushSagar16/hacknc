@@ -41,8 +41,8 @@ describeDb("cadence on the simulator", () => {
   });
 
   async function boot(handler: TurnHandler, opts: Partial<PipelineOptions> = {}) {
-    const { drop } = await freshDb();
-    const cfg = loadConfig({ ...process.env, IMESSAGE_MODE: "sim" });
+    const { url, drop } = await freshDb();
+    const cfg = loadConfig({ ...process.env, IMESSAGE_MODE: "sim", DATABASE_URL: url });
     setConfig(cfg);
     const world = new SimWorld();
     const transport = await createTransport(cfg, { world });
@@ -65,6 +65,7 @@ describeDb("cadence on the simulator", () => {
     close = async () => {
       await transport.stop();
       await loop.catch(() => {});
+      await pipeline.stop();
       await drop();
     };
     const chat = (id: string) => (chatRef = world.chat(id, simMembers(["maya", "leo", "priya"]), LINQ_LIKE));

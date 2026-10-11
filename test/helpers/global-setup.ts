@@ -4,10 +4,15 @@
 import pg from "pg";
 import { migrate } from "../../src/db/migrate.ts";
 
-export const ADMIN_URL = process.env.TEST_DATABASE_ADMIN_URL ?? "postgres://atlas:atlas@localhost:54329/atlas";
+// The maintenance database is `postgres`, never `atlas` (the real one): tests only CREATE and DROP
+// their own clones from it.
+export const ADMIN_URL = process.env.TEST_DATABASE_ADMIN_URL ?? "postgres://atlas:atlas@localhost:54329/postgres";
 export const TEMPLATE = process.env.ATLAS_TEST_TEMPLATE ?? `atlas_tpl_${process.pid}`;
 
 export default async function setup(): Promise<() => Promise<void>> {
+  // Workers inherit this env. A config loaded from process.env (anything that skips freshDb) then
+  // names a database that doesn't exist and that db()'s guard refuses, never the real DATABASE_URL.
+  process.env.DATABASE_URL = ADMIN_URL.replace(/\/[^/]+$/, "/atlas_test_no_database");
   const admin = new pg.Client({ connectionString: ADMIN_URL });
   try {
     await admin.connect();

@@ -50,12 +50,12 @@ describeDb("Linq line end to end (fake Linq API, real webhook server + Spectrum 
   });
 
   async function boot(llm = quietFake(), friends = FRIENDS) {
-    const { drop } = await freshDb();
+    const { url, drop } = await freshDb();
     cleanup.push(drop);
     const linq = await fakeLinq({ line: LINE, members: friends });
     cleanup.push(linq.close);
     const port = await freePort();
-    const cfg = loadConfig({ ...process.env, IMESSAGE_MODE: "linq", LINQ_API_KEY: "test", LINQ_API_URL: linq.url, LINQ_WEBHOOK_PORT: String(port), LINQ_WEBHOOK_MODE: "subscription", LINQ_WEBHOOK_SECRET: SECRET, LLM_MODE: "fake" });
+    const cfg = loadConfig({ ...process.env, IMESSAGE_MODE: "linq", LINQ_API_KEY: "test", LINQ_API_URL: linq.url, LINQ_WEBHOOK_PORT: String(port), LINQ_WEBHOOK_MODE: "subscription", LINQ_WEBHOOK_SECRET: SECRET, LLM_MODE: "fake", DATABASE_URL: url });
     setConfig(cfg);
     setNessieClient(null);
     app = await startAtlas({ cfg, llm, debounceMs: 20, maxWaitMs: 300, pacing: () => 0, startJobs: false, names: (h) => NAMES[h] });

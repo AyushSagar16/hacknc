@@ -14,9 +14,41 @@ export type Queryable = pg.Pool | pg.PoolClient;
 
 let pool: pg.Pool | undefined;
 
+/**
+ * Tests and the simulator may only ever talk to a disposable clone (atlas_t_<hex> from
+ * test/helpers/db.ts, atlas_sim_<hex> from src/sim/session.ts). Anything else, above all the real
+ * DATABASE_URL, is refused, so a test that forgets freshDb or background work that outlives
+ * closeDb() throws instead of writing into the database a real Atlas sends from.
+ */
+let disposableOnly = process.env.VITEST !== undefined;
+const DISPOSABLE = /^atlas_(t|sim)_[0-9a-f]+$/;
+
+/** Called by the simulator: from here on db() and useDb() accept disposable clones only. */
+export function requireDisposableDb(): void {
+  disposableOnly = true;
+}
+
+export function databaseName(url: string): string {
+  try {
+    return decodeURIComponent(new URL(url).pathname.replace(/^\//, ""));
+  } catch {
+    return "";
+  }
+}
+
+export function assertDisposable(url: string | undefined): void {
+  if (!disposableOnly) return;
+  const name = databaseName(url ?? "");
+  if (DISPOSABLE.test(name)) return;
+  const err = new Error(`refusing database "${name || url}" in a test or simulator: only disposable clones (atlas_t_*, atlas_sim_*) are allowed`);
+  process.stderr.write(`[db guard] ${err.stack}\n`);
+  throw err;
+}
+
 export function db(): pg.Pool {
   if (!pool) {
     const cfg = config();
+    assertDisposable(cfg.DATABASE_URL);
     pool = new pg.Pool({
       connectionString: cfg.DATABASE_URL,
       max: cfg.DATABASE_POOL_MAX,
@@ -32,6 +64,7 @@ export function db(): pg.Pool {
 }
 
 export function useDb(next: pg.Pool): void {
+  assertDisposable(next.options.connectionString);
   pool = next;
 }
 

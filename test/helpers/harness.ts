@@ -14,8 +14,8 @@ export interface Harness {
 }
 
 export async function harness(handler: TurnHandler, opts: { debounceMs?: number; maxWaitMs?: number } = {}): Promise<Harness> {
-  const { drop } = await freshDb();
-  const cfg = loadConfig({ ...process.env, IMESSAGE_MODE: "sim" });
+  const { url, drop } = await freshDb();
+  const cfg = loadConfig({ ...process.env, IMESSAGE_MODE: "sim", DATABASE_URL: url });
   setConfig(cfg);
   const world = new SimWorld();
   const transport = await createTransport(cfg, { world });
@@ -37,6 +37,7 @@ export async function harness(handler: TurnHandler, opts: { debounceMs?: number;
     close: async () => {
       await transport.stop();
       await loop.catch(() => {});
+      await pipeline.stop();
       await drop();
     },
   };

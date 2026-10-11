@@ -1,4 +1,4 @@
-import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { Config } from "../../src/config.ts";
 import { FakeLlm, jsonResult, LlmError, type GenerateRequest } from "../../src/agent/llm.ts";
 import type { ToolCtx } from "../../src/agent/tools.ts";
@@ -7,6 +7,12 @@ import { academicYear, BUSY, cacheKey, resetSearchRest, clearSearchCache, lookup
 import { clip, dietLabel, formatItem, formatList, MAX_ITEM_CHARS, rangeLabel, stripArtifacts } from "../../src/search/format.ts";
 import { appearsIn, groundItems, norm } from "../../src/search/verify.ts";
 import { excerpt, linkable, pageText, parseDdgHtml, resolveRedirect, unwrapDdg } from "../../src/search/web.ts";
+
+// A unit test has no database: what web_search finds would otherwise be saved to the trip page.
+vi.mock("../../src/agent/features/research.ts", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("../../src/agent/features/research.ts")>()),
+  saveLookupToTrip: async () => {},
+}));
 
 const cfg = { GEMINI_MODEL_AGENT: "gemini-test", GEMINI_MODEL_GATE: "gemini-cheap", AGENT_NAME: "atlas" } as unknown as Config;
 
