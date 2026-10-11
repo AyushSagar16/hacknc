@@ -28,13 +28,15 @@ schedules are deterministic code.
   inbound rows are the batch queue), `turns`, `outbox`, `webhook_events`.
 - **Jobs:** `jobs` (`SKIP LOCKED`, due times from the app clock, recurring via reschedule),
   `job_failures` (30-day retention), `llm_traces`.
-- **Memory per person:** `facts` (each with quote, source message, confidence, visibility,
-  `superseded_by`), `asks` (ask-once).
+- **Memory, sandboxed per chat:** `facts` (each with quote, source message, confidence, visibility,
+  `superseded_by`), `asks` (ask-once). Facts are read only in the chat they were said in
+  (`profilesFor` takes a required `chatId`), so a person in two groups has two separate profiles.
 - **Trip:** `trips` (several per chat; `chats.focus_trip_id` is the one being planned, `public_id`
   is the page URL), `proposals`, `polls` (one open per kind per trip), `votes`, `confirmations`,
   `trip_research` (one note per topic from the web search, with its source). `messages.trip_id` and trip-scoped
   `facts.trip_id` (destination, date window, trip length, budget talk) record which trip they were
-  about; facts about the person carry across trips.
+  about (a trip fact always gets one, the focused trip if need be); facts about the person carry
+  across that chat's trips.
 - **Money:** `budgets` (formula inputs + Nessie ids + visibility), `installments` (legacy Nessie bill ids), `trip_funds` / `fund_items` / `fund_txns` (the trip
   fund: its Nessie customer and account, what it pays for, every contribution, refund and purchase),
   `expenses` (exact cents, idempotency key, Nessie purchase id), `settlements` (Nessie transfer and

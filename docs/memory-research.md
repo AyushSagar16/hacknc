@@ -16,7 +16,8 @@ Researched 2026-10-10.
    `noiseReason` drops budget commands and questions. Everything else is inserted. `aggregate.ts`
    then resolves facts per slot: explicit beats implied, and the newest wins. `describeSituation`
    prints one resolved profile line per member every turn. This is the real source of truth for
-   "who wants what".
+   "who wants what". *(Update: facts are now sandboxed per chat. `profilesFor` requires a
+   `chatId`, so a person's facts from one group chat never reach another's itinerary.)*
 2. **Semantic memory** (`memory_chunks`, `src/memory/*`). A `memory.embed` job after each turn
    embeds speaker-labelled message windows (≤2,400 chars, split on 1 h gaps, ack-only windows
    skipped) and one sentence per new fact (`describeFact`). Decisions are embedded on trip lock.
@@ -186,8 +187,7 @@ unaddressed turns, plus extract, agent, query embed and doc embed.
      and require sim ≥ 0.70 or a BM25 match).
   4. Skip the query embed when the query has fewer than 2 content terms after stop words ("yes",
      "ok do it", "what happened"). Run BM25 alone; it's free.
-  5. Stop writing `fact` chunks. Resolved facts are already in the situation every turn, across
-     chats, and the chunks go stale and keep misreads alive. Delete existing ones (or exclude
+  5. Stop writing `fact` chunks. Resolved facts are already in the situation every turn, and the chunks go stale and keep misreads alive. Delete existing ones (or exclude
      `kind='fact'`).
   6. Add an `importance` multiplier: decision 1.2, summary 1.1, window 1.0.
 - **Tiger feature:** **pg_textsearch BM25 + pgvectorscale diskann + RRF in one SQL statement.**

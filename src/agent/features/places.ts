@@ -56,7 +56,7 @@ export function prefsOf(view: GroupView): GroupPrefs {
 
 async function viewForTrip(trip: TripRow): Promise<GroupView> {
   const members = await activeMembers(trip.chat_id);
-  const profiles = await profilesFor(members.map((m) => m.id), { tripId: trip.id });
+  const profiles = await profilesFor(members.map((m) => m.id), { chatId: trip.chat_id, tripId: trip.id });
   return groupView(
     members.map((m) => ({ personId: m.id, label: labelOf(m), profile: profiles.get(m.id)! })),
     trip.start_date ?? now().toISOString().slice(0, 10),

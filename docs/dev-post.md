@@ -64,9 +64,9 @@ optimum is 3.
 ## 4. Memory that scopes correctly
 
 Messages and extracted facts are embedded with Gemini (`gemini-embedding-2`, 768 dims) into
-[Tiger Data](https://www.tigerdata.com) Postgres with a pgvectorscale **diskann** index. History is
-scoped per chat, while facts about a person follow them across chats. Private facts never surface
-in a group. Recall reranks cosine similarity with a gentle recency decay. Spend and forecasts live
+[Tiger Data](https://www.tigerdata.com) Postgres with a pgvectorscale **diskann** index. Each group
+chat is its own sandbox: history, recall and facts are read only in the chat they came from, so
+one group's plans never shape another's. Private facts never surface in a group. Recall reranks cosine similarity with a gentle recency decay. Spend and forecasts live
 in TimescaleDB hypertables with continuous aggregates, which give "we're $211 in" and the forecast
 timeline for free.
 

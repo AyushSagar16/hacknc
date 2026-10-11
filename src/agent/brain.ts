@@ -113,7 +113,7 @@ export function createBrain(deps: BrainDeps): TurnHandler & { settle(): Promise<
       consumed: new Set(),
       features,
       profiles: () => {
-        if (profilesCache?.tripId !== tc.trip.id) profilesCache = { tripId: tc.trip.id, promise: profilesFor(members.map((m) => m.id), { tripId: tc.trip.id }) };
+        if (profilesCache?.tripId !== tc.trip.id) profilesCache = { tripId: tc.trip.id, promise: profilesFor(members.map((m) => m.id), { chatId: chat.id, tripId: tc.trip.id }) };
         return profilesCache.promise;
       },
       view: async () => {
@@ -310,7 +310,7 @@ export function createBrain(deps: BrainDeps): TurnHandler & { settle(): Promise<
     if (!settled) {
       // The situation went out with the profiles from before this batch; tools (who's still missing
       // what, dates) read them after extraction lands, so nobody is asked for what they just said.
-      const fresh = () => profilesFor(members.map((m) => m.id), { tripId: tc.trip.id });
+      const fresh = () => profilesFor(members.map((m) => m.id), { chatId: chat.id, tripId: tc.trip.id });
       profilesCache = undefined;
       tc.profiles = () => {
         if (profilesCache?.tripId !== tc.trip.id) profilesCache = { tripId: tc.trip.id, promise: extraction.then(fresh, fresh) };
@@ -467,7 +467,7 @@ async function runExtraction(tc: TurnCtx, llm: Llm, cfg: Config, agentName: stri
   }
   const firstId = pending[0]!.id;
   const context = tc.history.filter((h) => h.id < firstId).slice(-12);
-  const profiles = await profilesFor(tc.members.map((m) => m.id));
+  const profiles = await profilesFor(tc.members.map((m) => m.id), { chatId: tc.chat.id, tripId: tc.trip.id });
   const known = new Map<number, KnownSoFar>(
     [...profiles].map(([id, p]) => [id, { earliest: p.earliest?.value ?? null, latest: p.latest?.value ?? null, city: p.homeCity?.value ?? null }]),
   );
