@@ -92,50 +92,98 @@ export const EMBED_DIM = 768;
 
 const OVERLOADED = /\b(503|500|502|504|429)\b|UNAVAILABLE|high demand|overloaded|RESOURCE_EXHAUSTED|INTERNAL|DEADLINE/i;
 const NOT_FOUND = /\b404\b|NOT_FOUND|is not found|not supported for generateContent|no longer available/i;
+const QUOTA = /\b429\b|RESOURCE_EXHAUSTED|quota/i;
+const BAD_KEY = /API_KEY_INVALID|API key not valid|API key expired|\b403\b|PERMISSION_DENIED/i;
 const BAD_THINKING = /thinking/i;
 
+/** GEMINI_API_KEY holds one key or several, comma-separated. */
+export function splitKeys(keys: string | string[] | undefined): string[] {
+  const list = Array.isArray(keys) ? keys : (keys ?? "").split(",");
+  return [...new Set(list.map((k) => k.trim()).filter(Boolean))];
+}
+
+/** One attempt: a model on one API key. */
+interface Slot {
+  model: string;
+  key: number;
+}
+
 export class GeminiLlm implements Llm {
-  private readonly ai: GoogleGenAI;
+  /** One client per API key. Quota is per Google project, so each key has its own buckets. */
+  private readonly clients: GoogleGenAI[];
+  private nextKey = 0;
   private readonly log = childLog({ component: "llm.gemini" });
-  /** Models that just timed out or were overloaded are skipped until this time. */
+  /**
+   * Buckets that just failed are skipped until this time. `bucket` benches a model on every key
+   * (overload, timeouts and missing models are Google's side); `bucket@k` benches it on key k
+   * only (that key's quota ran out); `*@k` benches key k for everything (it was rejected).
+   */
   private readonly unhealthyUntil = new Map<string, number>();
   private readonly noThinking = new Set<string>();
 
   constructor(
-    apiKey: string,
+    apiKeys: string | string[],
     private readonly embedModel: string,
     private readonly fallbacks: string[] = [],
   ) {
-    this.ai = new GoogleGenAI({ apiKey });
+    const keys = splitKeys(apiKeys);
+    if (keys.length === 0) throw new Error("GeminiLlm needs at least one API key");
+    this.clients = keys.map((apiKey) => new GoogleGenAI({ apiKey }));
   }
 
-  private healthy(model: string): boolean {
-    return (this.unhealthyUntil.get(model) ?? 0) < Date.now();
+  /** Every key, starting from the next one in turn, so calls are spread across the keys. */
+  private keyRotation(): number[] {
+    const n = this.clients.length;
+    const start = this.nextKey++ % n;
+    return Array.from({ length: n }, (_, i) => (start + i) % n);
   }
 
-  private markUnhealthy(model: string, ms: number, why: string): void {
-    this.unhealthyUntil.set(model, Date.now() + ms);
-    this.log.warn({ model, why: why.slice(0, 120), skipForSec: Math.round(ms / 1000) }, "gemini model unhealthy; failing over");
+  private keyLabel(k: number): string {
+    return this.clients.length > 1 ? ` (key ${k + 1})` : "";
   }
 
-  /** Ping each model once so an overloaded primary is skipped from the first real message. */
+  private dueAt(bucket: string, k: number): number {
+    const at = (h: string) => this.unhealthyUntil.get(h) ?? 0;
+    return Math.max(at(bucket), at(`${bucket}@${k}`), at(`*@${k}`));
+  }
+
+  private markUnhealthy(bucket: string, ms: number, why: string, k?: number): void {
+    this.unhealthyUntil.set(k === undefined ? bucket : `${bucket}@${k}`, Date.now() + ms);
+    const scope = k === undefined ? (this.clients.length > 1 ? "all keys" : undefined) : this.clients.length > 1 ? `key ${k + 1}` : undefined;
+    this.log.warn({ model: bucket, ...(scope ? { scope } : {}), why: why.slice(0, 120), skipForSec: Math.round(ms / 1000) }, "gemini model unhealthy; failing over");
+  }
+
+  /**
+   * Bench whatever the error says is broken: a rejected key everywhere, a spent quota on that key
+   * only (another key's project still has its own), anything else on every key.
+   */
+  private bench(bucket: string, k: number, err: unknown, ms = benchMs(err)): void {
+    const msg = (err as Error)?.message ?? String(err);
+    if (BAD_KEY.test(msg) && !QUOTA.test(msg)) this.markUnhealthy("*", 60 * 60_000, msg, k);
+    else if (QUOTA.test(msg)) this.markUnhealthy(bucket, ms, msg, k);
+    else this.markUnhealthy(bucket, ms, msg);
+  }
+
+  /** Ping each model on each key once so a dead model or spent key is skipped from the first real message. */
   async warmup(models: string[]): Promise<Record<string, string>> {
     const out: Record<string, string> = {};
+    const slots = [...new Set(models)].flatMap((model) => this.clients.map((_, key) => ({ model, key })));
     await Promise.all(
-      [...new Set(models)].map(async (model) => {
+      slots.map(async ({ model, key }) => {
+        const label = `${model}${this.keyLabel(key)}`;
         const t0 = Date.now();
         try {
-          await this.once({ role: "summary", model, system: "reply ok", contents: [{ role: "user", parts: [{ text: "ping" }] }], timeoutMs: 8_000, maxOutputTokens: 5 }, model, false);
-          out[model] = `ok ${Date.now() - t0}ms`;
+          await this.once({ role: "summary", model, system: "reply ok", contents: [{ role: "user", parts: [{ text: "ping" }] }], timeoutMs: 8_000, maxOutputTokens: 5 }, model, false, key);
+          out[label] = `ok ${Date.now() - t0}ms`;
         } catch (err) {
           // Thinking models can spend the tiny ping budget before writing anything (MAX_TOKENS).
           // That still proves the model is up and has quota, so it isn't a reason to skip it.
           if (err instanceof LlmError && err.kind === "empty") {
-            out[model] = `ok ${Date.now() - t0}ms`;
+            out[label] = `ok ${Date.now() - t0}ms`;
             return;
           }
-          this.markUnhealthy(model, benchMs(err), (err as Error).message);
-          out[model] = `unhealthy: ${(err as Error).message.slice(0, 60)}`;
+          this.bench(model, key, err);
+          out[label] = `unhealthy: ${(err as Error).message.slice(0, 60)}`;
         }
       }),
     );
@@ -143,36 +191,44 @@ export class GeminiLlm implements Llm {
   }
 
   /**
-   * Try the requested model, then each fallback, skipping models that failed recently. Overload
-   * (503/429/timeouts) fails over; a model that rejects the thinking setting is retried without it.
+   * Try the requested model on each key, then each fallback the same way, skipping anything that
+   * failed recently. Overload (503/429/timeouts) fails over; a model that rejects the thinking
+   * setting is retried without it.
    */
   async generate(req: GenerateRequest): Promise<GenerateResult> {
     const chain = [req.model, ...this.fallbacks.filter((m) => m !== req.model)];
-    const key = (m: string) => bucketKey(m, req.builtinTools);
+    const keys = this.keyRotation();
+    const slots: Slot[] = chain.flatMap((model) => keys.map((key) => ({ model, key })));
+    const bucket = (m: string) => bucketKey(m, req.builtinTools);
+    const due = (s: Slot) => this.dueAt(bucket(s.model), s.key);
     const t0 = Date.now();
     const remaining = () => (req.budgetMs === undefined ? Number.POSITIVE_INFINITY : req.budgetMs - (Date.now() - t0));
-    let usable = chain.filter((m) => this.healthy(key(m)));
+    let usable = slots.filter((s) => due(s) < Date.now());
     if (usable.length === 0 && req.budgetMs !== undefined) {
       // Everything is benched (usually a per-minute 429). Back off until the first model is due
       // back if that still leaves time for a real attempt; otherwise fail fast so the caller can
       // fall back instead of burning its whole budget on calls that will 429 again.
-      const soonest = Math.min(...chain.map((m) => this.unhealthyUntil.get(key(m)) ?? 0));
+      const soonest = Math.min(...slots.map(due));
       const wait = Math.max(0, soonest - Date.now());
       if (wait + MIN_ATTEMPT_MS > remaining()) throw new LlmError(`all models busy for ${Math.round(wait / 1000)}s more`, "api");
       this.log.info({ role: req.role, waitMs: wait }, "all gemini models benched; backing off");
       await sleep(wait);
-      usable = chain.filter((m) => this.healthy(key(m)));
+      usable = slots.filter((s) => due(s) < Date.now());
     }
-    const order = usable.length ? usable : chain;
+    const order = usable.length ? usable : slots;
+    const startedAt = Date.now();
     let last: unknown;
-    for (const [i, model] of order.entries()) {
+    for (const [i, slot] of order.entries()) {
+      const { model, key } = slot;
+      // Something benched during this call (the model on every key, or this key) isn't retried.
+      if (last !== undefined && due(slot) > startedAt) continue;
       const isLast = i === order.length - 1;
       const left = remaining();
       if (left < MIN_ATTEMPT_MS && last !== undefined) break;
       // With somewhere to fall back to, don't wait the full budget on a struggling model.
       const timeoutMs = Math.max(1_000, Math.min(isLast ? req.timeoutMs : Math.min(req.timeoutMs, 12_000), left));
       try {
-        return await this.once({ ...req, timeoutMs }, model, !this.noThinking.has(model));
+        return await this.once({ ...req, timeoutMs }, model, !this.noThinking.has(model), key);
       } catch (err) {
         last = err;
         const msg = (err as Error).message;
@@ -180,26 +236,27 @@ export class GeminiLlm implements Llm {
         if (BAD_THINKING.test(msg) && /400|INVALID_ARGUMENT/.test(msg) && req.thinking) {
           this.noThinking.add(model);
           try {
-            return await this.once({ ...req, timeoutMs }, model, false);
+            return await this.once({ ...req, timeoutMs }, model, false, key);
           } catch (retryErr) {
             last = retryErr;
           }
         }
+        const lastMsg = (last as Error).message;
         // A budgeted call that times out on a model has learned it's too slow right now: bench it
         // briefly so the next call starts on another model instead of timing out the same way.
-        const hung = err instanceof LlmError && err.kind === "timeout" && (timeoutMs >= 10_000 || req.budgetMs !== undefined);
-        if (hung) this.markUnhealthy(key(model), timeoutMs >= 10_000 ? benchMs(err) : 45_000, msg);
-        else if (OVERLOADED.test(msg) || NOT_FOUND.test(msg)) this.markUnhealthy(key(model), benchMs(err), msg);
-        else if (!isLast) this.log.warn({ model, err: msg.slice(0, 160) }, "gemini call failed; trying the next model");
+        const hung = last instanceof LlmError && last.kind === "timeout" && (timeoutMs >= 10_000 || req.budgetMs !== undefined);
+        if (hung) this.bench(bucket(model), key, last, timeoutMs >= 10_000 ? benchMs(last) : 45_000);
+        else if (OVERLOADED.test(lastMsg) || NOT_FOUND.test(lastMsg) || BAD_KEY.test(lastMsg)) this.bench(bucket(model), key, last);
+        else if (!isLast) this.log.warn({ model, err: lastMsg.slice(0, 160) }, "gemini call failed; trying the next model");
       }
     }
     throw last instanceof LlmError ? last : new LlmError((last as Error)?.message ?? "gemini failed", "api");
   }
 
-  private async once(req: GenerateRequest, model: string, withThinking: boolean): Promise<GenerateResult> {
+  private async once(req: GenerateRequest, model: string, withThinking: boolean, key = 0): Promise<GenerateResult> {
     const signal = AbortSignal.timeout(req.timeoutMs);
     try {
-      const response = await this.ai.models.generateContent({
+      const response = await this.clients[key]!.models.generateContent({
         model,
         contents: req.contents as never,
         config: {
@@ -230,7 +287,7 @@ export class GeminiLlm implements Llm {
       return result;
     } catch (err) {
       if (err instanceof LlmError) throw err;
-      if (signal.aborted) throw new LlmError(`gemini ${model} ${req.role} call timed out after ${req.timeoutMs}ms`, "timeout");
+      if (signal.aborted) throw new LlmError(`gemini ${model}${this.keyLabel(key)} ${req.role} call timed out after ${req.timeoutMs}ms`, "timeout");
       throw new LlmError((err as Error).message, "api");
     }
   }
@@ -241,7 +298,25 @@ export class GeminiLlm implements Llm {
     const prefixed = this.embedModel.startsWith("gemini-embedding-2")
       ? texts.map((t) => (kind === "query" ? `task: search result | query: ${t}` : `title: none | text: ${t}`))
       : texts;
-    const response = await this.ai.models.embedContent({
+    const keys = this.keyRotation();
+    const usable = keys.filter((k) => this.dueAt(this.embedModel, k) < Date.now());
+    let last: unknown;
+    for (const key of usable.length ? usable : keys) {
+      try {
+        return await this.embedOnce(prefixed, kind, key);
+      } catch (err) {
+        last = err;
+        const msg = (err as Error).message;
+        // Only a spent or rejected key is worth trying another key for.
+        if (!QUOTA.test(msg) && !BAD_KEY.test(msg)) throw err;
+        this.bench(this.embedModel, key, err);
+      }
+    }
+    throw last;
+  }
+
+  private async embedOnce(prefixed: string[], kind: "query" | "document", key: number): Promise<number[][]> {
+    const response = await this.clients[key]!.models.embedContent({
       model: this.embedModel,
       // One Content per text: gemini-embedding-2 reads a bare string array as the parts of a
       // single input and returns one vector for all of them.
@@ -253,7 +328,7 @@ export class GeminiLlm implements Llm {
       },
     });
     const vectors = (response.embeddings ?? []).map((e) => normalize(e.values ?? []));
-    if (vectors.length !== texts.length || vectors.some((v) => v.length !== EMBED_DIM)) {
+    if (vectors.length !== prefixed.length || vectors.some((v) => v.length !== EMBED_DIM)) {
       throw new LlmError(`embedding returned ${vectors.length} vectors of ${vectors[0]?.length ?? 0} dims`, "api");
     }
     return vectors;
@@ -284,7 +359,7 @@ export function benchMs(err: unknown): number {
   const msg = (err as Error)?.message ?? String(err);
   if (err instanceof LlmError && err.kind === "timeout") return 3 * 60_000;
   if (NOT_FOUND.test(msg)) return 60 * 60_000;
-  if (/\b429\b|RESOURCE_EXHAUSTED|quota/i.test(msg)) {
+  if (QUOTA.test(msg)) {
     if (/PerDay/i.test(msg)) return 30 * 60_000;
     const delay = /"?retryDelay"?\s*:\s*"(\d+(?:\.\d+)?)s"/.exec(msg);
     if (delay) return Math.max(15_000, Math.ceil(Number(delay[1]) * 1000));
@@ -500,7 +575,8 @@ const STOP = new Set(["the", "a", "an", "to", "of", "and", "is", "i", "we", "for
 
 export function createLlm(opts: { mode: "live" | "replay" | "record" | "fake"; apiKey?: string; embedModel: string; fallbacks?: string[]; cassette?: string }): Llm {
   if (opts.mode === "fake") return new FakeLlm();
-  const live = opts.apiKey ? new TracedLlm(new GeminiLlm(opts.apiKey, opts.embedModel, opts.fallbacks ?? [])) : undefined;
+  const keys = splitKeys(opts.apiKey);
+  const live = keys.length ? new TracedLlm(new GeminiLlm(keys, opts.embedModel, opts.fallbacks ?? [])) : undefined;
   if (opts.mode === "live") {
     if (!live) return new NoKeyLlm();
     return live;

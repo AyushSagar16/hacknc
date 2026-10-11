@@ -6,7 +6,7 @@ import { createServer } from "node:net";
 import { existsSync } from "node:fs";
 import pg from "pg";
 import { loadConfig } from "../src/config.ts";
-import { GeminiLlm } from "../src/agent/llm.ts";
+import { GeminiLlm, splitKeys } from "../src/agent/llm.ts";
 import { LinqApi } from "../src/transport/linq/api.ts";
 
 type Check = { name: string; ok: boolean | "warn"; detail: string };
@@ -64,14 +64,20 @@ if (cfg.IMESSAGE_MODE === "linq") {
 
 // Gemini
 if (cfg.GEMINI_API_KEY) {
-  const g = new GeminiLlm(cfg.GEMINI_API_KEY, cfg.GEMINI_EMBED_MODEL);
-  for (const [role, model] of [["gate", cfg.GEMINI_MODEL_GATE], ["agent", cfg.GEMINI_MODEL_AGENT]] as const) {
-    const t0 = Date.now();
-    try {
-      await g.generate({ role, model, system: "reply with the word ok", contents: [{ role: "user", parts: [{ text: "ping" }] }], timeoutMs: 15_000, maxOutputTokens: 5 });
-      add(`gemini ${model}`, true, `${Date.now() - t0} ms`);
-    } catch (err) {
-      add(`gemini ${model}`, false, (err as Error).message.slice(0, 140));
+  const keys = splitKeys(cfg.GEMINI_API_KEY);
+  const g = new GeminiLlm(keys, cfg.GEMINI_EMBED_MODEL);
+  // Each key on its own, so a spent or wrong key shows up even when another one covers for it.
+  for (const [i, key] of keys.entries()) {
+    const one = new GeminiLlm(key, cfg.GEMINI_EMBED_MODEL);
+    const label = keys.length > 1 ? ` (key ${i + 1} of ${keys.length})` : "";
+    for (const [role, model] of [["gate", cfg.GEMINI_MODEL_GATE], ["agent", cfg.GEMINI_MODEL_AGENT]] as const) {
+      const t0 = Date.now();
+      try {
+        await one.generate({ role, model, system: "reply with the word ok", contents: [{ role: "user", parts: [{ text: "ping" }] }], timeoutMs: 15_000, maxOutputTokens: 5 });
+        add(`gemini ${model}${label}`, true, `${Date.now() - t0} ms`);
+      } catch (err) {
+        add(`gemini ${model}${label}`, false, (err as Error).message.slice(0, 140));
+      }
     }
   }
   try {

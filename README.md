@@ -80,7 +80,7 @@ judge console is at http://127.0.0.1:8790. Without a Gemini key, deterministic f
 | `LINQ_WEBHOOK_PORT`, `LINQ_WEBHOOK_MODE`, `LINQ_WEBHOOK_SECRET` | Webhook receiver. `relay` mode needs no secret (captured from the CLI); `subscription` mode needs it |
 | `PROJECT_ID`, `PROJECT_SECRET` | Photon Spectrum Cloud (`cloud` mode; groups need a dedicated Business line) |
 | `DATABASE_URL` | Postgres with TimescaleDB + pgvector (+ pgvectorscale). Empty = local docker |
-| `GEMINI_API_KEY` | Gemini for the agent, speak gate, extraction and embeddings |
+| `GEMINI_API_KEY` | Gemini for the agent, speak gate, extraction and embeddings. Several keys, comma-separated, are load-balanced (see below) |
 | `GEMINI_MODEL_AGENT` / `_GATE` / `_EXTRACT` / `GEMINI_EMBED_MODEL` | Model overrides |
 | `NESSIE_API_KEY`, `NESSIE_BASE_URL` | Capital One Nessie sandbox |
 | `SERPAPI_API_KEY` | Live Google Flights / Hotels prices (optional; otherwise labeled estimates) |
@@ -205,7 +205,11 @@ and Flash models get only about 20 requests a day each. So the lite models do th
 `GEMINI_FALLBACK_MODELS` (`gemini-3.1-flash-lite`, `gemini-3.5-flash-lite`, `gemini-3-flash-preview`,
 `gemini-3.8-flash`) takes over as each one runs out. A model that's out of quota or overloaded is
 skipped for a while: 30 minutes for a daily quota, or the retry delay Google returns for a
-per-minute one. Atlas also avoids spending calls it doesn't need:
+per-minute one. With several keys in `GEMINI_API_KEY` (comma-separated, each from a different Google
+Cloud project, since quota is per project), calls rotate across the keys and a quota error benches
+the model on that key only, so the other keys keep the preferred model going before Atlas falls
+back to the next model. Overload, timeouts and missing models are Google's side and bench the model
+on every key; a rejected key is skipped for an hour. Atlas also avoids spending calls it doesn't need:
 - Laughter and acks ("lol", "😂", "ok") skip the models entirely, and so does off-topic chatter with
   no trip or money words ("did anyone watch the game").
 - A trip or money question to the room, an objection or a change of mind skips the gate and goes
