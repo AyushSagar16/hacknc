@@ -102,7 +102,7 @@ export function planTravel(dest: Destination, members: TravelMember[], opts: Pla
       ...base,
       mode,
       hours: est.hours,
-      costCents: live?.cents ?? est.cents,
+      costCents: live?.cents ?? Math.round(est.cents / 500) * 500,
       costSource: live ? "live" : "estimate",
       link: sameAirport ? null : googleFlightsLink(home.iata, flightTarget, opts.dates.start, opts.dates.end),
       ...(problem ? { problem } : {}),
@@ -116,7 +116,8 @@ export function planTravel(dest: Destination, members: TravelMember[], opts: Pla
     for (let i = 0; i < drivers.length; i += MAX_PER_CAR) {
       const car = drivers.slice(i, i + MAX_PER_CAR);
       const hours = Math.max(...car.map((d) => d.hours ?? 0));
-      const share = Math.round(carGasCents(hours) / car.length);
+      // Estimates read as round numbers: whole dollars of gas.
+      const share = Math.round(carGasCents(hours) / car.length / 100) * 100;
       const group = car.length > 1 ? `${metro.toLowerCase()}-${i / MAX_PER_CAR + 1}` : null;
       for (const d of car) {
         d.costCents = share;

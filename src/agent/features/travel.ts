@@ -48,14 +48,17 @@ export function travelFigures(legs: { name: string; mode: TravelMode; costCents:
 }
 
 /** One person's line in the rundown. */
-export function legLine(l: TravelLeg, names: Map<number, string>): string {
+export function legLine(l: TravelLeg, all: TravelLeg[]): string {
   if (l.problem === "no_home") return `${l.name}: need to know where you're leaving from`;
   if (l.mode === "drive") {
     if (l.hours === null) return `${l.name}: no road there and no flying, let's figure that one out`;
     const gas = l.costCents ? `, ~${formatUsd(l.costCents)}${l.carpoolWith.length ? " each" : ""} for gas` : "";
-    const from = l.origin ? ` from ${l.origin.toLowerCase()}` : "";
-    if (l.carpoolWith.length) return `${nameList([l.name, ...l.carpoolWith.map((id) => names.get(id) ?? "")].filter(Boolean))}: carpool${from}, ${hoursText(l.hours)}${gas}`;
-    return `${l.name}: drive${from}, ${hoursText(l.hours)}${gas}`;
+    if (l.carpoolWith.length) {
+      const car = [l, ...l.carpoolWith.map((id) => all.find((x) => x.personId === id)).filter((x): x is TravelLeg => Boolean(x))];
+      const origins = [...new Set(car.map((x) => x.origin?.toLowerCase()).filter(Boolean))];
+      return `${nameList(car.map((x) => x.name))}: carpool${origins.length ? ` from ${origins.join("/")}` : ""}, ${hoursText(l.hours)}${gas}`;
+    }
+    return `${l.name}: drive${l.origin ? ` from ${l.origin.toLowerCase()}` : ""}, ${hoursText(l.hours)}${gas}`;
   }
   const fare = l.costCents ? `, ~${formatUsd(l.costCents)} round trip ${l.costSource === "live" ? "(live fare)" : "(est.)"}` : "";
   const note = l.problem === "no_road" ? " (no road there)" : "";
@@ -64,7 +67,7 @@ export function legLine(l: TravelLeg, names: Map<number, string>): string {
 
 /** The whole rundown: one line per person (carpools share a line), flight links, the personal-cost note. */
 export function rundownText(placeName: string, legs: TravelLeg[]): string {
-  const names = new Map(legs.map((l) => [l.personId, l.name]));
+
   const lines: string[] = [];
   const seenCars = new Set<string>();
   for (const l of legs) {
@@ -72,7 +75,7 @@ export function rundownText(placeName: string, legs: TravelLeg[]): string {
       if (seenCars.has(l.carpoolGroup)) continue;
       seenCars.add(l.carpoolGroup);
     }
-    lines.push(`- ${legLine(l, names)}`);
+    lines.push(`- ${legLine(l, legs)}`);
   }
   const links = legs.filter((l) => l.mode === "fly" && l.link).map((l) => `✈️ ${l.name} from ${(l.originIata ?? "").toLowerCase()}: ${l.link}`);
   const icon = legs.some((l) => l.mode === "drive") ? "🚗" : "✈️";
@@ -126,7 +129,7 @@ async function setMode(tc: TurnCtx, personId: number, mode: TravelMode): Promise
     await q(`UPDATE travel_plans SET overridden = false WHERE trip_id = $1 AND person_id = $2`, [tc.trip.id, personId]);
     throw new ToolError(`there's no road trip to ${tc.trip.destination_name} from ${mine.origin ?? "their city"}; they'll have to fly`);
   }
-  return { line: legLine(mine, new Map(legs.map((l) => [l.personId, l.name]))), legs };
+  return { line: legLine(mine, legs), legs };
 }
 
 const I_WILL = /^\W*(?:(?:ok|okay|actually|nah|yeah|wait),?\s+)*i(?:['’]ll| will|['’]m| am|ll|m)\s+(?:just\s+|gonna\s+|going to\s+)?(drive|driving|fly|flying)(?:\s+(?:there|down|up|instead|myself|tbh))*\W*$/i;

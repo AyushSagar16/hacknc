@@ -1,0 +1,46 @@
+# A place that isn't in Atlas's list. The group settles on boone, nc: Atlas looks it up on the map
+# and locks it with its coordinates (no catalog id), and location is decided. A place the map
+# doesn't know is refused without touching the trip. Then someone wants asheville instead: the
+# re-vote reopens location (dates and everything after go back to open), and voting boone back in
+# re-locks the geocoded place, with the trip's dates decided again.
+today 2026-10-10 14:00
+members maya leo priya
+atlas joins
+~agent text: NO_REPLY
+maya: hey
+~agent text: NO_REPLY
+leo: hi
+~extract [{"message":0,"about":"maya","key":"home_city","polarity":"positive","explicit":true,"retracts":false,"confidence":0.9,"quote":"raleigh","city":"Raleigh"},{"message":0,"about":"maya","key":"date_window","polarity":"positive","explicit":true,"retracts":false,"confidence":0.9,"quote":"nov 12-15","earliest":"2026-11-12","latest":"2026-11-15"}]
+maya: nov 12-15 from raleigh works for all of us
+geocode boone, nc | 36.2168 -81.6746 | United States | North Carolina
+~agent call lock_destination {"destination":"boone, nc"}
+~agent text: NO_REPLY
+maya: atlas we all agreed on boone nc
+expect atlas ~ "🎉 boone, north carolina it is!"
+expect atlas ~ "locked in for nov 12–15"
+expect atlas ~ "🏠 stays:"
+expect trip.status = "locked"
+expect sql SELECT destination_id, destination_name, round(latitude::numeric, 2)::float AS lat, destination_place->>'admin1' AS state FROM trips = [{"destination_id":null,"destination_name":"Boone","lat":36.22,"state":"North Carolina"}]
+expect sql SELECT stages->>'location' AS loc, stages->>'dates' AS dates FROM trips = [{"loc":"decided","dates":"decided"}]
+# the payment plan works off the place's own estimates
+expect atlas ~ "💸 payment plan"
+# a place the map doesn't know: nothing changes
+geocode miss atlantis
+~agent call lock_destination {"destination":"atlantis"}
+~agent text: couldn't find atlantis on the map, which town do you mean?
+leo: atlas actually let's do atlantis
+expect atlas ~ "couldn't find atlantis"
+expect sql SELECT destination_name FROM trips = [{"destination_name":"Boone"}]
+# switching: a quick re-vote between the geocoded place and a catalog one
+~agent call reopen_destination {"destination":"asheville"}
+~agent text: NO_REPLY
+priya: atlas can we do asheville instead?
+expect atlas ~ "quick re-vote: boone or asheville?"
+expect trip.status = "voting"
+expect sql SELECT stages->>'location' AS loc, stages->>'dates' AS dates, stages->>'travel' AS travel FROM trips = [{"loc":"in_progress","dates":"open","travel":"open"}]
+maya vote 1
+leo vote 1
+expect atlas ~ "🎉 boone it is! 2 of 3 votes"
+expect trip.status = "locked"
+expect sql SELECT destination_id, destination_name, destination_place->>'name' AS place FROM trips = [{"destination_id":null,"destination_name":"Boone","place":"Boone"}]
+expect sql SELECT stages->>'location' AS loc, stages->>'dates' AS dates FROM trips = [{"loc":"decided","dates":"decided"}]
