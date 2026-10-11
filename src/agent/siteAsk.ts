@@ -9,10 +9,12 @@ const FILLER = new Set([
   "final", "full", "whole", "complete", "day", "by", "up", "again", "trip", "travel", "all", "of", "over", "to", "real", "quick", "just",
   "can", "could", "you", "u", "and", "then", "now", "also", "wait", "hmm", "um", "that", "this", "new", "latest", "current", "updated",
   "detailed", "rough", "daily", "dayby", "web", "for", "link", "i", "lemme", "let", "like",
+  "alright", "aight", "alr", "cool", "great", "nice", "sure", "yeah", "yea", "yes", "yep", "k", "kk", "bro", "dude", "guys", "does", "do",
+  "is", "it", "through", "thru", "out", "about", "more",
 ]);
 // Words that open a request. "link" doubles as one ("link to the itinerary").
-const ASK = new Set(["what", "whats", "where", "wheres", "show", "send", "share", "post", "drop", "give", "see", "get", "any", "pull", "need", "want", "wanna", "link", "gimme", "resend"]);
-const PLAN_TRAILING = new Set(["again", "please", "pls", "plz", "here", "now", "real", "quick", "rn", "atlas", "everyone", "guys", "thx", "thanks", "so", "far", "tho", "though", "for", "the", "trip", "us", "me", "lol", "ok", "okay", "yet", "then"]);
+const ASK = new Set(["what", "whats", "where", "wheres", "show", "send", "share", "post", "drop", "give", "see", "get", "any", "pull", "need", "want", "wanna", "link", "gimme", "resend", "tell", "walk", "remind", "recap", "explain", "read", "lay", "go", "run", "hows"]);
+const PLAN_TRAILING = new Set(["again", "please", "pls", "plz", "here", "now", "real", "quick", "rn", "atlas", "everyone", "guys", "thx", "thanks", "so", "far", "tho", "though", "for", "the", "trip", "us", "me", "lol", "ok", "okay", "yet", "then", "look", "looks", "like", "looking", "is", "at"]);
 const STRICT = new Set(["plan", "site", "page", "link", "url"]);
 const STRICT_BARE_OK = new Set(["plan"]);
 

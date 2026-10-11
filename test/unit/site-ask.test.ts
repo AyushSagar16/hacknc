@@ -33,6 +33,14 @@ describe("asksForTripPage", () => {
     "show us the day by day itinerary",
     "atlas send the page",
     "what's the itinerary for the trip",
+    "Alright tell me the plan",
+    "tell me the itinerary",
+    "tell us the plan",
+    "what does the plan look like",
+    "walk me through the plan",
+    "recap the itinerary",
+    "how's the itinerary looking",
+    "yeah send the itinerary",
   ])("matches %j", (t) => expect(ask(t)).toBe(true));
 
   it.each([
@@ -54,6 +62,8 @@ describe("asksForTripPage", () => {
     "what's the interview process",
     "inventory",
     "can you plan something for friday",
+    "tell me the plan for dinner",
+    "how do we plan this",
     "",
   ])("ignores %j", (t) => expect(ask(t)).toBe(false));
 

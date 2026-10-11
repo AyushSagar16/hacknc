@@ -250,7 +250,10 @@ export async function runAgent(input: AgentInput): Promise<AgentOutput> {
     return { bubbles: [], toolCalls, failed: kind, retried };
   }
   let bubbles = dropTailOffer(toBubbles(text, input.agentName, toolNames));
-  const known = [...seenText, ...input.ctx.out.slice(outStart).map(actionText), ...((input.ctx as { history?: { text?: string | null }[] }).history ?? []).map((h) => h.text ?? "")];
+  const known = [...seenText, ...input.ctx.out.slice(outStart).map(actionText), ...((input.ctx as { history?: { text?: string | null; direction?: string }[] }).history ?? [])
+      // Only what people sent: Atlas's own past bubbles may hold a link it made up, and repeating it isn't proof.
+      .filter((h) => h.direction !== "outbound")
+      .map((h) => h.text ?? "")];
   const linked = dropUnknownLinks(bubbles, known);
   if (linked.dropped.length) {
     log.warn({ hosts: linked.dropped.map(hostOf) }, "agent wrote links that never appeared this turn; cut them");
