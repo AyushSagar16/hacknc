@@ -1,0 +1,49 @@
+# Dates from everyone's free and busy days. Three people give windows (leo has a blackout in the
+# middle); Atlas finds the one stay that fits all three, asks sam (who hasn't said) once, and the
+# 👍s on its message (plus a "works for me") lock it in before any place is picked. Later the
+# group wants a shorter stay: three options go to a poll, and the new dates replace the old ones.
+today 2026-10-10 14:00
+members maya leo priya sam
+atlas joins
+~agent text: NO_REPLY
+maya: hey
+~agent text: NO_REPLY
+leo: hi
+~extract [{"message":0,"about":"maya","key":"date_window","polarity":"positive","explicit":true,"retracts":false,"confidence":0.9,"quote":"free nov 6-22","earliest":"2026-11-06","latest":"2026-11-22"},{"message":0,"about":"leo","key":"date_window","polarity":"positive","explicit":true,"retracts":false,"confidence":0.9,"quote":"i'm around nov 5-20","earliest":"2026-11-05","latest":"2026-11-20"},{"message":0,"about":"leo","key":"blackout","polarity":"negative","explicit":true,"retracts":false,"confidence":0.9,"quote":"except the 13th-15th","start":"2026-11-13","end":"2026-11-15"},{"message":0,"about":"priya","key":"date_window","polarity":"positive","explicit":true,"retracts":false,"confidence":0.9,"quote":"anything after the 10th","earliest":"2026-11-10","latest":"2026-11-30"}]
+maya: ok i'm free nov 6-22, leo's around nov 5-20 except the 13th-15th, priya's anything nov 10-30
+~agent call find_dates {"nights":3}
+~agent text: NO_REPLY
+maya: atlas when can we all go?
+expect atlas ~ "📅 nov 16–19 (3 nights) works for maya, leo and priya"
+expect atlas ~ "👍 this to lock it in"
+expect atlas ~ "sam, when are you free?"
+expect sql SELECT kind, status, jsonb_array_length(options) AS n FROM polls = [{"kind":"dates","status":"open","n":1}]
+expect sql SELECT stages->>'dates' AS dates FROM trips = [{"dates":"in_progress"}]
+leo react like atlas.last
+expect atlas quiet
+maya react like atlas.last
+expect atlas quiet
+priya: works for me
+expect atlas ~ "📅 nov 16–19 it is (3 of 4 👍)"
+expect sql SELECT start_date, end_date, stages->>'dates' AS dates, stages->>'location' AS loc FROM trips = [{"start_date":"2026-11-16","end_date":"2026-11-19","dates":"decided","loc":null}]
+expect sql SELECT status FROM polls = [{"status":"closed"}]
+# Out of order is fine: the dates are saved, and the place is still the next thing to settle.
+expect trip.status = "planning"
+# Sam answers; the group wants a two-night stay instead, so it's a poll between three windows.
+~extract [{"message":0,"about":"sam","key":"date_window","polarity":"positive","explicit":true,"retracts":false,"confidence":0.9,"quote":"all of november","earliest":"2026-11-01","latest":"2026-11-30"}]
+sam: i'm free all of november
+~agent call find_dates {"nights":2}
+~agent text: NO_REPLY
+maya: atlas actually can we do just 2 nights? what works now that sam's in
+expect atlas ~ "a few dates work for everyone (2 nights)"
+expect atlas ~ "1. nov 10–12: everyone"
+expect atlas ~ "2. nov 16–18: everyone"
+expect atlas ~ "3. nov 18–20: everyone"
+expect poll ~ "nov 16–18"
+maya vote 2
+leo vote 2
+expect atlas quiet
+priya vote 2
+expect atlas ~ "📅 nov 16–18 it is (3 of 4 votes)"
+expect sql SELECT start_date, end_date, stages->>'dates' AS dates FROM trips = [{"start_date":"2026-11-16","end_date":"2026-11-18","dates":"decided"}]
+expect sql SELECT count(*)::int AS n FROM asks WHERE field = 'dates' = [{"n":1}]

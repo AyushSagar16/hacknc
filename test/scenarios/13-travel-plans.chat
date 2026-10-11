@@ -1,0 +1,52 @@
+# Getting there. Dates are settled first (out of order is fine), then an off-catalog place; once
+# both are decided Atlas posts one travel rundown: maya and leo leave from the triangle so they
+# carpool and split gas, priya drives alone from charlotte, sam flies from boston with an estimated
+# fare and a Google Flights link. Travel is personal, not shared. "i'll drive" switches sam.
+today 2026-10-10 14:00
+members maya leo priya sam
+atlas joins
+~agent text: NO_REPLY
+maya: hey
+~extract [{"message":0,"about":"maya","key":"home_city","polarity":"positive","explicit":true,"retracts":false,"confidence":0.9,"quote":"raleigh","city":"Raleigh"},{"message":0,"about":"leo","key":"home_city","polarity":"positive","explicit":true,"retracts":false,"confidence":0.9,"quote":"durham","city":"Durham"},{"message":0,"about":"priya","key":"home_city","polarity":"positive","explicit":true,"retracts":false,"confidence":0.9,"quote":"charlotte","city":"Charlotte"},{"message":0,"about":"sam","key":"home_city","polarity":"positive","explicit":true,"retracts":false,"confidence":0.9,"quote":"boston","city":"Boston"}]
+maya: i'm in raleigh, leo's in durham, priya's in charlotte and sam's up in boston
+~agent call set_trip_dates {"start":"2026-11-12","end":"2026-11-15"}
+~agent text: nov 12–15 it is. where are we thinking?
+leo: atlas let's lock nov 12-15 before anything else
+expect atlas ~ "nov 12–15 it is"
+expect sql SELECT stages->>'dates' AS dates, stages->>'location' AS loc FROM trips = [{"dates":"decided","loc":null}]
+# travel can't be planned before there's a place
+~agent call plan_travel {}
+~agent text: need a place first, then i'll map out how everyone gets there
+priya: atlas how would we all get there?
+expect atlas ~ "need a place first"
+expect sql SELECT count(*)::int AS n FROM travel_plans = [{"n":0}]
+geocode boone, nc | 36.2168 -81.6746 | United States | North Carolina
+~agent call lock_destination {"destination":"boone, nc"}
+~agent text: NO_REPLY
+maya: atlas everyone's down for boone nc
+expect atlas ~ "🎉 boone, north carolina it is!"
+expect atlas ~ "locked in for nov 12–15"
+expect atlas ~ "✈️ from bos"
+expect sql SELECT stages->>'location' AS loc, stages->>'dates' AS dates FROM trips = [{"loc":"decided","dates":"decided"}]
+~agent call plan_travel {}
+~agent text: NO_REPLY
+priya: atlas ok how's everyone getting there?
+expect atlas ~ "how everyone gets to boone 🚗"
+expect atlas ~ /- maya and leo: carpool from raleigh\/durham, ~3h, ~\$\d+ each for gas/
+expect atlas ~ /- priya: drive from charlotte, ~2h, ~\$\d+ for gas/
+expect atlas ~ /- sam: fly from boston, ~\$\d+ round trip \(est\.\)/
+expect atlas ~ "✈️ sam from bos: https://www.google.com/travel/flights"
+expect atlas ~ "travel's on each of you, separate from the shared costs"
+expect atlas says 1
+expect sql SELECT p.display_name AS who, t.mode, t.carpool_group FROM travel_plans t JOIN people p ON p.id = t.person_id ORDER BY p.display_name = [{"who":"Leo","mode":"drive","carpool_group":"rdu-1"},{"who":"Maya","mode":"drive","carpool_group":"rdu-1"},{"who":"Priya","mode":"drive","carpool_group":null},{"who":"Sam","mode":"fly","carpool_group":null}]
+expect sql SELECT stages->>'travel' AS travel FROM trips = [{"travel":"decided"}]
+# sam would rather drive: one line back, saved as his own choice
+sam: i'll drive
+expect atlas ~ /got it, sam: drive from boston, ~13h, ~\$\d+ for gas/
+expect sql SELECT t.mode, t.overridden FROM travel_plans t JOIN people p ON p.id = t.person_id WHERE p.display_name = 'Sam' = [{"mode":"drive","overridden":true}]
+# a new plan keeps his choice
+~agent call plan_travel {}
+~agent text: NO_REPLY
+maya: atlas redo the travel plan
+expect atlas ~ "- sam: drive from boston"
+expect atlas !~ "✈️ sam"

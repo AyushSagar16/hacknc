@@ -16,9 +16,13 @@ import { hardFilter, hasTag, tripMonths, type Rejection } from "../../trips/filt
 import { estimateCost, travelPlan, type CostBreakdown } from "../../trips/estimate.ts";
 import { googleFlightsLink, googleHotelsLink } from "../../trips/links.ts";
 import { closedPollFor, closePoll, createPoll, pollById, lastDecidedPoll, openNativePolls, openPolls, recordVote, setVote, voteRows, votesFor, type PollRow } from "../../trips/pollStore.ts";
-import { priceOption, type PriceCache } from "../../trips/pricing.ts";
+import { priceOption, type PriceCache, type PriceDeps } from "../../trips/pricing.ts";
 import { applyVibe, bestReason, inferVibe, pickThree, scoreDestinations, vibeTags, type Scored } from "../../trips/score.ts";
-import { focusTrip, updateTrip } from "../../trips/state.ts";
+import { focusTrip, updateTrip, type TripPlace } from "../../trips/state.ts";
+import { geocodePlace, GeocodeUnavailable, placeLabel, type GeocodeCache } from "../../trips/geocode.ts";
+import { placeAsDestination, placeOf, tripDestination } from "../../trips/place.ts";
+import { getStages, reopenStage, setStage } from "../../trips/stages.ts";
+import { resetTravelPlans } from "../../trips/travel.ts";
 import { parseVote, reconcileVotes, tally, type ProviderVote } from "../../trips/votes.ts";
 import { formatRange } from "./planning.ts";
 import { fireTripLocked, type AppServices, type Feature, type TurnCtx } from "../feature.ts";
@@ -39,10 +43,42 @@ const priceCache: PriceCache = {
   },
 };
 
+/** Geocoded places are cached next to prices (provider "open-meteo"). */
+const geocodeCache: GeocodeCache = {
+  get: (key) => priceCache.get(key),
+  async set(key, body, at) {
+    await q(`INSERT INTO price_cache (cache_key, provider, body, fetched_at) VALUES ($1, 'open-meteo', $2, $3) ON CONFLICT (cache_key) DO UPDATE SET body = EXCLUDED.body, fetched_at = EXCLUDED.fetched_at`, [
+      key,
+      JSON.stringify(body),
+      at,
+    ]);
+  },
+};
+
+/** A place by name: the catalog first, then the map. Throws a ToolError the model can relay. */
+export async function resolvePlace(input: string): Promise<Destination> {
+  const known = findDestination(input);
+  if (known) return known;
+  let place;
+  try {
+    place = await geocodePlace(input, { cache: geocodeCache, now });
+  } catch (err) {
+    if (err instanceof GeocodeUnavailable) throw new ToolError(`couldn't look up "${input}" on the map right now; ask them to say it again in a bit`);
+    throw err;
+  }
+  if (!place) throw new ToolError(`couldn't find a place called "${input}"; ask which town or area they mean (e.g. "lake lure, nc")`);
+  return placeAsDestination(place);
+}
+
 let pricingFetch: typeof fetch = fetch;
 /** Tests inject a fake SerpApi. */
 export function setPricingFetch(f: typeof fetch): void {
   pricingFetch = f;
+}
+
+/** SerpApi access as the proposals use it (key, fetch, cache), for other features' live prices. */
+export function pricingDeps(): PriceDeps {
+  return { apiKey: config().SERPAPI_API_KEY, fetch: pricingFetch, cache: priceCache, now };
 }
 
 export interface StoredOption {
@@ -56,6 +92,8 @@ export interface StoredOption {
   /** The one reason printed under the option. */
   why?: string;
   perPerson: Record<string, CostBreakdown>;
+  /** An off-catalog place (a re-vote against a geocoded place). */
+  place?: TripPlace;
 }
 
 const avg = (xs: number[]) => (xs.length ? Math.round(xs.reduce((a, b) => a + b, 0) / xs.length / 100) * 100 : 0);
@@ -241,6 +279,7 @@ export async function proposeDestinations(tc: TurnCtx, opts: ProposeOpts = {}): 
       reasons: s.reasons,
       why: bestReason(s, { groupSize: group.members.length, vibe: vibes }),
       perPerson: Object.fromEntries([...s.perPerson].map(([id, c]) => [String(id), c])),
+      ...(placeOf(s.dest) ? { place: placeOf(s.dest) } : {}),
     };
   });
 
@@ -261,6 +300,7 @@ export async function proposeDestinations(tc: TurnCtx, opts: ProposeOpts = {}): 
     at: tc.now,
   });
   if (tc.trip.status === "planning") tc.trip = await updateTrip(tc.trip.id, { status: "voting" });
+  await setStage(tc.trip.id, "location", "in_progress");
 
   tc.figures.addAll(optionFigures(options));
   const when = built.dates ? formatRange(built.dates.start, built.dates.end) : `${group.nights} nights, dates tbd`;
@@ -366,7 +406,7 @@ export function tieMessage(names: string[], counts: number[], leader: number, pr
 }
 
 /** Tally and, when the poll is decided, lock it in (proactively: nobody has to ask). True if decided. */
-async function afterVote(poll: PollRow, tc: TurnCtx, voterId: number | null, source: "native" | "tapback" | "text" | "agent" | "sync", msg: MessageRow | null): Promise<boolean> {
+export async function afterVote(poll: PollRow, tc: TurnCtx, voterId: number | null, source: "native" | "tapback" | "text" | "agent" | "sync", msg: MessageRow | null): Promise<boolean> {
   // Voting on another trip's poll makes that trip the one the chat is working on.
   if (poll.trip_id !== tc.trip.id) tc.trip = await focusTrip(tc.chat.id, poll.trip_id);
   const votes = await votesFor(poll.id);
@@ -561,7 +601,12 @@ export async function reconcileOpenNativePolls(svc: Pick<AppServices, "poke">, a
 
 async function lockFromPoll(poll: PollRow, winner: number, count: number, tc: TurnCtx, how?: string): Promise<boolean> {
   const destId = String(poll.options[winner]?.ref ?? "");
-  const dest = destinationById(destId);
+  let dest = destinationById(destId);
+  if (!dest && destId.startsWith("place:") && poll.proposal_id) {
+    const row = await one<{ options: StoredOption[] }>(`SELECT options FROM proposals WHERE id = $1`, [poll.proposal_id]);
+    const place = row?.options.find((o) => o.destId === destId)?.place;
+    if (place) dest = placeAsDestination(place);
+  }
   if (!dest) return false;
   const name = dest.name.toLowerCase();
   const n = tc.members.length;
@@ -579,10 +624,18 @@ export async function lockDestination(tc: TurnCtx, dest: Destination, headline: 
   const view = await tc.view();
   const start = tc.trip.start_date ?? view.dates?.start ?? null;
   const end = tc.trip.end_date ?? view.dates?.end ?? null;
-  const itinerary = tc.trip.destination_id === dest.id ? tc.trip.itinerary : [];
+  const same = tripDestination(tc.trip)?.id === dest.id;
+  const itinerary = same ? tc.trip.itinerary : [];
+  const place = placeOf(dest);
+  // A different place than the one already decided: everything after location starts over.
+  if (!same && (await getStages(tc.trip.id)).location === "decided") {
+    await reopenStage(tc.trip.id, "location");
+    await resetTravelPlans(tc.trip.id);
+  }
   tc.trip = await updateTrip(tc.trip.id, {
     status: "locked",
-    destination_id: dest.id,
+    destination_id: place ? null : dest.id,
+    destination_place: place ?? null,
     destination_name: dest.name,
     latitude: dest.lat,
     longitude: dest.lon,
@@ -592,6 +645,9 @@ export async function lockDestination(tc: TurnCtx, dest: Destination, headline: 
     locked_at: tc.now,
   });
   for (const p of await openPolls(tc.chat.id, tc.trip.id)) if (p.kind === "destination") await closePoll(p.id, null, tc.now);
+  await setStage(tc.trip.id, "location", "decided");
+  if (start && end) await setStage(tc.trip.id, "dates", "decided");
+  tc.trip = { ...tc.trip, stages: await getStages(tc.trip.id) };
   say(tc, `${headline}\n${start && end ? `locked in for ${formatRange(start, end)}` : "locked in. now we just need dates"}`);
   if (start && end) {
     // Flight links only for people who fly there (drivers and anyone who can't fly get none).
@@ -613,7 +669,7 @@ export async function lockDestination(tc: TurnCtx, dest: Destination, headline: 
           .filter((x): x is string => Boolean(x) && x !== dest.iata),
       ),
     ];
-    const flights = iatas.slice(0, 3).map((o) => ({ from: o, url: googleFlightsLink(o, dest.iata, start, end) }));
+    const flights = iatas.slice(0, 3).map((o) => ({ from: o, url: googleFlightsLink(o, dest.iata || dest.name, start, end) }));
     const stays = googleHotelsLink(dest.name, start, end, Math.min(tc.members.length, 4));
     say(tc, [`ready to book? links 👇`, ...flights.map((f) => `✈️ from ${f.from.toLowerCase()}: ${f.url}`), `🏠 stays: ${stays}`].join("\n"));
     // The trip page lists the same links.
@@ -680,11 +736,10 @@ const reopenTool: Tool = {
   },
   async run(args, ctx) {
     const tc = ctx as TurnCtx;
-    if (!tc.trip.destination_id || !["locked", "voting"].includes(tc.trip.status)) throw new ToolError("nothing's locked yet; use propose_destinations or record_vote");
-    const current = destinationById(tc.trip.destination_id);
-    const next = findDestination(str(args.destination) ?? "");
-    if (!next) throw new ToolError(`"${String(args.destination)}" isn't a place i have data for`);
-    if (!current) throw new ToolError("the locked destination isn't in the catalog");
+    if (!tc.trip.destination_name || !["locked", "voting"].includes(tc.trip.status)) throw new ToolError("nothing's locked yet; use propose_destinations or record_vote");
+    const current = tripDestination(tc.trip);
+    if (!current) throw new ToolError("the locked destination can't be found");
+    const next = await resolvePlace(str(args.destination) ?? "");
     if (next.id === current.id) throw new ToolError(`${current.name} is already the pick`);
     // The new place still has to fit everyone's hard limits.
     const view = await tc.view();
@@ -694,7 +749,9 @@ const reopenTool: Tool = {
       return { ok: true, data: { reopened: false, why: [...new Set(check.rejected.map((r) => r.reason))].slice(0, 2) }, next: `say in one line why ${next.name} doesn't fit (the reasons above) and ask if they want to change that limit; the trip stays locked on ${current.name}` };
     }
     await tc.nonCancellable();
-    tc.trip = await updateTrip(tc.trip.id, { status: "voting", destination_id: null, destination_name: null, latitude: null, longitude: null, itinerary: [] as never, locked_at: null });
+    tc.trip = await updateTrip(tc.trip.id, { status: "voting", destination_id: null, destination_place: null, destination_name: null, latitude: null, longitude: null, itinerary: [] as never, locked_at: null });
+    await reopenStage(tc.trip.id, "location");
+    await resetTravelPlans(tc.trip.id);
     await proposeDestinations(tc, { only: [current, next], leadIn: `ok, quick re-vote: ${current.name.toLowerCase()} or ${next.name.toLowerCase()}? majority wins` });
     return { ok: true, data: { reopened: true }, next: "the re-vote poll was posted; reply NO_REPLY" };
   },
@@ -759,8 +816,8 @@ const lockTool: Tool = {
   decl: {
     name: "lock_destination",
     description:
-      "Lock in a destination when the group (\"we\", \"everyone\", a majority) has clearly decided, even outside the poll. Posts the lock-in and booking links itself; write the day-by-day plan right after with update_itinerary. Works on an already-locked trip too (re-locks; a new place needs a new plan); if only one person wants to switch, use reopen_destination for a quick re-vote instead.",
-    parameters: { type: "object", properties: { destination: { type: "string", description: "option number or place name" } }, required: ["destination"] },
+      "Lock in a destination when the group (\"we\", \"everyone\", a majority) has clearly decided, even outside the poll. Any real place works, including ones that weren't among the options (\"boone, nc\", \"lake lure\"): it's looked up on the map. Posts the lock-in and booking links itself; write the day-by-day plan right after with update_itinerary. Works on an already-locked trip too (re-locks; a new place needs a new plan); if only one person wants to switch, use reopen_destination for a quick re-vote instead.",
+    parameters: { type: "object", properties: { destination: { type: "string", description: "option number or place name; add the state or country when it's ambiguous (\"portland, me\")" } }, required: ["destination"] },
   },
   async run(args, ctx) {
     const tc = ctx as TurnCtx;
@@ -768,11 +825,12 @@ const lockTool: Tool = {
     const poll = (await openPolls(tc.chat.id, tc.trip.id)).find((p) => p.kind === "destination");
     let dest: Destination | undefined;
     if (/^\d+$/.test(input) && poll) dest = destinationById(String(poll.options[Number(input) - 1]?.ref ?? ""));
-    dest ??= findDestination(input);
-    if (!dest) throw new ToolError(`"${input}" isn't a place i have data for`);
+    // Any real place works: the catalog first, then the map (off-catalog places get estimates).
+    dest ??= await resolvePlace(input);
+    const place = placeOf(dest);
     // This agent turn writes the plan itself, so no follow-up is needed for it.
     tc.notes.set("itinerary.byAgent", true);
-    await lockDestination(tc, dest, `🎉 ${dest.name.toLowerCase()} it is!`);
+    await lockDestination(tc, dest, `🎉 ${(place ? placeLabel(place) : dest.name).toLowerCase()} it is!`);
     return {
       ok: true,
       next: tc.trip.start_date
