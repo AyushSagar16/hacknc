@@ -1,0 +1,31 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="100" height="100" viewBox="0 0 100 100">
+  <!-- Atlas's globe (components/landing/AtlasOrb.tsx), still, with the meridians a little turned. -->
+  <defs>
+    <radialGradient id="body" cx="38%" cy="30%" r="75%">
+      <stop offset="0%" stop-color="#bff0ff"/>
+      <stop offset="35%" stop-color="#5cc4f4"/>
+      <stop offset="75%" stop-color="#1584c4"/>
+      <stop offset="100%" stop-color="#0b5d8f"/>
+    </radialGradient>
+    <linearGradient id="gloss" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#fff" stop-opacity="0.95"/>
+      <stop offset="100%" stop-color="#fff" stop-opacity="0"/>
+    </linearGradient>
+    <radialGradient id="glow" cx="50%" cy="85%" r="45%">
+      <stop offset="0%" stop-color="#c8f7ff" stop-opacity="0.9"/>
+      <stop offset="100%" stop-color="#c8f7ff" stop-opacity="0"/>
+    </radialGradient>
+    <clipPath id="clip"><circle cx="50" cy="50" r="46"/></clipPath>
+  </defs>
+  <circle cx="50" cy="52" r="46" fill="#0b5d8f" opacity="0.18"/>
+  <circle cx="50" cy="50" r="46" fill="url(#body)"/>
+  <g clip-path="url(#clip)" stroke="#fff" stroke-opacity="0.6" stroke-width="2.4" fill="none">
+    <ellipse cx="50" cy="50" rx="17.2" ry="46"/>
+    <ellipse cx="50" cy="50" rx="42.3" ry="46"/>
+    <ellipse cx="50" cy="50" rx="46" ry="16"/>
+    <line x1="4" y1="50" x2="96" y2="50"/>
+  </g>
+  <circle cx="50" cy="50" r="46" fill="url(#glow)"/>
+  <ellipse cx="50" cy="27" rx="33" ry="19" fill="url(#gloss)"/>
+  <circle cx="50" cy="50" r="45.2" fill="none" stroke="#fff" stroke-opacity="0.7" stroke-width="1.4"/>
+</svg>
