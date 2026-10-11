@@ -1,0 +1,3 @@
+# Local-only env files (dev Supabase keys) never ship; production env lives in Vercel.
+.env
+.env*.local
