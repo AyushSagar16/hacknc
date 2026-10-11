@@ -1,13 +1,20 @@
 # A friend adds Atlas to the group: it introduces itself once, explains it reads the chat,
-# how to mute it, and that budgets come from demo spending profiles.
+# how to mute it, that budgets stay private, and asks everyone to connect their capital one.
 today 2026-10-10 14:00
 members maya leo priya
 atlas joins by maya
 expect atlas says 3
 expect atlas ~ "your trip and financial planner"
 expect atlas ~ "stay quiet"
-expect atlas ~ "demo spending profiles"
+expect atlas ~ "only ever sees pooled numbers"
 expect atlas ~ "where are we thinking, and when?"
+expect atlas ~ "want to connect your capital one so i can plan around real budgets?"
+expect transcript !~ /demo|sandbox|nessie|synthetic|simulated/
+expect sql SELECT count(*)::int AS n FROM bank_connections WHERE status = 'offered' = [{"n":3}]
+# Nobody is linked to a bank until they connect.
+expect sql SELECT count(*)::int AS n FROM nessie_links = [{"n":0}]
 sam joins
-expect atlas ~ "welcome"
+expect atlas ~ "welcome sam"
+expect atlas ~ "sam, want to connect your capital one"
 expect atlas !~ "financial planner"
+expect sql SELECT count(*)::int AS n FROM bank_connections = [{"n":4}]

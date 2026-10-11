@@ -9,6 +9,11 @@ maya: hey
 leo: hi
 ~agent text: NO_REPLY
 priya: yo
+# Budgets come from connected accounts only (bank-connect onboarding).
+maya connects
+expect atlas ~ "maya's connected ✓"
+leo connects
+priya connects
 jobs
 leo: what's our budget
 expect atlas ~ "from demo spending profiles, not your real bank"
