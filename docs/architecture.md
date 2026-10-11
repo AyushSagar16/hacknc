@@ -9,15 +9,16 @@ schedules are deterministic code.
 | Component | Files | Responsibility |
 |---|---|---|
 | Transport | `src/transport/*` | Spectrum app per `IMESSAGE_MODE`. The custom Linq platform (webhook server, signature check, durable event log, ordered queue, send dispatcher incl. native polls). The simulator platform. Normalized inbound events. The outbound action model with text fallbacks |
-| Pipeline | `src/pipeline/*` | Inbox (dedupe per chat); per-chat debounce (2.5 s quiet window, 8 s cap); in-flight cancellation and carry-forward; outbox with stable client GUIDs and resume; Postgres job runner on the app clock; `job_failures` |
+| Pipeline | `src/pipeline/*` | Inbox (dedupe per chat); per-chat debounce (2.5 s quiet window, 1.5 s when Atlas is named, 8 s cap); typing indicator and length-scaled pauses between bubbles; in-flight cancellation and carry-forward; outbox with stable client GUIDs and resume; Postgres job runner on the app clock; `job_failures` |
 | Brain | `src/agent/brain.ts` | One turn in a fixed order (below). Composes feature modules |
-| Features | `src/agent/features/*` | planning, budgets, proposals, money, weather, memory: each adds tools, fast paths, commands, hints, situation sections, money-guard figures, jobs and lifecycle hooks |
-| Profile | `src/profile/*` | Fact schema, Gemini extraction (validated), deterministic aggregation, group view |
+| Features | `src/agent/features/*` | planning, budgets, proposals, money, weather, memory, self-memory, search, presence: each adds tools, fast paths, commands, hints, situation sections, money-guard figures, jobs and lifecycle hooks |
+| Profile | `src/profile/*` | Fact schema, Gemini extraction (validated; who reported each fact; refusal words for vetoes, numbers for ceilings; "same dates" resolved), deterministic aggregation, group view |
 | Money | `src/money/*`, `src/trips/ledger.ts` | Cents, splits, exact minimum settle-up, budget engine, paycheck cadence and payment plans, trip ledger |
 | Nessie | `src/nessie/*` | Client (https, audit, last-good cache, circuit breaker), probe-driven capabilities, personas, resumable seeding, ledger replay, budgets |
-| Trips | `src/trips/*` | Catalog (41 destinations, 105 home airports), constraints, hard filter, scoring, SerpApi pricing with cache and fallback, votes, itinerary, booking links |
-| Weather | `src/weather/*`, `features/weather.ts` | Open-Meteo, classification, change detection, cadence, cooldown, swaps |
-| Memory | `src/memory/*`, `features/memory.ts` | Embedding writer, scoped and privacy-filtered recall with recency rerank |
+| Trips | `src/trips/*` | Catalog (destinations with vibe tags incl. `holiday`, 105 home airports), per-person drive times, constraints (no-fly and max-drive enforced per person), hard filter, scoring with a required vibe, SerpApi pricing with cache and fallback, votes (ties don't lock), itinerary (no repeats, seasonal), booking links |
+| Weather | `src/weather/*`, `features/weather.ts` | Open-Meteo forecast and 3-year climatology (`get_weather`), classification, change detection, cadence, cooldown, swaps |
+| Search | `src/search/*`, `features/search.ts` | `web_search`: result pages read in code, Gemini answers from them, every posted item verified against the source; Wikivoyage fallback |
+| Memory | `src/memory/*`, `features/memory.ts` | Embedding writer, hybrid BM25 + diskann recall (RRF) with recency and importance rerank, `atlas_log` of Atlas's own words |
 | Console | `src/console/server.ts` | Localhost judge view of all of the above |
 
 ## Data model (Postgres)
@@ -55,8 +56,12 @@ schedules are deterministic code.
    pooled.
 5. "atlas give us some options" goes through constraints, the hard filter, scoring, live pricing
    for the top five, three options with per-person breakdowns, and a **native poll**.
-6. Votes come in (native, tapback or text). A majority **locks** the trip: destination, dates,
-   itinerary and booking links. That fires `onTripLocked`: a **payment plan** (Nessie bills on each
+6. Votes come in (native, tapback or text), reconciled against Linq's voter list. A majority (or
+   everyone voting, without a tie) **locks** the trip: destination, dates, itinerary and booking
+   links. A tie is called out once ("pick for us" takes the cheaper option). If at least half the
+   group has voted and nobody votes for 30 s, Atlas names who hasn't, once per poll
+   (`poll.remind` job); "skip" closes the poll with the votes in. "can we do X instead?" after a lock
+   reopens it as a two-option poll. That fires `onTripLocked`: a **payment plan** (Nessie bills on each
    person's paydays), a recurring **weather.check** job, and a decision memory.
 7. During the trip, "i paid 64 for dinner" becomes a Nessie purchase on the payer's account, a
    ledger row and a spend event. Disputes from anyone but the payer wait for the payer's "yes".
@@ -75,12 +80,17 @@ remaining messages:
   addressed?  @atlas / "hey atlas" / starts with "atlas" (not "atlas seems…") / "…, atlas?" /
               threaded reply to an Atlas message id / answer to Atlas's open question (≤3 msgs, 15 min, aimed person only)
   quiet mode and not addressed → stop
-  not addressed → speak gate (gemini-3.5-flash-lite, temp 0, 3.5 s timeout, JSON {decision, reason}, fails closed)
+  a trip/money question to the room, an objection or a change of mind → agent, no gate call
+  untagged chatter with no trip or money words → stop, no gate call (extraction still reads it)
+  otherwise not addressed → speak gate (gemini-3.5-flash-lite, temp 0, 3.5 s timeout, JSON {decision, reason}, deterministic fallback on quota errors)
                   input: last 12 messages, stage, facts, deterministic hints (stuck poll, date conflict,
                   majority shared, installments due, trip over), minutes since Atlas spoke, unprompted count
   extraction result: a fresh disagreement can trigger one unprompted line (≤12 unprompted/hour)
   agent (gemini-3.5-flash-lite, ≤4 tool rounds): stateless situation (trip, resolved profiles with quotes,
          feature sections, allowed figures, recalled memories, last 30 messages, new messages)
+  output guards: a promise with no tool call gets one more round; a claim about someone's dates or
+         city that nobody gave is cut; an unprompted bubble that restates a recent ask or nudge
+         (atlas_log, pg_trgm > 0.6) is dropped
   money guard: every $ figure must match a registered figure the audience may see, or the text is dropped
 outbox → ordered sends with client GUIDs → text fallbacks
 

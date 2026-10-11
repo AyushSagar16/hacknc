@@ -4,10 +4,12 @@
 
 Add Atlas's number to the group. It introduces itself, then reads along. It keeps track of what
 everyone wants ("cancun is too pricey for me", "i'm vegetarian", "i can't fly after the 14th") and
-what everyone can spend, then keeps the plan moving. It proposes three priced options, runs a
-poll, sets up a payment plan, splits expenses during the trip and settles up at the end. It chimes
-in whenever the trip or money comes up and stays out of banter. When the group goes quiet on an
-unanswered message, it follows up with the next step. "atlas stay quiet" mutes it.
+what everyone can spend, then keeps the plan moving. It proposes priced options that fit the
+group's vibe and limits, runs a poll, sets up a payment plan, splits expenses during the trip and
+settles up at the end. It chimes in whenever the trip or money comes up and stays out of banter.
+When the group goes quiet on an unanswered message, it follows up with the next step, and when most
+of the group has voted it names who hasn't ("skip" decides with the votes in). "atlas stay quiet"
+mutes it.
 
 - **It reads the conversation.** There are no forms. Each person's preferences and constraints
   are extracted from normal chat, with the words they came from, and resolved deterministically
@@ -19,8 +21,13 @@ unanswered message, it follows up with the next step. "atlas stay quiet" mutes i
 - **The money runs through Nessie end to end.** Budgets, a payment plan as Nessie bills timed to
   paydays, every trip expense as a Nessie purchase, and settle-up as Nessie transfers after each
   payer confirms.
-- **It remembers.** Messages, facts and decisions are stored as Gemini embeddings in Tiger Data
-  (pgvector + pgvectorscale) and recalled before every reply, even weeks later.
+- **It remembers.** Messages and decisions are stored in Tiger Data and recalled before every reply,
+  even weeks later, with hybrid search: BM25 (`pg_textsearch`) and Gemini embeddings on a
+  pgvectorscale `diskann` index, fused with reciprocal rank fusion. It also remembers its own words
+  (an `atlas_log` hypertable), so it doesn't repeat a nudge or re-ask someone.
+- **It looks things up.** Things to do, food, events and school-break dates come from the live web,
+  and every item it posts has to appear in a page it actually read. Weather is a real forecast within
+  two weeks and three-year climatology beyond that.
 - **It watches the weather.** When the trip's forecast changes materially, it speaks up with a
   concrete swap ("saturday flipped to rain, want to swap the beach day for the food market tour?").
 
@@ -78,6 +85,8 @@ judge console is at http://127.0.0.1:8790. Without a Gemini key, deterministic f
 | `NESSIE_API_KEY`, `NESSIE_BASE_URL` | Capital One Nessie sandbox |
 | `SERPAPI_API_KEY` | Live Google Flights / Hotels prices (optional; otherwise labeled estimates) |
 | `NUDGE_IDLE_SECONDS` | How long a group must be quiet after an unanswered message before Atlas follows up (default 150 on a real line, off in the simulator; 0 = off) |
+| `PACING`, `PACE_BASE_MS`, `PACE_MS_PER_CHAR`, `PACE_MIN_MS`, `PACE_MAX_MS`, `PACE_FIRST_MAX_MS` | Typing indicator and a pause per bubble scaled to its length (`PACING=off` sends back to back) |
+| `ADDRESSED_DEBOUNCE_MS` | Quiet window before replying to a message that names Atlas (default 1500; others wait 2.5 s) |
 | `ALLOWED_CHATS`, `OPERATOR_HANDLES`, `CONSOLE_PORT`, `DEFAULT_TIMEZONE`, `LOG_LEVEL`, `LOG_FILE` | Operations |
 
 ### Database
@@ -149,7 +158,9 @@ Linq webhook ──► signature check ──► durable event log ──► Spe
   through stable client GUIDs, and all background work goes through a Postgres job queue with a
   `job_failures` audit table.
 - **Memory:** history is scoped per chat, memory per person (Photon's best practice). It's stored
-  in `memory_chunks` with a `diskann` index.
+  in `memory_chunks` with a `diskann` vector index and a BM25 index, queried together in one SQL
+  statement. Atlas's own messages go to the `atlas_log` hypertable, which feeds a "what you already
+  said" section and a `pg_trgm` guard against repeated nudges. See [docs/memory-research.md](docs/memory-research.md).
 - **Time series:** `spend_events` and `weather_snapshots` are hypertables. Two continuous
   aggregates, `trip_spend_daily` (spend so far) and `forecast_drift_daily` (the forecast
   timeline), feed the chat and the judge console.
@@ -172,7 +183,12 @@ and Flash models get only about 20 requests a day each. So the lite models do th
 `gemini-3.8-flash`) takes over as each one runs out. A model that's out of quota or overloaded is
 skipped for a while: 30 minutes for a daily quota, or the retry delay Google returns for a
 per-minute one. Atlas also avoids spending calls it doesn't need:
-- Laughter and acks ("lol", "😂", "ok") skip the models entirely.
+- Laughter and acks ("lol", "😂", "ok") skip the models entirely, and so does off-topic chatter with
+  no trip or money words ("did anyone watch the game").
+- A trip or money question to the room, an objection or a change of mind skips the gate and goes
+  straight to the agent; if the gate model is out of quota, a deterministic fallback decides.
+- Commands, votes, poll reminders and money never wait on a model.
+- A one-word memory query is a BM25 search with no embedding call.
 - A tool that posts its own message ends the agent's turn.
 - Startup pings only the primary models.
 
@@ -187,6 +203,13 @@ To see your project's exact limits, open Google AI Studio's rate-limit page.
   pipeline on the simulator, with scripted model answers, so it runs offline and deterministically.
   `npm run test:scenarios -- --live` runs them against real Gemini, where the scripted lines are
   ignored and wording can vary.
+- `npx tsx --env-file-if-exists=.env scripts/e2e.ts --live --dir test/live` replays every bug found
+  in a real chat or a persona QA run (`test/live/*.chat`) against real Gemini, with wording-tolerant
+  checks (regexes, SQL, silence). It spends free-tier quota, so run it on its own.
+- `npx tsx --env-file-if-exists=.env scripts/persona-server.ts --port 8801 --members maya,leo,priya`
+  runs a simulated group chat (fake phone numbers, a throwaway database, live Gemini) behind a small
+  localhost HTTP API (`POST /step`, `GET /wait`, `/transcript`, `/state`), so a person, a script or
+  an agent can play the whole group. Start several on different ports one after another.
 - `npm run typecheck`.
 
 ## Project layout
@@ -196,13 +219,14 @@ src/transport   Linq platform + webhook server, simulator platform, inbound/outb
 src/pipeline    inbox, debounce/cancel/carry-forward, outbox, jobs + job_failures
 src/agent       brain (turn order), speak gate, agent loop, commands, money guard, features/*
 src/profile     extraction schema, Gemini extraction, deterministic aggregation, group view
-src/memory      embedding writer and scoped, privacy-filtered recall
+src/memory      embedding writer, hybrid BM25 + vector recall, atlas_log (Atlas's own words)
+src/search      web search (results + pages read, every item verified against the source)
 src/money       cents, splits, settle-up (exact minimum transfers), budget engine, payment plans
 src/nessie      client (cache, audit, circuit breaker), personas, seeding, ledger, budgets
 src/trips       catalog, constraints, filter, scoring, live pricing, polls, ledger, itinerary
 src/weather     Open-Meteo client, classification, change detection, cadence, swaps
 src/console     the judge console
-scripts         sim, e2e, live, doctor, demo, ops, nessie-probe, migrate
+scripts         sim, e2e, live, persona-server, doctor, demo, ops, nessie-probe, migrate
 ```
 
 ## Credits

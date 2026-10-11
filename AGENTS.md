@@ -1,12 +1,15 @@
 # hacknc — agent instructions
 
-This is a [Spectrum](https://photon.codes/docs/spectrum-ts) app, pinned to `spectrum-ts@^12.10.1`. The entry point is `src/index.ts`, which configures the imessage provider(s) and runs the echo loop.
+This is Atlas, a trip and money planner for iMessage group chats, built on [Spectrum](https://photon.codes/docs/spectrum-ts) (pinned to `spectrum-ts@^12.10.1`). The composition root is `src/app.ts`; `src/index.ts` and `scripts/live.ts` start it. Read `README.md` and `docs/architecture.md` first; memory design and trade-offs are in `docs/memory-research.md`.
 
 ## Working in this project
 
-- Run the app with `npm run start`.
-- Add providers by importing them in `src/index.ts` and listing them in the `Spectrum({ providers: [...] })` config.
-- Outgoing message content uses the builders documented in the skill (text, attachment, voice, contact, richlink, poll, group, custom).
+- `npm run live` runs Atlas on the real Linq line (tunnel + webhook subscription). `npm run sim` is a terminal group chat with no phones.
+- Agent behaviour lives in `src/agent/prompts/system.md` (agent), `speak-gate.md` (whether to chime in) and `extract.md` (preferences). Money, constraints, polls and schedules are deterministic code; the models only do language, and every `$` figure the model writes must be registered (money guard).
+- Before committing, run `npm run typecheck`, `npm test` and `npm run test:scenarios` (offline, deterministic).
+- Behaviour regressions against real Gemini: `npx tsx --env-file-if-exists=.env scripts/e2e.ts --live --dir test/live`. Add a `test/live/*.chat` for every bug found in a real chat. It spends free-tier quota (about 15 requests a minute per model), so run it on its own, never alongside other live tests.
+- Simulated group chats for exploratory or agent-driven testing: `scripts/persona-server.ts` (fake numbers, throwaway database, HTTP API). Start several servers one after another, not at once.
+- Migrations are plain SQL in `src/db/migrations/`, applied in filename order on start.
 
 ## Environment
 
