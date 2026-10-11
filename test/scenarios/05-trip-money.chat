@@ -58,7 +58,7 @@ expect atlas ~ "who owes who (3 expenses"
 clock +5d
 priya: atlas let's settle up
 expect atlas ~ "settle-up, the fewest transfers"
-expect atlas ~ "and i'll send yours as a nessie transfer"
+expect atlas ~ "and i'll send yours straight from your checking"
 expect trip.status = "settling"
 expect sql SELECT count(*)::int AS n FROM settlements WHERE status = 'proposed' = [{"n":2}]
 leo: confirm

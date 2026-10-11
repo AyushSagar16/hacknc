@@ -14,10 +14,18 @@ mutes it.
 - **It reads the conversation.** There are no forms. Each person's preferences and constraints
   are extracted from normal chat, with the words they came from, and resolved deterministically
   (explicit beats implied, newest wins).
-- **Budgets come from account data.** Each person gets a Capital One Nessie sandbox customer with
-  months of synthetic paychecks, bills and purchases. Their suggested budget is computed from that
-  data with a formula Atlas explains in three lines. These are demo spending profiles, never real
-  bank accounts.
+- **Budgets come from account data.** Each person gets a Capital One Nessie customer (their first
+  name, a generated last name) with checking, savings and a Quicksilver card, and months of generated
+  paychecks, bills (Verizon Wireless, Duke Energy, rent...) and purchases at familiar merchants.
+  Their suggested budget is computed from that data with a formula Atlas explains in three lines.
+  In the chat this is presented as each person's connected Capital One account ("based on your last
+  few months of spending"); Atlas never says "demo", "sandbox" or "Nessie" to the group. The Nessie
+  data is generated, never anyone's real bank. A unit test (`test/unit/chat-wording.test.ts`) keeps
+  that wording out of prompts, tool descriptions and chat strings.
+- **Budgets are private by default.** The group only ever sees the pooled per-person number (and,
+  with two people, not even that, since it would give the other person's away). Each person can text
+  Atlas to see their own breakdown, say "share my budget" to show theirs to the group, and "keep my
+  budget private" to switch back.
 - **The money runs through Nessie end to end.** Budgets, a payment plan as Nessie bills timed to
   paydays, every trip expense as a Nessie purchase, and settle-up as Nessie transfers after each
   payer confirms.
@@ -108,7 +116,8 @@ npm run nessie:probe
 This creates one fictional probe customer and tries every documented payload shape against the
 live API. It fails loudly with Nessie's error body and writes `docs/nessie-findings.md` and
 `data/nessie-capabilities.json`, which the app reads at runtime (for example, whether transfers can
-name a payee). Nessie data is publicly visible, so Atlas only ever sends fictional persona names.
+name a payee). Nessie data is publicly visible, so Atlas only ever sends a first name, a generated
+last name and a generated address: never a phone number, handle or real last name.
 
 ### The real line (Linq)
 
@@ -117,7 +126,7 @@ name a payee). Nessie data is publicly visible, so Atlas only ever sends fiction
    Messages from numbers that aren't registered are held or dropped.
 3. `cp demo/roster.example.json demo/roster.json` with your names and phones (optionally pin demo
    personas). `npm run demo -- setup` shows who has texted the line.
-4. `npm run demo -- warm` seeds everyone's Nessie demo profile ahead of time and prints their budgets.
+4. `npm run demo -- warm` seeds everyone's Nessie profile ahead of time and prints their budgets.
 5. `npm run live` starts Atlas, opens a `cloudflared` quick tunnel, and creates a Linq webhook
    subscription for every event Atlas handles, native polls included. Every delivery is verified
    with the subscription's signing secret, and the subscription is deleted on exit.
@@ -272,7 +281,7 @@ header. The full list is in [NOTICE](NOTICE). Thank you, Ethan.
 Also built on:
 - [Photon Spectrum](https://photon.codes/docs/spectrum-ts)
 - [Linq](https://linqapp.com)
-- [Capital One Nessie](https://nessieisreal.com) (synthetic sandbox data)
+- [Capital One Nessie](https://nessieisreal.com) (generated account data, shown in chat as a connected Capital One account)
 - [Tiger Data](https://www.tigerdata.com) (TimescaleDB, pgvector, pgvectorscale)
 - [Google Gemini](https://ai.google.dev)
 - [SerpApi](https://serpapi.com)

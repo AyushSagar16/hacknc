@@ -24,8 +24,8 @@ expect sql SELECT count(*)::int AS n FROM budgets WHERE adjusted_cents > 2000000
 maya: atlas everyone agreed, we're doing charleston
 expect atlas ~ "💸 payment plan"
 expect atlas ~ "all done by oct 31"
-expect atlas ~ "(estimates · demo profiles are offline"
-expect atlas ~ "heads up: this is over budget for priya"
+expect atlas ~ "(estimates · i'm tracking it here for now)"
+expect atlas ~ "heads up priya, this is above what you said works for you"
 leo: what's our budget
 expect atlas ~ "the locked plan is over budget for priya"
 expect atlas !~ "which works for everyone"

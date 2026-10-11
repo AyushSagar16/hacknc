@@ -258,7 +258,7 @@ async function setupPaymentPlan(tc: TurnCtx, opts: { compact?: boolean } = {}): 
     tc.figures.add({ cents: p.shareCents, label: `${tc.label(p.personId)}'s share (est.)`, source: "estimate:proposal", visibility: "public" });
   }
   const offline = !client || plans.some((p) => p.offline);
-  const where = offline ? "estimates · demo profiles are offline, so i'm tracking it here" : "estimates · tracked as bills in each of your nessie demo accounts";
+  const where = offline ? "estimates · i'm tracking it here for now" : "estimates · scheduled as bills on each of your checking accounts";
   // The real last installment, not the deadline it had to beat.
   const end = plans.flatMap((p) => p.plan.map((i) => i.dueDate)).sort().at(-1) ?? deadline;
   const timed = plans.filter((p) => !p.unchanged);
@@ -465,7 +465,7 @@ export async function logExpense(tc: TurnCtx, input: LogInput): Promise<{ expens
   const fresh = (await expenseByKey(input.key))!;
   tc.figures.addAll(expenseFigures(fresh));
   const n = await numberOf(fresh);
-  const text = `logged #${n}: ${fresh.description} ${formatUsd(fresh.amount_cents, { cents: "always" })}, paid by ${tc.label(fresh.payer_id).toLowerCase()}${inNessie ? " (nessie purchase ✓)" : sharedNessie() ? " (syncing to nessie)" : ""}. ${describeSplit(fresh, tc)}`;
+  const text = `logged #${n}: ${fresh.description} ${formatUsd(fresh.amount_cents, { cents: "always" })}, paid by ${tc.label(fresh.payer_id).toLowerCase()}${inNessie ? " (on their account ✓)" : sharedNessie() ? " (syncing to their account)" : ""}. ${describeSplit(fresh, tc)}`;
   return { expense: fresh, text, duplicate: false };
 }
 
@@ -537,7 +537,7 @@ async function proposeSettleUp(tc: TurnCtx): Promise<void> {
   say(
     tc,
     `settle-up, the fewest transfers that square everything (${rows.length}):\n${rows.map((r) => `${tc.label(r.from_id).toLowerCase()} → ${tc.label(r.to_id).toLowerCase()} ${formatUsd(r.amount_cents, { cents: "always" })}`).join("\n")}`,
-    `${nameList(payers.map((p) => tc.label(p).toLowerCase()))}, reply "confirm" and i'll send yours as a nessie transfer (sandbox money, nothing real moves)`,
+    `${nameList(payers.map((p) => tc.label(p).toLowerCase()))}, reply "confirm" and i'll send yours straight from your checking`,
   );
 }
 
@@ -549,7 +549,7 @@ async function executeSettlement(s: SettlementRow, label: (id: number) => string
   const at = now().toISOString().slice(0, 10);
   if (!client || !from?.checking_id || !to?.checking_id || from.seed_progress.offline || to.seed_progress.offline) {
     await q(`UPDATE settlements SET status = 'executed', executed_at = $2, last_error = 'offline: recorded only' WHERE id = $1`, [s.id, now()]);
-    return `✓ ${label(s.from_id).toLowerCase()} → ${label(s.to_id).toLowerCase()} ${formatUsd(s.amount_cents, { cents: "always" })} recorded (demo profiles offline, so no nessie transfer)`;
+    return `✓ ${label(s.from_id).toLowerCase()} → ${label(s.to_id).toLowerCase()} ${formatUsd(s.amount_cents, { cents: "always" })} recorded`;
   }
   try {
     let transferId = s.nessie_transfer_id;
@@ -567,7 +567,7 @@ async function executeSettlement(s: SettlementRow, label: (id: number) => string
       await q(`UPDATE settlements SET nessie_deposit_id = $2 WHERE id = $1`, [s.id, depositId]);
     }
     await q(`UPDATE settlements SET status = 'executed', executed_at = $2, last_error = NULL WHERE id = $1`, [s.id, now()]);
-    return `✓ sent: ${label(s.from_id).toLowerCase()} → ${label(s.to_id).toLowerCase()} ${formatUsd(s.amount_cents, { cents: "always" })} (nessie transfer ✓)`;
+    return `✓ sent: ${label(s.from_id).toLowerCase()} → ${label(s.to_id).toLowerCase()} ${formatUsd(s.amount_cents, { cents: "always" })}`;
   } catch (err) {
     await q(`UPDATE settlements SET status = 'failed', last_error = $2 WHERE id = $1`, [s.id, (err as Error).message.slice(0, 300)]);
     throw err;
@@ -583,7 +583,7 @@ async function confirmSettlement(tc: TurnCtx, personId: number, planId: string):
       say(tc, await executeSettlement(s, tc.label));
     } catch {
       await enqueueJob("settle.execute", { settlementId: s.id, chatId: tc.chat.id }, { singletonKey: `settle:${s.id}`, dueAt: new Date(now().getTime() + 20_000) });
-      say(tc, `nessie isn't answering right now, i'll send ${tc.label(s.from_id).toLowerCase()} → ${tc.label(s.to_id).toLowerCase()} as soon as it's back`);
+      say(tc, `the bank isn't answering right now, i'll send ${tc.label(s.from_id).toLowerCase()} → ${tc.label(s.to_id).toLowerCase()} as soon as it's back`);
     }
   }
   await finishIfSettled(tc);
@@ -770,7 +770,7 @@ const balancesTool: Tool = {
 };
 
 const settleTool: Tool = {
-  decl: { name: "propose_settle_up", description: "Propose the settle-up: the fewest transfers that square everyone, then each payer confirms and it's sent through Nessie. Posts its own messages.", parameters: { type: "object", properties: {} } },
+  decl: { name: "propose_settle_up", description: "Propose the settle-up: the fewest transfers that square everyone, then each payer confirms and it's sent as a transfer from their checking. Posts its own messages.", parameters: { type: "object", properties: {} } },
   sideEffects: true,
   async run(_args, ctx) {
     await proposeSettleUp(ctx as TurnCtx);
@@ -782,7 +782,7 @@ const paymentPlanTool: Tool = {
   decl: {
     name: "show_payment_plan",
     description:
-      "Post the whole payment plan again (each person's share and installments, Nessie bills on paydays). Only when someone asks to SEE the plan or what everyone pays; answer why/how questions in words instead.",
+      "Post the whole payment plan again (each person's share and installments, scheduled on paydays). Only when someone asks to SEE the plan or what everyone pays; answer why/how questions in words instead.",
     parameters: { type: "object", properties: {} },
   },
   sideEffects: true,
@@ -881,7 +881,7 @@ export const moneyFeature: Feature = {
   async situation(tc) {
     const expenses = await activeExpenses(tc.trip.id);
     const lines: string[] = [];
-    for (const e of expenses.slice(-10)) lines.push(`#${await numberOf(e)} ${e.description} ${formatUsd(e.amount_cents, { cents: "always" })} paid by ${tc.label(e.payer_id)}, shares ${Object.entries(e.shares).map(([id, c]) => `${tc.label(Number(id))} ${formatUsd(c, { cents: "always" })}`).join(", ")}${e.nessie_purchase_id ? " [nessie]" : ""}`);
+    for (const e of expenses.slice(-10)) lines.push(`#${await numberOf(e)} ${e.description} ${formatUsd(e.amount_cents, { cents: "always" })} paid by ${tc.label(e.payer_id)}, shares ${Object.entries(e.shares).map(([id, c]) => `${tc.label(Number(id))} ${formatUsd(c, { cents: "always" })}`).join(", ")}${e.nessie_purchase_id ? " [synced]" : ""}`);
     if (expenses.length) lines.push(...(await balanceLines(tc)));
     const spent = await spentSoFar(tc.trip.id);
     if (spent.totalCents) lines.push(`spent so far (from the trip_spend_daily aggregate): ${formatUsd(spent.totalCents, { cents: "always" })}`);
@@ -889,7 +889,7 @@ export const moneyFeature: Feature = {
     if (settlements.length) lines.push(`settle-up in progress: ${settlements.map((s) => `${tc.label(s.from_id)} → ${tc.label(s.to_id)} ${formatUsd(s.amount_cents, { cents: "always" })} (${s.status})`).join("; ")}`);
     const pending = await q<{ person_id: number; kind: string }>(`SELECT person_id, kind FROM confirmations WHERE chat_id = $1 AND status = 'pending'`, [tc.chat.id]);
     if (pending.length) lines.push(`waiting on confirmation from: ${pending.map((p) => `${tc.label(p.person_id)} (${p.kind})`).join(", ")}`);
-    return lines.length ? { title: "trip money (exact ledger; nessie is the system of record)", lines } : null;
+    return lines.length ? { title: "trip money (exact ledger)", lines } : null;
   },
 
   async summary(tc) {

@@ -407,7 +407,7 @@ async function runCommand(cmd: Command, msg: MessageRow, tc: TurnCtx, features: 
     case "help":
       say(
         tc,
-        `i handle the trip and the money side:\n- options with prices, then a poll\n- budgets from demo spending profiles\n- payment plans, splitting expenses, settling up\ntry "${n} summarize", "what's our budget", "i paid 64 for dinner" or "settle up". "${n} stay quiet" if i'm too chatty`,
+        `i handle the trip and the money side:\n- options with prices, then a poll\n- budgets from your last few months of spending (private unless you share yours)\n- payment plans, splitting expenses, settling up\ntry "${n} summarize", "what's our budget", "i paid 64 for dinner" or "settle up". "${n} stay quiet" if i'm too chatty`,
       );
       return;
     case "summarize": {
