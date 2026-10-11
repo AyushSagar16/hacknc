@@ -110,3 +110,20 @@ describe("parseExpense", () => {
     expect(parse(text)).toBeNull();
   });
 });
+
+describe("buying for someone else", () => {
+  it.each([
+    ["i got leo's ticket, $40", 4_000, "ticket", ["Leo"]],
+    ["bought dinner for priya 30", 3_000, "dinner", ["Priya"]],
+    ["i bought priya dinner, 30", 3_000, "dinner", ["Priya"]],
+    ["i got leo a ticket for 40", 4_000, "ticket", ["Leo"]],
+    ["got leo and priya lunch, 36", 3_600, "lunch", ["Leo", "Priya"]],
+    ["grabbed jordan's coffee $6", 600, "coffee", ["Jordan"]],
+  ] as const)("%j is all on them", (text, cents, description, who) => {
+    expect(parse(text)).toEqual({ amountCents: cents, description, splitAmong: [...who], confidence: "high" });
+  });
+
+  it.each(["i paid leo 40", "i got leo back 20", "i got leo 40", "put the boat rental on the fund, it's 240"])("paying someone back is not buying for them: %j", (text) => {
+    expect(parse(text)).toBeNull();
+  });
+});

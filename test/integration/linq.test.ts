@@ -11,6 +11,7 @@ import { fakeLinq } from "../helpers/fakeLinq.ts";
 import { callResult, textResult } from "../../src/agent/llm.ts";
 import { reconcileOpenNativePolls, setPollSource } from "../../src/agent/features/proposals.ts";
 import { linqPollSource } from "../../src/transport/linq/platform.ts";
+import { signBody, verifyToken } from "../../src/connect/token.ts";
 
 const describeDb = dbAvailable ? describe : describe.skip;
 const SECRET = `whsec_${Buffer.from("atlas-test-secret").toString("base64")}`;
@@ -135,6 +136,37 @@ describeDb("Linq line end to end (fake Linq API, real webhook server + Spectrum 
     expect(inbound[0]!.n).toBe(1);
     const events = await q<{ n: number }>(`SELECT count(*)::int AS n FROM webhook_events WHERE processed_at IS NOT NULL`);
     expect(events[0]!.n).toBe(1);
+  });
+
+  it("bank connect: \"yes\" gets a signed link, and the consent page's signed POST /connect-callback connects them", async () => {
+    const { linq, post, text } = await boot();
+    const port = app!.cfg.LINQ_WEBHOOK_PORT;
+    const secret = "connect-test-secret";
+    app!.cfg.CONNECT_SECRET = secret;
+    await post("participant.added", { chat_id: "chat_1", handle: LINE });
+    await until(() => linq.sends().length >= 3);
+    await post("message.received", text("y1", FRIENDS[0]!, "yes"));
+    const sent = () => linq.sends().map((s) => JSON.stringify(s.body)).join("\n");
+    await until(() => sent().includes("/connect/"));
+    expect(sent()).toContain("here's yours maya 🔒");
+    const token = /\/connect\/([A-Za-z0-9_-]+\.[A-Za-z0-9_-]+)/.exec(sent())![1]!;
+    expect(verifyToken(token, secret, Date.now())).toMatchObject({ ok: true, payload: { n: "Maya", cb: `http://127.0.0.1:${port}` } });
+
+    const callback = (body: string, signature: string) =>
+      fetch(`http://127.0.0.1:${port}/connect-callback`, { method: "POST", headers: { "content-type": "application/json", "x-atlas-signature": signature }, body });
+    const body = JSON.stringify({ token });
+    expect((await callback(body, signBody(body, "wrong"))).status).toBe(401);
+    const forged = JSON.stringify({ token: `${token.split(".")[0]}.${signBody("x", secret)}` });
+    expect((await callback(forged, signBody(forged, secret))).status).toBe(400);
+    const ok = await callback(body, signBody(body, secret));
+    expect(ok.status).toBe(200);
+    expect(await ok.json()).toEqual({ ok: true, name: "Maya", already: false });
+    expect(await (await callback(body, signBody(body, secret))).json()).toMatchObject({ ok: true, already: true });
+
+    await app!.jobs.runDue();
+    await until(() => sent().includes("maya's connected ✓"));
+    const rows = await q<{ status: string; seed_status: string }>(`SELECT b.status, l.seed_status FROM bank_connections b JOIN nessie_links l USING (person_id) WHERE b.status = 'connected'`);
+    expect(rows).toEqual([{ status: "connected", seed_status: "ready" }]);
   });
 
   it("sends a native Linq poll (question as its own bubble) and counts native votes", async () => {

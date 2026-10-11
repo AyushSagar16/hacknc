@@ -19,6 +19,46 @@ export interface SiteOverview {
   /** "egypt won 3 of 4" once a poll decided. */
   decision?: string;
   booking: { label: string; url: string }[];
+  /**
+   * Where each part of the plan stands, in order (location, dates, travel, stay, food &
+   * activities). Optional: pages published before stages existed don't have it.
+   */
+  stages?: SiteStage[];
+  fund?: SiteFund;
+  /** The booked stay, once there is one. */
+  stay?: SiteStay;
+}
+
+export interface SiteStay {
+  name: string;
+  kind: "hotel" | "rental";
+  checkIn: string;
+  checkOut: string;
+  totalCents: number;
+  link: string | null;
+  rating: number | null;
+}
+
+export interface SiteFund {
+  /** e.g. "Capital One · Tahoe Trip Fund" */
+  accountLabel: string;
+  targetCents: number;
+  collectedCents: number;
+  /** ISO date (YYYY-MM-DD) contributions are due by, if set */
+  deadline: string | null;
+  /** first names only; never budgets */
+  members: { name: string; shareCents: number; contributedCents: number; nextCents: number | null; nextDate: string | null }[];
+  /** newest first */
+  transactions: { at: string; kind: "contribution" | "purchase" | "refund" | "transfer"; label: string; amountCents: number }[];
+}
+
+export interface SiteStage {
+  key: "location" | "dates" | "travel" | "stay" | "food_activities";
+  /** "Location", "Dates", "Travel", "Stay", "Food & activities". */
+  label: string;
+  status: "open" | "in_progress" | "decided";
+  /** What was decided, when it was ("Boone, NC", "Nov 12–16"). */
+  detail?: string;
 }
 
 export interface SiteDay {

@@ -1,31 +1,28 @@
 // Trip money through Nessie, end to end:
-//   (a) each person's share and (b) a payment plan as Nessie bills timed to their paydays;
+//   (a)+(b) shares and the payment plan are the trip fund now (features/fund.ts): contributions
+//       on each person's paydays into a shared fund account; this file keeps the split mode;
 //   (c) "i paid 64 for dinner" → a Nessie purchase on the payer's account + an exact-cents ledger
 //       row (idempotent by source message), disputes fixed only with the payer's confirmation;
-//   (d) settle-up with the fewest transfers, each executed as a Nessie transfer only after the
-//       person paying confirms in the chat.
+//   (d) the combined settle-up (tab + trip fund, src/money/fund.ts) with the fewest transfers,
+//       each executed as a Nessie transfer only after the person paying confirms in the chat;
+//       fund leftovers are refunded pro-rata, a shortfall is paid into the fund.
 // All arithmetic is deterministic code; every figure posted is registered for the money guard.
-import { createHash } from "node:crypto";
-import { addDays, isoDate, now } from "../../clock.ts";
+import { addDays, now } from "../../clock.ts";
 import { childLog } from "../../log.ts";
 import { formatUsd } from "../../money/cents.ts";
-import { PAYCHECK_PATTERN } from "../../money/budget.ts";
-import { inferPaycheckCadence, planInstallments } from "../../money/paymentPlan.ts";
+import { combinedSettle, FUND, fundShares } from "../../money/fund.ts";
 import { splitByItems, splitEvenly } from "../../money/split.ts";
 import { one, q } from "../../db/pool.ts";
-import { activeMembers, getChat, labelOf, type MessageRow } from "../../db/repos/core.ts";
+import { activeMembers, labelOf, type MessageRow } from "../../db/repos/core.ts";
 import { enqueueJob } from "../../pipeline/jobs.ts";
 import { capabilities, nessieAmount } from "../../nessie/capabilities.ts";
-import { readLedger } from "../../nessie/ledger.ts";
 import { linkFor, sharedNessie, tripMerchant } from "../../nessie/seed.ts";
 import { parseExpense } from "../../trips/expenseParse.ts";
+import { doneBy, fundItems, payDueItems, recordContribution, refundFromFund } from "../../trips/fund.ts";
 import { activeExpenses, categorize, expenseByKey, expenseNumber, insertExpense, numberOf, openSettlements, proposeSettlements, setExpenseNessie, spentSoFar, tripBalances, voidExpense, type ExpenseRow, type SettlementRow } from "../../trips/ledger.ts";
-import { updateTrip, type TripRow } from "../../trips/state.ts";
-import { destinationById } from "../../trips/catalog.ts";
-import { buildConstraints } from "../../trips/constraints.ts";
-import { estimateCost } from "../../trips/estimate.ts";
-import { budgetRows, effectiveCents } from "../../nessie/budgets.ts";
+import { tripById, updateTrip } from "../../trips/state.ts";
 import type { AppServices, Feature, TurnCtx } from "../feature.ts";
+import { postFundPlan } from "./fund.ts";
 import { nameList } from "./planning.ts";
 import type { Figure } from "../figures.ts";
 import { ToolError, num, say, str, strList, type Tool } from "../tools.ts";
@@ -33,346 +30,22 @@ import { ToolError, num, say, str, strList, type Tool } from "../tools.ts";
 const log = () => childLog({ component: "money" });
 const day = (iso: string) => new Date(`${iso}T12:00:00Z`).toLocaleDateString("en-US", { month: "short", day: "numeric", timeZone: "UTC" }).toLowerCase();
 
-// ---------- (a)+(b) shares and payment plan ----------
+// ---------- (a)+(b) cost split ----------
+// The payment plan is the trip fund's contribution schedule now (features/fund.ts): shares of
+// the stay and shared items, paid in on paydays. Travel is each person's own cost.
 
-type PerPersonCost = { totalCents: number; transportMode?: "flight" | "drive" };
-
-async function sharesFor(trip: TripRow, memberIds: number[]): Promise<{ shares: Map<number, number>; modes: Map<number, string> }> {
-  const row = await one<{ options: { destId: string; avgCents: number; perPerson: Record<string, PerPersonCost> }[] }>(
-    `SELECT options FROM proposals WHERE trip_id = $1 ORDER BY id DESC LIMIT 1`,
-    [trip.id],
-  );
-  const option = row?.options.find((o) => o.destId === trip.destination_id);
-  const shares = new Map<number, number>();
-  const modes = new Map<number, string>();
-  for (const id of memberIds) {
-    const cost = option?.perPerson[String(id)];
-    const cents = cost?.totalCents ?? option?.avgCents;
-    if (cents) shares.set(id, Math.round(cents / 500) * 500);
-    if (cost?.transportMode) modes.set(id, cost.transportMode);
-  }
-  return { shares, modes };
-}
-
-/** One equal share each: the group's total split evenly, rounded to $5 like every estimate. */
-export function evenShares(shares: Map<number, number>): Map<number, number> {
-  if (shares.size === 0) return shares;
-  const total = [...shares.values()].reduce((a, b) => a + b, 0);
-  const each = Math.round(total / shares.size / 500) * 500;
-  return new Map([...shares.keys()].map((id) => [id, each]));
-}
-
-/** "4 payments of $173.75" when they're equal, otherwise each amount with its date. */
-export function installmentLines(plan: { dueDate: string; amountCents: number }[]): string[] {
-  if (plan.length === 0) return [];
-  const same = plan.every((p) => p.amountCents === plan[0]!.amountCents);
-  if (same) {
-    const what = plan.length === 1 ? `1 payment of ${formatUsd(plan[0]!.amountCents)}` : `${plan.length} payments of ${formatUsd(plan[0]!.amountCents)}`;
-    return [what, plan.map((p) => day(p.dueDate)).join(", ")];
-  }
-  return plan.map((p) => `${day(p.dueDate)}: ${formatUsd(p.amountCents)}`);
-}
-
-/** Why the shares aren't equal, in one line (travel is the only thing that differs per person). */
-export function whyDifferent(shares: Map<number, number>, modes: Map<number, string>, label: (id: number) => string): string | null {
-  if (new Set(shares.values()).size <= 1) return null;
-  const ids = [...shares.keys()];
-  const drivers = ids.filter((id) => modes.get(id) === "drive").map((id) => label(id).toLowerCase());
-  const flyers = ids.filter((id) => modes.get(id) === "flight").map((id) => label(id).toLowerCase());
-  let travel = "flights cost different amounts from each home city";
-  if (drivers.length && flyers.length) {
-    // Name people when a side is three or fewer; "everyone else" only stands in for a crowd.
-    const everyoneKnown = drivers.length + flyers.length === ids.length;
-    const drive = drivers.length <= 3 || !everyoneKnown ? `${nameList(drivers)} ${drivers.length === 1 ? "drives" : "drive"}` : null;
-    const fly = flyers.length <= 3 || !everyoneKnown ? `${nameList(flyers)} ${flyers.length === 1 ? "flies" : "fly"}` : null;
-    travel = drive && fly ? `${drive}, ${fly}` : drive ? `${drive}, everyone else flies` : `${fly}, everyone else drives`;
-  } else if (drivers.length === ids.length) travel = "the drive costs differ depending on where each of you starts";
-  return `shares differ because travel does (${travel}).\nwant one equal share instead? say "split it evenly"`;
-}
-
-/** One line naming whoever's share is above their budget. Private budgets: name only, never a number. */
-export function overBudgetLine(shares: Map<number, number>, budgets: { personId: number; cents: number | null; private: boolean }[], label: (id: number) => string): string | null {
-  const over = budgets.filter((b) => b.cents !== null && shares.has(b.personId) && shares.get(b.personId)! > b.cents);
-  if (over.length === 0) return null;
-  const pub = over.filter((b) => !b.private).map((b) => label(b.personId).toLowerCase());
-  const priv = over.filter((b) => b.private).map((b) => label(b.personId).toLowerCase());
-  const lines: string[] = [];
-  if (pub.length) lines.push(`heads up: this is over budget for ${nameList(pub)}. if that's a problem, say so and we can look at something cheaper`);
-  if (priv.length) lines.push(`heads up ${nameList(priv)}, this is above what you said works for you. say the word and we can look at something cheaper`);
-  return lines.join("\n");
-}
-
-/** Plans are keyed by what they're for (destination, split mode, share): same inputs, same rows. */
-export function planFingerprint(trip: Pick<TripRow, "destination_id">, mode: string, shareCents: number): string {
-  return createHash("sha1").update(`${trip.destination_id ?? "-"}|${mode}|${shareCents}`).digest("hex").slice(0, 8);
-}
-
-interface PersonPlan {
-  personId: number;
-  shareCents: number;
-  plan: { dueDate: string; amountCents: number; billId: string | null }[];
-  offline: boolean;
-  /** True when the rows already existed with this exact share (a re-show, nothing changed). */
-  unchanged: boolean;
-  /** Timed to this person's paydays (false: no paycheck rhythm known, so every two weeks). */
-  onPaydays?: boolean;
-}
-
-type Nessie = ReturnType<typeof sharedNessie>;
-
-/**
- * One person's installments for this share: reuse the scheduled rows when the plan they belong
- * to hasn't changed (same destination, split mode and share), otherwise plan from their paydays,
- * store them and add a Nessie bill per installment. Their rows under any other plan (an old
- * destination, the other split mode) are retired with their bills.
- */
-async function planPerson(trip: TripRow, personId: number, shareCents: number, mode: "by_cost" | "even", today: string, deadline: string, client: Nessie): Promise<PersonPlan> {
-  const prefix = `inst:${trip.id}:${planFingerprint(trip, mode, shareCents)}:${personId}:`;
-  const existing = await q<{ due_date: string; amount_cents: string; nessie_bill_id: string | null }>(
-    `SELECT to_char(due_date, 'YYYY-MM-DD') AS due_date, amount_cents, nessie_bill_id FROM installments
-      WHERE trip_id = $1 AND person_id = $2 AND status IN ('scheduled','paid') AND starts_with(idempotency_key, $3) ORDER BY due_date`,
-    [trip.id, personId, prefix],
-  );
-  const link = await linkFor(personId);
-  let offline = !client || Boolean(link?.seed_progress.offline);
-  if (existing.length) {
-    await retireInstallments(trip.id, client, { personId, keepPrefix: prefix });
-    return { personId, shareCents, plan: existing.map((r) => ({ dueDate: r.due_date, amountCents: Number(r.amount_cents), billId: r.nessie_bill_id })), offline, unchanged: true };
-  }
-  let paydays: string[] = [];
-  if (link?.seed_status === "ready") {
-    const ledger = await readLedger(link, client);
-    if (ledger.source === "offline-profile") offline = true;
-    const pay = ledger.txns.filter((t) => t.kind === "deposit" && PAYCHECK_PATTERN.test(t.description)).map((t) => t.date);
-    paydays = inferPaycheckCadence(pay).nextPaydays(addDays(today, 1), deadline);
-  }
-  const plan = planInstallments({ shareCents, today, deadline, paydays });
-  const out: PersonPlan["plan"] = [];
-  for (const [i, inst] of plan.entries()) {
-    const key = `${prefix}${i}`;
-    const row = await one<{ nessie_bill_id: string | null }>(
-      `INSERT INTO installments (trip_id, person_id, due_date, amount_cents, idempotency_key, created_at) VALUES ($1,$2,$3,$4,$5,$6)
-       ON CONFLICT (idempotency_key) DO UPDATE SET status = 'scheduled', due_date = EXCLUDED.due_date, amount_cents = EXCLUDED.amount_cents
-       RETURNING nessie_bill_id`,
-      [trip.id, personId, inst.dueDate, inst.amountCents, key, now()],
-    );
-    let billId = row?.nessie_bill_id ?? null;
-    if (!billId && client && link?.checking_id && !link.seed_progress.offline) {
-      try {
-        billId = (
-          await client.createOn(
-            link.checking_id,
-            "bills",
-            {
-              status: "pending",
-              payee: `[atlas] ${trip.destination_name} trip fund`,
-              nickname: `[atlas] ${trip.destination_name} trip ${i + 1}/${plan.length}`,
-              payment_date: inst.dueDate,
-              recurring_date: Number(inst.dueDate.slice(8, 10)),
-              payment_amount: inst.amountCents / 100,
-            },
-            personId,
-          )
-        ).id;
-        await q(`UPDATE installments SET nessie_bill_id = $2 WHERE idempotency_key = $1`, [key, billId]);
-      } catch (err) {
-        log().warn({ err: (err as Error).message }, "could not create nessie bill; installment kept locally");
-      }
-    }
-    out.push({ dueDate: inst.dueDate, amountCents: inst.amountCents, billId });
-  }
-  await retireInstallments(trip.id, client, { personId, keepPrefix: prefix });
-  return { personId, shareCents, plan: out, offline, unchanged: false, onPaydays: paydays.length > 0 };
-}
-
-/**
- * Cancel scheduled installments (and remove their Nessie bills): one person's rows outside
- * `keepPrefix`, or every scheduled row of the people in `personIds`. Returns how many.
- */
-async function retireInstallments(tripId: number, client: Nessie, which: { personId: number; keepPrefix: string } | { personIds: number[] }): Promise<number> {
-  type Row = { id: number; person_id: number; nessie_bill_id: string | null };
-  const stale =
-    "keepPrefix" in which
-      ? await q<Row>(
-          `UPDATE installments SET status = 'cancelled' WHERE trip_id = $1 AND person_id = $2 AND status = 'scheduled' AND NOT starts_with(idempotency_key, $3)
-           RETURNING id, person_id, nessie_bill_id`,
-          [tripId, which.personId, which.keepPrefix],
-        )
-      : await q<Row>(`UPDATE installments SET status = 'cancelled' WHERE trip_id = $1 AND person_id = ANY($2::bigint[]) AND status = 'scheduled' RETURNING id, person_id, nessie_bill_id`, [
-          tripId,
-          which.personIds,
-        ]);
-  for (const s of stale) {
-    if (!s.nessie_bill_id || !client) continue;
-    try {
-      await client.remove(`/bills/${s.nessie_bill_id}`, s.person_id);
-      // The bill is gone: if this row is ever re-activated it needs a fresh one.
-      await q(`UPDATE installments SET nessie_bill_id = NULL WHERE id = $1`, [s.id]);
-    } catch (err) {
-      log().warn({ err: (err as Error).message }, "could not remove a retired nessie bill");
-    }
-  }
-  return stale.length;
-}
-
-/** "4 payments" / "1 payment". */
-const payments = (n: number) => `${n} payment${n === 1 ? "" : "s"}`;
-
-/** "$1,415, 4 × $353.75" when the installments are equal, else "$1,415 in 4 payments". */
-export function compactPlan(p: { shareCents: number; plan: { amountCents: number }[] }): string {
-  const same = p.plan.length > 1 && p.plan.every((i) => i.amountCents === p.plan[0]!.amountCents);
-  return same ? `${formatUsd(p.shareCents)}, ${p.plan.length} × ${formatUsd(p.plan[0]!.amountCents)}` : `${formatUsd(p.shareCents)} in ${payments(p.plan.length)}`;
-}
-
-/** Current per-person budgets, for the over-budget line. */
-async function budgetsFor(tripId: number): Promise<{ personId: number; cents: number | null; private: boolean }[]> {
-  return (await budgetRows(tripId)).map((r) => ({ personId: r.person_id, cents: effectiveCents(r), private: r.visibility === "private" }));
-}
-
-/**
- * Post the payment plan. In full (first post, or someone asked to see it): a header, one bubble
- * per person, why shares differ, and who it's over budget for. `compact` (a change, like a split
- * mode switch): the header plus one short line, not every bubble again.
- */
-async function setupPaymentPlan(tc: TurnCtx, opts: { compact?: boolean } = {}): Promise<void> {
-  const trip = tc.trip;
-  if (!trip.start_date) return;
-  const mode = trip.split_mode ?? "by_cost";
-  let { shares, modes } = await sharesFor(trip, tc.members.map((m) => m.id));
-  if (shares.size === 0) shares = await estimatedShares(tc);
-  if (shares.size === 0) return;
-  if (mode === "even") shares = evenShares(shares);
-  await tc.nonCancellable();
-  const today = tc.today;
-  let deadline = trip.deposit_deadline ?? addDays(trip.start_date, -7);
-  if (deadline <= today) deadline = addDays(today, 1);
-  const client = sharedNessie();
-  const plans: PersonPlan[] = [];
-  for (const [personId, shareCents] of shares) plans.push(await planPerson(trip, personId, shareCents, mode, today, deadline, client));
-  // Anyone still billed who isn't in this plan (left the group): retire their installments.
-  const others = await q<{ person_id: number }>(`SELECT DISTINCT person_id FROM installments WHERE trip_id = $1 AND status = 'scheduled' AND NOT (person_id = ANY($2::bigint[]))`, [trip.id, [...shares.keys()]]);
-  if (others.length) await retireInstallments(trip.id, client, { personIds: others.map((o) => Number(o.person_id)) });
-
-  for (const p of plans) {
-    for (const inst of p.plan) tc.figures.add({ cents: inst.amountCents, label: `${tc.label(p.personId)} installment`, source: inst.billId ? `nessie:${inst.billId}` : "estimate:plan", visibility: "public" });
-    tc.figures.add({ cents: p.shareCents, label: `${tc.label(p.personId)}'s share (est.)`, source: "estimate:proposal", visibility: "public" });
-  }
-  const offline = !client || plans.some((p) => p.offline);
-  const where = offline ? "estimates · demo profiles are offline, so i'm tracking it here" : "estimates · tracked as bills in each of your nessie demo accounts";
-  // The real last installment, not the deadline it had to beat.
-  const end = plans.flatMap((p) => p.plan.map((i) => i.dueDate)).sort().at(-1) ?? deadline;
-  const timed = plans.filter((p) => !p.unchanged);
-  const cadence = timed.length === 0 || timed.every((p) => p.onPaydays) ? "small payments on your paydays" : timed.some((p) => p.onPaydays) ? "small payments, on paydays where i know them" : "small payments every two weeks";
-  const header = `💸 payment plan${mode === "even" ? ", split evenly" : ""}\n${cadence}, all done by ${day(end)}\n(${where})`;
-  const over = overBudgetLine(shares, await budgetsFor(trip.id), (id) => tc.label(id));
-
-  if (opts.compact) {
-    const oneShare = new Set(plans.map((p) => p.shareCents)).size === 1 && new Set(plans.map((p) => p.plan.length)).size === 1;
-    const changed = plans.some((p) => !p.unchanged) ? plans.filter((p) => !p.unchanged) : plans;
-    const lines = oneShare ? [`everyone: ${formatUsd(plans[0]!.shareCents)}, ${payments(plans[0]!.plan.length)}`] : changed.map((p) => `${tc.label(p.personId).toLowerCase()}: ${compactPlan(p)}`);
-    const footer = mode === "even" ? `everyone pays the same now. "split by cost" switches back` : whyDifferent(shares, modes, (id) => tc.label(id));
-    say(tc, [header, ...lines].join("\n"), ...(footer ? [footer] : []), ...(over ? [over] : []));
-    return;
-  }
-  const bubbles = plans.map((p) => [`${tc.label(p.personId).toLowerCase()}: ${formatUsd(p.shareCents)} total`, ...installmentLines(p.plan)].join("\n"));
-  const footer = mode === "even" ? `everyone pays the same now. "split by cost" switches back` : whyDifferent(shares, modes, (id) => tc.label(id));
-  say(tc, header, ...bubbles, ...(footer ? [footer] : []), ...(over ? [over] : []));
-}
-
-/** What each person is actually being billed on the plan (scheduled or paid installments). */
-export async function planTotals(tripId: number): Promise<Map<number, number>> {
-  const rows = await q<{ person_id: number; total: string }>(
-    `SELECT person_id, sum(amount_cents)::bigint AS total FROM installments WHERE trip_id = $1 AND status IN ('scheduled','paid') GROUP BY person_id`,
-    [tripId],
-  );
-  return new Map(rows.map((r) => [Number(r.person_id), Number(r.total)]));
-}
-
-export const PLAN_MEMBERS_JOB = "money.plan_members";
-
-/**
- * Keep the plan in step with who's in the group: whoever left has their scheduled installments
- * (and Nessie bills) cancelled, whoever joined after the lock gets a plan of their own, and the
- * chat gets one line about it instead of the whole plan again.
- */
-export async function reconcilePlanMembers(svc: Pick<AppServices, "post">, tripId: number, chatId: number, guid: string): Promise<{ removed: number[]; added: number[]; text: string | null }> {
-  const result = { removed: [] as number[], added: [] as number[], text: null as string | null };
-  const trip = await one<TripRow>(`SELECT * FROM trips WHERE id = $1`, [tripId]);
-  if (!trip || !trip.start_date || !["locked", "ongoing"].includes(trip.status)) return result;
-  const totals = await planTotals(trip.id);
-  if (totals.size === 0) return result;
-  const members = await activeMembers(chatId);
-  const active = new Set(members.map((m) => m.id));
-  const gone = [...totals.keys()].filter((id) => !active.has(id));
-  const joined = members.map((m) => m.id).filter((id) => !totals.has(id));
-  if (gone.length === 0 && joined.length === 0) return result;
-  const people = await q<{ id: number; display_name: string | null; handle: string | null }>(`SELECT id, display_name, handle FROM people WHERE id = ANY($1::bigint[])`, [[...gone, ...joined]]);
-  const names = new Map(people.map((p) => [Number(p.id), labelOf(p).toLowerCase()]));
-  const client = sharedNessie();
-  const lines: string[] = [];
-  if (gone.length && (await retireInstallments(trip.id, client, { personIds: gone })) > 0) {
-    result.removed = gone;
-    lines.push(`took ${nameList(gone.map((id) => names.get(id) ?? "them"))}'s payments off the plan`);
-  }
-  if (joined.length) {
-    const mode = trip.split_mode ?? "by_cost";
-    let { shares } = await sharesFor(trip, joined);
-    if (mode === "even") {
-      // Everyone pays the same: the newcomer pays what most people already do.
-      const counts = new Map<number, number>();
-      for (const t of totals.values()) counts.set(t, (counts.get(t) ?? 0) + 1);
-      const each = [...counts].sort((a, b) => b[1] - a[1])[0]?.[0];
-      shares = new Map(each ? joined.map((id) => [id, each]) : []);
-    } else {
-      // No priced option for the newcomer (locked by name, or they weren't in the poll): the
-      // group's average share, rounded like every estimate.
-      const avg = Math.round([...totals.values()].reduce((a, b) => a + b, 0) / totals.size / 500) * 500;
-      for (const id of joined) if (!shares.has(id) && avg > 0) shares.set(id, avg);
-    }
-    const chat = await getChat(chatId);
-    const today = isoDate(now(), chat?.timezone ?? "UTC");
-    let deadline = trip.deposit_deadline ?? addDays(trip.start_date, -7);
-    if (deadline <= today) deadline = addDays(today, 1);
-    for (const [id, cents] of shares) {
-      const p = await planPerson(trip, id, cents, mode, today, deadline, client);
-      result.added.push(id);
-      lines.push(`added ${names.get(id) ?? "them"} to the payment plan: ${compactPlan(p)}`);
-    }
-  }
-  if (lines.length) {
-    result.text = lines.join("\n");
-    await svc.post(chatId, guid, [{ type: "say", text: result.text }]);
-  }
-  return result;
-}
-
-/** Change how the trip is shared and re-post the plan. */
+/** Change how the trip fund is shared and re-post the plan when there is one. */
 export async function setSplitMode(tc: TurnCtx, mode: "by_cost" | "even"): Promise<void> {
-  if (!tc.trip.destination_id || !tc.trip.start_date) {
+  const changed = tc.trip.split_mode !== mode;
+  if (changed) {
+    await tc.nonCancellable();
     tc.trip = await updateTrip(tc.trip.id, { split_mode: mode });
-    say(tc, mode === "even" ? "got it, everyone pays the same. i'll split it evenly once we lock a place" : "got it, everyone covers their own travel. i'll split it that way once we lock a place");
+  }
+  if (await postFundPlan(tc, { compact: true })) {
+    say(tc, mode === "even" ? `everyone pays the same now. "split by cost" switches back` : "each shared cost is split among the people it's for now");
     return;
   }
-  if (tc.trip.split_mode === mode) {
-    await setupPaymentPlan(tc, { compact: true });
-    return;
-  }
-  await tc.nonCancellable();
-  tc.trip = await updateTrip(tc.trip.id, { split_mode: mode });
-  await setupPaymentPlan(tc, { compact: true });
-}
-
-/** No proposal behind this destination (locked by name): estimate each share from the catalog. */
-async function estimatedShares(tc: TurnCtx): Promise<Map<number, number>> {
-  const dest = tc.trip.destination_id ? destinationById(tc.trip.destination_id) : undefined;
-  if (!dest || !tc.trip.start_date || !tc.trip.end_date) return new Map();
-  const built = buildConstraints(await tc.view(), await budgetRows(tc.trip.id), { tripStart: tc.trip.start_date, tripEnd: tc.trip.end_date });
-  const out = new Map<number, number>();
-  for (const m of built.group.members) {
-    const c = estimateCost(dest, m, built.group.nights, built.group.tier, built.group.members.length);
-    out.set(m.personId, Math.round(c.totalCents / 500) * 500);
-  }
-  return out;
+  say(tc, mode === "even" ? "got it, everyone pays the same. the trip fund will be split evenly once the stay's booked" : "got it, each shared cost gets split among the people it's for");
 }
 
 // ---------- (c) expenses ----------
@@ -465,7 +138,7 @@ export async function logExpense(tc: TurnCtx, input: LogInput): Promise<{ expens
   const fresh = (await expenseByKey(input.key))!;
   tc.figures.addAll(expenseFigures(fresh));
   const n = await numberOf(fresh);
-  const text = `logged #${n}: ${fresh.description} ${formatUsd(fresh.amount_cents, { cents: "always" })}, paid by ${tc.label(fresh.payer_id).toLowerCase()}${inNessie ? " (nessie purchase ✓)" : sharedNessie() ? " (syncing to nessie)" : ""}. ${describeSplit(fresh, tc)}`;
+  const text = `logged #${n}: ${fresh.description} ${formatUsd(fresh.amount_cents, { cents: "always" })}, paid by ${tc.label(fresh.payer_id).toLowerCase()}${inNessie ? " (on their account ✓)" : sharedNessie() ? " (syncing to their account)" : ""}. ${describeSplit(fresh, tc)}`;
   return { expense: fresh, text, duplicate: false };
 }
 
@@ -515,33 +188,98 @@ async function balanceLines(tc: TurnCtx): Promise<string[]> {
   return [`who owes who (${b.count} expenses, ${formatUsd(b.totalCents, { cents: "always" })} total):`, ...b.plan.map((p) => `${tc.label(p.from).toLowerCase()} → ${tc.label(p.to).toLowerCase()} ${formatUsd(p.amountCents, { cents: "always" })}`)];
 }
 
+/** Who a settle-up line names: a person, or the trip fund (to_id NULL). */
+const party = (label: (id: number) => string, id: number | null) => (id === null || id === FUND ? "the trip fund" : label(id).toLowerCase());
+
+/**
+ * The combined settle-up: the tab and the trip fund squared in one list (src/money/fund.ts).
+ * A fund leftover goes back first, fund → checking, in proportion to what each person put in;
+ * a shortfall makes the fund one more party that the people who are behind pay into.
+ */
 async function proposeSettleUp(tc: TurnCtx): Promise<void> {
-  const b = await tripBalances(tc.trip.id, tc.members.map((m) => m.id));
-  if (b.count === 0) {
+  const memberIds = tc.members.map((m) => m.id);
+  const tab = await tripBalances(tc.trip.id, memberIds);
+  const items = await fundItems(tc.trip.id);
+  const contributed = await doneBy(tc.trip.id, "contribution");
+  const refunded = await doneBy(tc.trip.id, "refund");
+  const hasFund = items.length > 0 || contributed.size > 0;
+  if (tab.count === 0 && !hasFund) {
     say(tc, "nothing to settle yet, no shared expenses logged");
     return;
   }
-  if (b.plan.length === 0) {
-    say(tc, "everyone's already even 🎉");
+  const spendShares = fundShares(
+    items.map((i) => ({ amountCents: i.amount_cents, sharedBy: i.shared_by })),
+    memberIds,
+    tc.trip.split_mode ?? "by_cost",
+  );
+  const result = combinedSettle({ members: memberIds, contributed, refunded, spendShares, tab: tab.net });
+  await tc.nonCancellable();
+  // The settle-up squares the fund from here: no more scheduled contributions.
+  await q(`UPDATE fund_txns SET status = 'cancelled' WHERE trip_id = $1 AND kind = 'contribution' AND status IN ('scheduled','failed') AND due_date IS NOT NULL AND idempotency_key LIKE 'fundc:%'`, [tc.trip.id]);
+  const bubbles: string[] = [];
+  if (result.refunds.size) {
+    const sent: string[] = [];
+    for (const [id, cents] of result.refunds) {
+      await refundFromFund(tc.trip, id, cents, `refund:${tc.trip.id}:${id}:${refunded.get(id) ?? 0}:${cents}`);
+      tc.figures.add({ cents, label: `${tc.label(id)}'s fund refund`, source: "ledger:fund", visibility: "public" });
+      sent.push(`${tc.label(id).toLowerCase()} ${formatUsd(cents, { cents: "always" })}`);
+    }
+    tc.figures.add({ cents: result.leftoverCents, label: "fund leftover", source: "ledger:fund", visibility: "public" });
+    bubbles.push(`🏦 the trip fund had ${formatUsd(result.leftoverCents, { cents: "always" })} left over, sent back in proportion to what you each put in: ${sent.join(", ")} ✓`);
+  }
+  if (result.shortfallCents) {
+    tc.figures.add({ cents: result.shortfallCents, label: "fund shortfall", source: "ledger:fund", visibility: "public" });
+    bubbles.push(`the trip fund is ${formatUsd(result.shortfallCents, { cents: "always" })} short of what it pays for, so that's folded in below`);
+  }
+  if (result.transfers.length === 0) {
+    say(tc, ...bubbles, "everyone's already even 🎉");
     return;
   }
-  await tc.nonCancellable();
-  const rows = await proposeSettlements(tc.trip.id, b.plan);
+  const rows = await proposeSettlements(
+    tc.trip.id,
+    result.transfers.map((t) => ({ from: t.from, to: t.to === FUND ? null : t.to, amountCents: t.amountCents })),
+  );
   await q(`UPDATE confirmations SET status = 'expired', resolved_at = $2 WHERE chat_id = $1 AND kind = 'settlement' AND status = 'pending'`, [tc.chat.id, tc.now]);
   const payers = [...new Set(rows.map((r) => r.from_id))];
   for (const p of payers) {
     await q(`INSERT INTO confirmations (chat_id, person_id, kind, payload, created_at) VALUES ($1,$2,'settlement',$3,$4)`, [tc.chat.id, p, JSON.stringify({ planId: rows[0]!.plan_id }), tc.now]);
   }
   if (tc.trip.status !== "done") tc.trip = await updateTrip(tc.trip.id, { status: "settling" });
-  for (const r of rows) tc.figures.add({ cents: r.amount_cents, label: `${tc.label(r.from_id)} pays ${tc.label(r.to_id)}`, source: "ledger:settle-up", visibility: "public" });
+  for (const r of rows) tc.figures.add({ cents: r.amount_cents, label: `${party(tc.label, r.from_id)} pays ${party(tc.label, r.to_id)}`, source: "ledger:settle-up", visibility: "public" });
+  const list = rows.map((r) => `${party(tc.label, r.from_id)} → ${party(tc.label, r.to_id)} ${formatUsd(r.amount_cents, { cents: "always" })}`).join("\n");
   say(
     tc,
-    `settle-up, the fewest transfers that square everything (${rows.length}):\n${rows.map((r) => `${tc.label(r.from_id).toLowerCase()} → ${tc.label(r.to_id).toLowerCase()} ${formatUsd(r.amount_cents, { cents: "always" })}`).join("\n")}`,
-    `${nameList(payers.map((p) => tc.label(p).toLowerCase()))}, reply "confirm" and i'll send yours as a nessie transfer (sandbox money, nothing real moves)`,
+    ...bubbles,
+    `settle-up, the fewest transfers that square ${hasFund ? "the tab and the trip fund" : "everything"} (${rows.length}):\n${list}`,
+    `${nameList(payers.map((p) => tc.label(p).toLowerCase()))}, reply "confirm" and i'll send yours straight from your checking`,
   );
 }
 
+/** A settle-up payment into the trip fund: a contribution from the payer's checking, then pay what it now covers. */
+async function executeIntoFund(s: SettlementRow, label: (id: number) => string): Promise<string> {
+  const line = `${party(label, s.from_id)} → the trip fund ${formatUsd(s.amount_cents, { cents: "always" })}`;
+  const trip = await tripById(s.trip_id);
+  if (!trip) throw new Error(`no trip ${s.trip_id}`);
+  await q(`UPDATE settlements SET status = 'executing' WHERE id = $1`, [s.id]);
+  try {
+    const txn = await recordContribution(trip, s.from_id, s.amount_cents, `settle:${s.idempotency_key}`);
+    await q(`UPDATE settlements SET status = 'executed', executed_at = $2, nessie_transfer_id = $3, nessie_deposit_id = $4, last_error = $5 WHERE id = $1`, [
+      s.id,
+      now(),
+      txn.nessie_transfer_id,
+      txn.nessie_deposit_id,
+      txn.via === "ledger" ? "offline: recorded only" : null,
+    ]);
+    const paid = await payDueItems(trip);
+    return [`✓ ${txn.via === "bank" ? "sent: " : ""}${line}${txn.via === "ledger" ? " recorded" : ""}`, ...paid.map((i) => `${i.description} is paid in full from the fund ✓`)].join("\n");
+  } catch (err) {
+    await q(`UPDATE settlements SET status = 'failed', last_error = $2 WHERE id = $1`, [s.id, (err as Error).message.slice(0, 300)]);
+    throw err;
+  }
+}
+
 async function executeSettlement(s: SettlementRow, label: (id: number) => string): Promise<string> {
+  if (s.to_id === null) return executeIntoFund(s, label);
   const client = sharedNessie();
   const [from, to] = await Promise.all([linkFor(s.from_id), linkFor(s.to_id)]);
   await q(`UPDATE settlements SET status = 'executing' WHERE id = $1`, [s.id]);
@@ -549,7 +287,7 @@ async function executeSettlement(s: SettlementRow, label: (id: number) => string
   const at = now().toISOString().slice(0, 10);
   if (!client || !from?.checking_id || !to?.checking_id || from.seed_progress.offline || to.seed_progress.offline) {
     await q(`UPDATE settlements SET status = 'executed', executed_at = $2, last_error = 'offline: recorded only' WHERE id = $1`, [s.id, now()]);
-    return `✓ ${label(s.from_id).toLowerCase()} → ${label(s.to_id).toLowerCase()} ${formatUsd(s.amount_cents, { cents: "always" })} recorded (demo profiles offline, so no nessie transfer)`;
+    return `✓ ${label(s.from_id).toLowerCase()} → ${label(s.to_id).toLowerCase()} ${formatUsd(s.amount_cents, { cents: "always" })} recorded`;
   }
   try {
     let transferId = s.nessie_transfer_id;
@@ -567,7 +305,7 @@ async function executeSettlement(s: SettlementRow, label: (id: number) => string
       await q(`UPDATE settlements SET nessie_deposit_id = $2 WHERE id = $1`, [s.id, depositId]);
     }
     await q(`UPDATE settlements SET status = 'executed', executed_at = $2, last_error = NULL WHERE id = $1`, [s.id, now()]);
-    return `✓ sent: ${label(s.from_id).toLowerCase()} → ${label(s.to_id).toLowerCase()} ${formatUsd(s.amount_cents, { cents: "always" })} (nessie transfer ✓)`;
+    return `✓ sent: ${label(s.from_id).toLowerCase()} → ${label(s.to_id).toLowerCase()} ${formatUsd(s.amount_cents, { cents: "always" })}`;
   } catch (err) {
     await q(`UPDATE settlements SET status = 'failed', last_error = $2 WHERE id = $1`, [s.id, (err as Error).message.slice(0, 300)]);
     throw err;
@@ -583,7 +321,7 @@ async function confirmSettlement(tc: TurnCtx, personId: number, planId: string):
       say(tc, await executeSettlement(s, tc.label));
     } catch {
       await enqueueJob("settle.execute", { settlementId: s.id, chatId: tc.chat.id }, { singletonKey: `settle:${s.id}`, dueAt: new Date(now().getTime() + 20_000) });
-      say(tc, `nessie isn't answering right now, i'll send ${tc.label(s.from_id).toLowerCase()} → ${tc.label(s.to_id).toLowerCase()} as soon as it's back`);
+      say(tc, `the bank isn't answering right now, i'll send ${tc.label(s.from_id).toLowerCase()} → ${tc.label(s.to_id).toLowerCase()} as soon as it's back`);
     }
   }
   await finishIfSettled(tc);
@@ -653,13 +391,13 @@ const logExpenseTool: Tool = {
   decl: {
     name: "log_expense",
     description:
-      "Log a shared trip expense the SENDER paid (\"i covered the boat for me, leo and priya\", itemized receipts). Never log prices people are only discussing, or what someone else paid. Posts its own confirmation.",
+      "Log a trip expense the SENDER paid for others (\"i covered the boat for me, leo and priya\", itemized receipts). Buying for someone else counts: \"i got leo's ticket, $40\" or \"bought dinner for priya 30\" → split_among [\"leo\"] / [\"priya\"] without the payer, so they owe it all. Never log prices people are only discussing, or what someone else paid. Posts its own confirmation.",
     parameters: {
       type: "object",
       properties: {
         amount_usd: { type: "number" },
         description: { type: "string" },
-        split_among: { type: "array", items: { type: "string" }, description: "first names incl. the payer (\"me\"); omit for everyone" },
+        split_among: { type: "array", items: { type: "string" }, description: "first names of who it was for; include \"me\" when the payer shared it; omit for everyone" },
         items: {
           type: "array",
           items: { type: "object", properties: { name: { type: "string" }, amount_usd: { type: "number" }, shared_by: { type: "array", items: { type: "string" } } }, required: ["name", "amount_usd", "shared_by"] },
@@ -770,27 +508,11 @@ const balancesTool: Tool = {
 };
 
 const settleTool: Tool = {
-  decl: { name: "propose_settle_up", description: "Propose the settle-up: the fewest transfers that square everyone, then each payer confirms and it's sent through Nessie. Posts its own messages.", parameters: { type: "object", properties: {} } },
+  decl: { name: "propose_settle_up", description: "Propose the settle-up: the fewest transfers that square everyone, then each payer confirms and it's sent as a transfer from their checking. Posts its own messages.", parameters: { type: "object", properties: {} } },
   sideEffects: true,
   async run(_args, ctx) {
     await proposeSettleUp(ctx as TurnCtx);
     return { ok: true, next: "posted; payers confirm by replying confirm" };
-  },
-};
-
-const paymentPlanTool: Tool = {
-  decl: {
-    name: "show_payment_plan",
-    description:
-      "Post the whole payment plan again (each person's share and installments, Nessie bills on paydays). Only when someone asks to SEE the plan or what everyone pays; answer why/how questions in words instead.",
-    parameters: { type: "object", properties: {} },
-  },
-  sideEffects: true,
-  async run(_args, ctx) {
-    const tc = ctx as TurnCtx;
-    if (!tc.trip.destination_id) throw new ToolError("no destination locked yet");
-    await setupPaymentPlan(tc);
-    return { ok: true, next: "posted" };
   },
 };
 
@@ -800,7 +522,7 @@ const splitModeTool: Tool = {
   decl: {
     name: "set_cost_split",
     description:
-      "Change how the trip's cost is shared and re-post the payment plan. \"even\" = everyone pays one equal share (when people say everyone should pay the same); \"by_cost\" = each person covers their own travel. Posts its own messages.",
+      "Change how the trip fund is shared and re-post its plan. \"even\" = everyone puts in one equal share (when people say everyone should pay the same); \"by_cost\" = each shared cost is split only among the people it's for. Travel is always each person's own. Posts its own messages.",
     parameters: { type: "object", properties: { mode: { type: "string", enum: ["even", "by_cost"] } }, required: ["mode"] },
   },
   async run(args, ctx) {
@@ -815,25 +537,7 @@ const splitModeTool: Tool = {
 
 export const moneyFeature: Feature = {
   name: "money",
-  tools: [logExpenseTool, correctExpenseTool, balancesTool, settleTool, paymentPlanTool, splitModeTool],
-
-  async onTripLocked(_trip, tc) {
-    await setupPaymentPlan(tc);
-  },
-
-  // Someone left or joined after the plan went out: a job fixes the plan and posts one line.
-  async afterTurn(tc) {
-    try {
-      if (!["locked", "ongoing"].includes(tc.trip.status)) return;
-      const totals = await planTotals(tc.trip.id);
-      if (totals.size === 0) return;
-      const active = new Set(tc.members.map((m) => m.id));
-      const drift = [...totals.keys()].some((id) => !active.has(id)) || [...active].some((id) => !totals.has(id));
-      if (drift) await enqueueJob(PLAN_MEMBERS_JOB, { tripId: tc.trip.id, chatId: tc.chat.id }, { singletonKey: `plan-members:${tc.trip.id}` });
-    } catch (err) {
-      log().warn({ err: (err as Error).message }, "plan membership check failed");
-    }
-  },
+  tools: [logExpenseTool, correctExpenseTool, balancesTool, settleTool, splitModeTool],
 
   async fastPath(msg, tc) {
     if (await resolveConfirmation(msg, tc)) return true;
@@ -869,8 +573,6 @@ export const moneyFeature: Feature = {
     const out: Figure[] = [];
     for (const e of await activeExpenses(tc.trip.id)) out.push(...expenseFigures(e));
     for (const s of await openSettlements(tc.trip.id)) out.push({ cents: s.amount_cents, label: "settle-up transfer", source: "ledger:settle-up", visibility: "public" });
-    const inst = await q<{ amount_cents: number; nessie_bill_id: string | null }>(`SELECT amount_cents, nessie_bill_id FROM installments WHERE trip_id = $1`, [tc.trip.id]);
-    for (const i of inst) out.push({ cents: i.amount_cents, label: "installment", source: i.nessie_bill_id ? `nessie:${i.nessie_bill_id}` : "estimate:plan", visibility: "public" });
     const spent = await spentSoFar(tc.trip.id);
     if (spent.totalCents) out.push({ cents: spent.totalCents, label: "spent so far", source: "tiger:trip_spend_daily", visibility: "public" });
     const b = await tripBalances(tc.trip.id, tc.members.map((m) => m.id));
@@ -881,7 +583,7 @@ export const moneyFeature: Feature = {
   async situation(tc) {
     const expenses = await activeExpenses(tc.trip.id);
     const lines: string[] = [];
-    for (const e of expenses.slice(-10)) lines.push(`#${await numberOf(e)} ${e.description} ${formatUsd(e.amount_cents, { cents: "always" })} paid by ${tc.label(e.payer_id)}, shares ${Object.entries(e.shares).map(([id, c]) => `${tc.label(Number(id))} ${formatUsd(c, { cents: "always" })}`).join(", ")}${e.nessie_purchase_id ? " [nessie]" : ""}`);
+    for (const e of expenses.slice(-10)) lines.push(`#${await numberOf(e)} ${e.description} ${formatUsd(e.amount_cents, { cents: "always" })} paid by ${tc.label(e.payer_id)}, shares ${Object.entries(e.shares).map(([id, c]) => `${tc.label(Number(id))} ${formatUsd(c, { cents: "always" })}`).join(", ")}${e.nessie_purchase_id ? " [synced]" : ""}`);
     if (expenses.length) lines.push(...(await balanceLines(tc)));
     const spent = await spentSoFar(tc.trip.id);
     if (spent.totalCents) lines.push(`spent so far (from the trip_spend_daily aggregate): ${formatUsd(spent.totalCents, { cents: "always" })}`);
@@ -889,7 +591,7 @@ export const moneyFeature: Feature = {
     if (settlements.length) lines.push(`settle-up in progress: ${settlements.map((s) => `${tc.label(s.from_id)} → ${tc.label(s.to_id)} ${formatUsd(s.amount_cents, { cents: "always" })} (${s.status})`).join("; ")}`);
     const pending = await q<{ person_id: number; kind: string }>(`SELECT person_id, kind FROM confirmations WHERE chat_id = $1 AND status = 'pending'`, [tc.chat.id]);
     if (pending.length) lines.push(`waiting on confirmation from: ${pending.map((p) => `${tc.label(p.person_id)} (${p.kind})`).join(", ")}`);
-    return lines.length ? { title: "trip money (exact ledger; nessie is the system of record)", lines } : null;
+    return lines.length ? { title: "trip money (exact ledger)", lines } : null;
   },
 
   async summary(tc) {
@@ -904,16 +606,13 @@ export const moneyFeature: Feature = {
   async hints(tc) {
     const out: string[] = [];
     if (tc.trip.end_date && tc.trip.status === "settling") out.push("the trip is over: time to settle up if nobody has");
-    const due = await one<{ n: number }>(`SELECT count(*)::int AS n FROM installments WHERE trip_id = $1 AND status = 'scheduled' AND due_date = $2`, [tc.trip.id, addDays(tc.today, 1)]);
-    if ((due?.n ?? 0) > 0) out.push("payment-plan installments are due tomorrow");
+    const due = await one<{ n: number }>(`SELECT count(*)::int AS n FROM fund_txns WHERE trip_id = $1 AND kind = 'contribution' AND status = 'scheduled' AND due_date = $2`, [tc.trip.id, addDays(tc.today, 1)]);
+    if ((due?.n ?? 0) > 0) out.push("trip-fund contributions go in tomorrow");
     return out;
   },
 
   jobs(svc: AppServices) {
     return {
-      [PLAN_MEMBERS_JOB]: async (payload, { jobId }) => {
-        await reconcilePlanMembers(svc, Number(payload.tripId), Number(payload.chatId), `planmembers${jobId}`);
-      },
       "nessie.sync_expense": async (payload) => {
         const e = await one<ExpenseRow>(`SELECT * FROM expenses WHERE id = $1`, [Number(payload.expenseId)]);
         if (!e || e.nessie_purchase_id || e.status !== "active") return;
@@ -938,4 +637,4 @@ export const moneyFeature: Feature = {
   },
 };
 
-export { setupPaymentPlan, proposeSettleUp };
+export { proposeSettleUp };

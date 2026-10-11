@@ -1,6 +1,6 @@
-# The payment plan follows the group: an over-budget share is flagged, someone who joins after
-# the lock gets one line (not the whole plan again), someone who leaves stops being billed, and
-# re-locking a different destination retires the old destination's installments.
+# The trip fund follows the group: a share over someone's (private) budget is flagged without the
+# number, someone who joins after the stay is booked gets one line (not the whole plan again),
+# someone who leaves stops paying in, and switching destination takes the old stay off the fund.
 today 2026-10-10 14:00
 members maya leo priya
 atlas joins
@@ -15,33 +15,47 @@ jobs
 maya: nov 12-16 from raleigh works for all of us
 maya: set my budget to 900
 leo: set my budget to 900
-priya: set my budget to 100
+priya: set my budget to 200
 maya: set my budget to 1000000
 expect atlas ~ "must be nice"
 expect sql SELECT count(*)::int AS n FROM budgets WHERE adjusted_cents > 2000000 = [{"n":0}]
 ~agent call lock_destination {"destination":"charleston"}
 ~agent text: NO_REPLY
 maya: atlas everyone agreed, we're doing charleston
-expect atlas ~ "💸 payment plan"
-expect atlas ~ "all done by oct 31"
-expect atlas ~ "(estimates · demo profiles are offline"
-expect atlas ~ "heads up: this is over budget for priya"
+expect atlas ~ "charleston it is!"
+stays test/fixtures/serpapi/google_hotels_charleston.json | test/fixtures/serpapi/google_vacation_rentals_charleston.json
+~agent call find_stays {}
+~agent text: NO_REPLY
+leo: atlas where should we stay?
+expect atlas ~ "nothing fits everyone's budget, so these are the cheapest i found"
+expect transcript !~ /\$200|\$100\b/
+~agent call book_stay {"option":"1"}
+~agent text: NO_REPLY
+maya: atlas book the bungalow
+expect atlas ~ "🏠 booked ✓ Cozy Wagener Terrace Bungalow"
+expect atlas ~ "🏦 charleston trip fund: $660 ($660 for the stay)"
+expect atlas ~ "everyone puts in $220"
+expect atlas ~ "heads up priya, with travel this is above what you said works for you"
 leo: what's our budget
 expect atlas ~ "the locked plan is over budget for priya"
 expect atlas !~ "which works for everyone"
-# a late joiner gets their own plan and one line
+# a late joiner gets their own share and one line; everyone else's share drops
 sam joins
 jobs
-expect atlas ~ "added sam to the payment plan: $"
-expect sql SELECT count(*)::int AS n FROM installments i JOIN people p ON p.id = i.person_id WHERE p.display_name = 'Sam' AND i.status = 'scheduled' = [{"n":2}]
-# someone who leaves stops being billed
+expect atlas ~ "added sam to the trip fund: $165"
+expect atlas ~ "everyone else's share is now $165"
+expect sql SELECT count(*)::int AS n FROM fund_txns f JOIN people p ON p.id = f.person_id WHERE p.display_name = 'Sam' AND f.status = 'scheduled' = [{"n":1}]
+# someone who leaves stops paying in
 leo leaves
 jobs
-expect atlas ~ "took leo's payments off the plan"
-expect sql SELECT count(*)::int AS n FROM installments i JOIN people p ON p.id = i.person_id WHERE p.display_name = 'Leo' AND i.status = 'scheduled' = [{"n":0}]
-# switching destination: everyone ends up on exactly one plan, the new one
+expect atlas ~ "took leo off the trip fund"
+expect sql SELECT count(*)::int AS n FROM fund_txns f JOIN people p ON p.id = f.person_id WHERE p.display_name = 'Leo' AND f.status = 'scheduled' = [{"n":0}]
+# switching destination: the old stay comes off the fund and nobody's scheduled to pay for it
 ~agent call lock_destination {"destination":"savannah"}
 ~agent text: NO_REPLY
 maya: atlas actually let's do savannah instead
-expect atlas ~ "💸 payment plan"
-expect sql SELECT count(*)::int AS n FROM (SELECT person_id FROM installments WHERE status = 'scheduled' GROUP BY person_id HAVING count(DISTINCT split_part(idempotency_key, ':', 3)) > 1) s = [{"n":0}]
+expect atlas ~ "savannah it is!"
+jobs
+expect sql SELECT stay IS NULL AS cleared, stages->>'stay' AS stage FROM trips = [{"cleared":true,"stage":"open"}]
+expect sql SELECT status FROM fund_items = [{"status":"removed"}]
+expect sql SELECT count(*)::int AS n FROM fund_txns WHERE status = 'scheduled' = [{"n":0}]

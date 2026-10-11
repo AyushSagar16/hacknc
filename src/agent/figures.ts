@@ -60,8 +60,14 @@ export class Figures {
     return this.items
       .filter((f) => f.visibility === "public" || (!audience.isGroup && f.ownerId === audience.viewerId))
       .slice(-limit)
-      .map((f) => `${dollars(f.cents)} — ${f.label} (${f.source.split(":")[0]})`);
+      .map((f) => `${dollars(f.cents)} — ${f.label} (${sourceKind(f.source)})`);
   }
+}
+
+/** The model sees Nessie-backed figures as coming from the bank, the way the chat talks about them. */
+function sourceKind(source: string): string {
+  const kind = source.split(":")[0]!;
+  return kind.startsWith("nessie") ? "bank" : kind;
 }
 
 /** Rounded or hedged mentions ("$1.2k", "about $600", "$550") get more slack than exact ones. */

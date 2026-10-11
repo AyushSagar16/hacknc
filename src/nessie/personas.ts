@@ -1,7 +1,9 @@
-// Deterministic synthetic Nessie profiles. One seed key -> one obviously fictional customer
-// (last name "Atlasdemo" + a letter) with months of paychecks, recurring bills, autopay
-// withdrawals and card purchases, shaped like Nessie request bodies so a seeder can POST
-// them as-is. Pure: no I/O, no clock; the same inputs always give the same profile.
+// Deterministic generated Nessie profiles. One seed key -> one realistic-looking customer (the
+// person's first name when known, plus a generated last name) with months of paychecks,
+// recurring bills from everyday payees, autopay withdrawals and card purchases at familiar
+// merchants, shaped like Nessie request bodies so a seeder can POST them as-is. The chat shows
+// this as the person's connected Capital One account. Pure: no I/O, no clock; the same inputs
+// always give the same profile.
 import { addDays } from "../clock.ts";
 import type { LedgerAccount, LedgerTxn, RecurringBill } from "../money/budget.ts";
 
@@ -114,6 +116,8 @@ export interface GeneratedProfile {
 export interface GenerateOptions {
   seedKey: string;
   persona?: PersonaId;
+  /** The person's real first name, when Atlas knows it; otherwise a generated one. */
+  firstName?: string | null;
   /** History length, clamped to 6..12 whole months before asOf's month (plus asOf's month to date). */
   months: number;
   asOf: string;
@@ -142,14 +146,14 @@ const bill = (payee: string, nickname: string, dollars: number, day: number): Pe
 export const PERSONAS: Record<PersonaId, PersonaSpec> = {
   barista_student: {
     label: "part-time barista + full-time student",
-    employer: "Bean Counter Coffee Co",
+    employer: "Starbucks",
     cadence: "weekly",
     paycheckDollars: [230, 310],
     bills: [
-      bill("Maple Court Apartments", "Rent (my share)", 395, 1),
-      bill("Sandbox Wireless", "Phone plan", 35, 9),
-      bill("Fiberfox Internet", "Wi-fi (split 3 ways)", 22, 14),
-      bill("Loopcast Music", "Music subscription", 10.99, 20),
+      bill("Mill Creek Apartments", "Rent (my share)", 395, 1),
+      bill("Mint Mobile", "Phone plan", 35, 9),
+      bill("Spectrum Internet", "Wi-fi (split 3 ways)", 22, 14),
+      bill("Spotify", "Music subscription", 10.99, 20),
     ],
     purchasesPerMonth: [14, 20],
     spendDollars: [260, 330],
@@ -160,16 +164,16 @@ export const PERSONAS: Record<PersonaId, PersonaSpec> = {
   },
   new_grad_engineer: {
     label: "new-grad software engineer, first year on the job",
-    employer: "Lattice Labs Inc",
+    employer: "Red Hat Inc",
     cadence: "biweekly",
     paycheckDollars: [3300, 3400],
     bills: [
-      bill("Skyline Lofts", "Rent", 1650, 1),
-      bill("Ironleaf Fitness", "Gym membership", 40, 16),
-      bill("Steadyhand Insurance", "Car insurance", 128, 18),
-      bill("Sandbox Wireless", "Phone plan", 65, 22),
-      bill("StreamNest", "Streaming bundle", 15.99, 24),
-      bill("Mortarboard Loan Servicing", "Student loan", 380, 26),
+      bill("The Edison Lofts", "Rent", 1650, 1),
+      bill("Planet Fitness", "Gym membership", 40, 16),
+      bill("GEICO", "Car insurance", 128, 18),
+      bill("Verizon Wireless", "Phone plan", 65, 22),
+      bill("Netflix", "Streaming", 15.99, 24),
+      bill("Nelnet", "Student loan", 380, 26),
     ],
     purchasesPerMonth: [22, 30],
     spendDollars: [850, 1050],
@@ -180,15 +184,15 @@ export const PERSONAS: Record<PersonaId, PersonaSpec> = {
   },
   nurse_high_rent: {
     label: "night-shift nurse paying big-city rent",
-    employer: "Riverbend General Hospital",
+    employer: "Duke University Health System",
     cadence: "biweekly",
     paycheckDollars: [2180, 2420],
     bills: [
-      bill("Harborview Towers", "Rent", 2450, 1),
-      bill("Lakeside Auto Finance", "Car payment", 310, 6),
-      bill("Citylight Power & Water", "Utilities", 95, 15),
-      bill("Steadyhand Insurance", "Car insurance", 165, 18),
-      bill("Sandbox Wireless", "Phone plan", 75, 22),
+      bill("Bell Apartments", "Rent", 2450, 1),
+      bill("Toyota Financial Services", "Car payment", 310, 6),
+      bill("Duke Energy", "Electric", 95, 15),
+      bill("State Farm", "Car insurance", 165, 18),
+      bill("AT&T Wireless", "Phone plan", 75, 22),
     ],
     purchasesPerMonth: [18, 24],
     spendDollars: [650, 780],
@@ -203,11 +207,11 @@ export const PERSONAS: Record<PersonaId, PersonaSpec> = {
     cadence: "irregular",
     paycheckDollars: [2600, 4600],
     bills: [
-      bill("Cedar Row Flats", "Rent", 1250, 1),
-      bill("Brightpath Health Plan", "Health insurance", 380, 5),
-      bill("Canvas Cloud Suite", "Design software", 54.99, 11),
-      bill("Fiberfox Internet", "Internet", 70, 14),
-      bill("Sandbox Wireless", "Phone plan", 60, 22),
+      bill("Cedar Ridge Flats", "Rent", 1250, 1),
+      bill("Blue Cross NC", "Health insurance", 380, 5),
+      bill("Adobe Creative Cloud", "Design software", 54.99, 11),
+      bill("Google Fiber", "Internet", 70, 14),
+      bill("T-Mobile", "Phone plan", 60, 22),
     ],
     purchasesPerMonth: [16, 24],
     spendDollars: [600, 760],
@@ -218,15 +222,15 @@ export const PERSONAS: Record<PersonaId, PersonaSpec> = {
   },
   grad_ta: {
     label: "grad student on a teaching stipend",
-    employer: "State University TA stipend",
+    employer: "UNC-Chapel Hill",
     cadence: "monthly",
     paycheckDollars: [2140, 2140],
     bills: [
       bill("Oakwood Commons", "Rent", 1150, 1),
-      bill("Citywide Transit", "Transit pass", 25, 2),
-      bill("Sandbox Wireless", "Phone plan", 40, 9),
-      bill("Fiberfox Internet", "Internet (split)", 30, 14),
-      bill("StreamNest", "Streaming", 7.99, 20),
+      bill("GoTriangle", "Transit pass", 25, 2),
+      bill("Mint Mobile", "Phone plan", 40, 9),
+      bill("Spectrum Internet", "Internet (split)", 30, 14),
+      bill("Hulu", "Streaming", 7.99, 20),
     ],
     purchasesPerMonth: [12, 18],
     spendDollars: [380, 440],
@@ -237,15 +241,15 @@ export const PERSONAS: Record<PersonaId, PersonaSpec> = {
   },
   big_saver: {
     label: "analyst who saves half of every paycheck",
-    employer: "Meridian Analytics Group",
+    employer: "SAS Institute",
     cadence: "semimonthly",
     paycheckDollars: [2340, 2360],
     bills: [
       bill("Willow Park Residences", "Rent (split with partner)", 1100, 1),
-      bill("StreamNest", "Streaming", 8.99, 8),
-      bill("Citylight Power & Water", "Utilities", 70, 15),
-      bill("Steadyhand Insurance", "Renter's + auto insurance", 92, 18),
-      bill("Sandbox Wireless", "Phone plan", 35, 22),
+      bill("Max", "Streaming", 8.99, 8),
+      bill("Duke Energy", "Electric", 70, 15),
+      bill("Progressive", "Renter's + auto insurance", 92, 18),
+      bill("Verizon Wireless", "Phone plan", 35, 22),
     ],
     purchasesPerMonth: [12, 16],
     spendDollars: [520, 640],
@@ -257,32 +261,32 @@ export const PERSONAS: Record<PersonaId, PersonaSpec> = {
 };
 
 export const MERCHANTS: readonly { name: string; category: MerchantCategory }[] = [
-  { name: "Bean Counter Coffee", category: "food" },
-  { name: "Noodle Theory", category: "food" },
-  { name: "Late Night Slice", category: "food" },
-  { name: "Sunny Side Diner", category: "food" },
-  { name: "Greenleaf Grocers", category: "groceries" },
-  { name: "Corner Basket Market", category: "groceries" },
-  { name: "Harvest Bin Co-op", category: "groceries" },
-  { name: "Metro Ride Share", category: "transport" },
-  { name: "Fill-Up Fuel Stop", category: "transport" },
-  { name: "Citywide Transit Kiosk", category: "transport" },
-  { name: "ParkPal Garage", category: "transport" },
-  { name: "Starlight Cinemas", category: "entertainment" },
-  { name: "Pixel Arcade Bar", category: "entertainment" },
-  { name: "Encore Ticket Hub", category: "entertainment" },
-  { name: "Loopcast Live", category: "entertainment" },
-  { name: "Thread & Needle Outfitters", category: "shopping" },
-  { name: "Gadget Grove", category: "shopping" },
-  { name: "Hometown Goods", category: "shopping" },
-  { name: "Wellspring Pharmacy", category: "health" },
-  { name: "Clearview Optical", category: "health" },
-  { name: "Skyhop Air", category: "travel" },
-  { name: "Roadside Inn & Suites", category: "travel" },
-  { name: "Clip Joint Barbers", category: "personal_care" },
-  { name: "Lather & Leaf Spa", category: "personal_care" },
-  { name: "Page Turner Books", category: "education" },
-  { name: "Quill Online Courses", category: "education" },
+  { name: "Starbucks", category: "food" },
+  { name: "Chipotle", category: "food" },
+  { name: "Cook Out", category: "food" },
+  { name: "Waffle House", category: "food" },
+  { name: "Harris Teeter", category: "groceries" },
+  { name: "Food Lion", category: "groceries" },
+  { name: "Trader Joe's", category: "groceries" },
+  { name: "Uber", category: "transport" },
+  { name: "Shell", category: "transport" },
+  { name: "GoTriangle", category: "transport" },
+  { name: "ParkMobile", category: "transport" },
+  { name: "AMC Theatres", category: "entertainment" },
+  { name: "Boxcar Bar + Arcade", category: "entertainment" },
+  { name: "Ticketmaster", category: "entertainment" },
+  { name: "Cat's Cradle", category: "entertainment" },
+  { name: "Urban Outfitters", category: "shopping" },
+  { name: "Best Buy", category: "shopping" },
+  { name: "Target", category: "shopping" },
+  { name: "CVS Pharmacy", category: "health" },
+  { name: "Warby Parker", category: "health" },
+  { name: "Delta Air Lines", category: "travel" },
+  { name: "Hampton Inn", category: "travel" },
+  { name: "Great Clips", category: "personal_care" },
+  { name: "Ulta Beauty", category: "personal_care" },
+  { name: "Barnes & Noble", category: "education" },
+  { name: "Coursera", category: "education" },
 ];
 
 // Raw per-purchase dollar ranges; a month's purchases are then scaled to its spend total.
@@ -299,7 +303,12 @@ const CATEGORY_DOLLARS: Record<MerchantCategory, readonly [number, number]> = {
 };
 
 const FIRST_NAMES = ["Avery", "Jordan", "Riley", "Quinn", "Morgan", "Casey", "Rowan", "Emerson", "Harper", "Parker", "Reese", "Sage", "Tatum", "Wren", "Ellis", "Marlo"];
-const STREETS = ["Sandbox Ave", "Synthetic St", "Placeholder Pl", "Fixture Way", "Demo Loop", "Mock Orchard Rd", "Testbed Ln", "Seed Data Ct"];
+const LAST_NAMES = [
+  "Carter", "Bennett", "Hayes", "Morales", "Patel", "Nguyen", "Brooks", "Foster", "Reyes", "Sullivan",
+  "Kim", "Coleman", "Ward", "Ramirez", "Price", "Jenkins", "Ellison", "Parrish", "Okafor", "Lindqvist",
+  "Whitaker", "Castillo", "Hughes", "Delgado", "Rhodes", "Sandoval",
+];
+const STREETS = ["Franklin St", "Rosemary St", "Hillsborough St", "Main St", "Weaver St", "Glenwood Ave", "Ninth St", "Elm St"];
 const CITIES = [
   { city: "Chapel Hill", zip: "27514" },
   { city: "Durham", zip: "27701" },
@@ -345,7 +354,7 @@ export function generateProfile(opts: GenerateOptions): GeneratedProfile {
     const date = `${ym}-20`;
     const prev = monthList[i]!;
     const owed = purchases.filter((p) => p.accountKey === "credit" && p.purchase_date.startsWith(prev)).reduce((s, p) => s + p.amount, 0);
-    if (date <= asOf && owed > 0) withdrawals.push(entry("checking", date, owed, "Credit card autopay: Atlas demo card"));
+    if (date <= asOf && owed > 0) withdrawals.push(entry("checking", date, owed, "Capital One Quicksilver autopay"));
   });
 
   const balanceOn = (key: "checking" | "savings", date: string): number => {
@@ -361,7 +370,7 @@ export function generateProfile(opts: GenerateOptions): GeneratedProfile {
       const excess = Math.floor((balanceOn("checking", sweepDate) - spec.sweep.above) / 50) * 50;
       if (excess >= 50) {
         const toSavings = spec.sweep.to === "savings";
-        withdrawals.push(entry("checking", sweepDate, excess, toSavings ? "Transfer to savings" : "Transfer to brokerage: Atlas demo index account"));
+        withdrawals.push(entry("checking", sweepDate, excess, toSavings ? "Transfer to savings" : "Transfer to Fidelity brokerage"));
         if (toSavings) deposits.push(entry("savings", sweepDate, excess, "Transfer from checking"));
       }
     }
@@ -391,11 +400,11 @@ export function generateProfile(opts: GenerateOptions): GeneratedProfile {
     label: spec.label,
     historyStart,
     asOf,
-    customer: syntheticCustomer(seedKey),
+    customer: generatedCustomer(seedKey, opts.firstName),
     accounts: [
-      { key: "checking", type: "Checking", nickname: "Atlas demo checking", rewards: 0, balance: spec.openingBalances.checking },
-      { key: "savings", type: "Savings", nickname: "Atlas demo savings", rewards: 0, balance: spec.openingBalances.savings },
-      { key: "credit", type: "Credit Card", nickname: "Atlas demo card", rewards: 100 + (fnv1a(`rewards|${seedKey}`) % 4900), balance: spec.openingBalances.credit },
+      { key: "checking", type: "Checking", nickname: "Checking", rewards: 0, balance: spec.openingBalances.checking },
+      { key: "savings", type: "Savings", nickname: "Savings", rewards: 0, balance: spec.openingBalances.savings },
+      { key: "credit", type: "Credit Card", nickname: "Quicksilver", rewards: 100 + (fnv1a(`rewards|${seedKey}`) % 4900), balance: spec.openingBalances.credit },
     ],
     deposits: deposits.sort(byDate((d) => d.transaction_date)),
     withdrawals: withdrawals.sort(byDate((w) => w.transaction_date)),
@@ -526,12 +535,14 @@ function monthPurchases(spec: PersonaSpec, rng: Rng, ym: string, asOf: string): 
     }));
 }
 
-function syntheticCustomer(seedKey: string): GeneratedProfile["customer"] {
+function generatedCustomer(seedKey: string, firstName?: string | null): GeneratedProfile["customer"] {
   const rng = mulberry32(fnv1a(`customer|${seedKey}`));
   const place = CITIES[randInt(rng, 0, CITIES.length - 1)]!;
+  // Always drawn, so the address and last name stay the same with or without a real first name.
+  const fallbackFirst = FIRST_NAMES[randInt(rng, 0, FIRST_NAMES.length - 1)]!;
   return {
-    first_name: FIRST_NAMES[randInt(rng, 0, FIRST_NAMES.length - 1)]!,
-    last_name: `Atlasdemo${String.fromCharCode(65 + randInt(rng, 0, 25))}`,
+    first_name: cleanFirstName(firstName) ?? fallbackFirst,
+    last_name: LAST_NAMES[randInt(rng, 0, LAST_NAMES.length - 1)]!,
     address: {
       street_number: String(randInt(rng, 100, 9899)),
       street_name: STREETS[randInt(rng, 0, STREETS.length - 1)]!,
@@ -540,6 +551,13 @@ function syntheticCustomer(seedKey: string): GeneratedProfile["customer"] {
       zip: place.zip,
     },
   };
+}
+
+/** "maya", "Maya R." or "maya-rose" -> "Maya" / "Maya-rose"; null when there's no usable name. */
+export function cleanFirstName(raw: string | null | undefined): string | null {
+  const word = (raw ?? "").trim().split(/\s+/)[0]?.replace(/[^\p{L}'-]/gu, "") ?? "";
+  if (word.length < 2 || word.length > 24) return null;
+  return word[0]!.toUpperCase() + word.slice(1).toLowerCase();
 }
 
 function entry(accountKey: "checking" | "savings", date: string, amount: number, description: string): GeneratedDeposit {

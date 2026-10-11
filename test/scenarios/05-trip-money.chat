@@ -1,4 +1,4 @@
-# Once locked: a payment plan as Nessie bills (offline profiles here), expenses logged from plain
+# Once locked (the trip fund starts with the stay, see 15-trip-fund): expenses logged from plain
 # statements, a dispute the payer has to confirm, an item exclusion, running balances, then a
 # settle-up with the fewest transfers that each payer confirms.
 today 2026-10-10 14:00
@@ -20,14 +20,12 @@ priya: set my budget to 900
 maya: atlas everyone agreed, we're doing charleston
 expect atlas ~ "charleston it is!"
 expect atlas ~ "locked in for nov 12–16"
-expect atlas ~ "💸 payment plan"
+expect atlas !~ "payment plan"
 expect trip.status = "locked"
-expect sql SELECT count(*)::int AS n FROM installments = [{"n":6}]
-# "everyone should pay the same": one equal share each, the old plan retired
+# "everyone should pay the same" before there's a fund: saved for when the stay's booked
 leo: everyone should be paying the same amount
-expect atlas ~ "💸 payment plan, split evenly"
-expect atlas ~ "everyone pays the same now"
-expect sql SELECT count(DISTINCT total)::int AS n FROM (SELECT person_id, sum(amount_cents) AS total FROM installments WHERE status = 'scheduled' GROUP BY person_id) s = [{"n":1}]
+expect atlas ~ "got it, everyone pays the same"
+expect trip.split_mode = "even"
 # the trip starts
 clock +33d
 maya: i paid 64 for dinner
@@ -58,7 +56,7 @@ expect atlas ~ "who owes who (3 expenses"
 clock +5d
 priya: atlas let's settle up
 expect atlas ~ "settle-up, the fewest transfers"
-expect atlas ~ "and i'll send yours as a nessie transfer"
+expect atlas ~ "and i'll send yours straight from your checking"
 expect trip.status = "settling"
 expect sql SELECT count(*)::int AS n FROM settlements WHERE status = 'proposed' = [{"n":2}]
 leo: confirm

@@ -81,7 +81,7 @@ describeDb("long-term memory", () => {
 
     const rows = await chunks();
     const windows = rows.filter((r) => r.kind === "message");
-    expect(windows.map((w) => w.content)).toEqual([expect.stringMatching(/^\[atlas\] hi, i'm atlas, your trip and financial planner.*\n\[atlas\] .*\n\[atlas\] so where are we thinking, and when\?$/s), "[Maya] heads up i'm vegetarian so somewhere with good veggie food"]);
+    expect(windows.map((w) => w.content)).toEqual([expect.stringMatching(/^\[atlas\] hi, i'm atlas, your trip and financial planner.*\n\[atlas\] .*\n\[atlas\] so where are we thinking, and when\? also, want to connect your capital one so i can plan around real budgets\?$/s), "[Maya] heads up i'm vegetarian so somewhere with good veggie food"]);
     expect(windows.every((w) => w.chat_id === chatId && w.visibility === "public" && w.person_id === null)).toBe(true);
     const mayaMsg = (await one<{ id: number }>(`SELECT id FROM messages WHERE text LIKE 'heads up%'`))!.id;
     expect(windows[1]!.source_ids).toEqual([mayaMsg]);
@@ -106,7 +106,7 @@ describeDb("long-term memory", () => {
     const llm = quietFake();
     t = await testAtlas({ llm, features: [memoryFeature] });
     const chat = t.chat("mem-ack", ["maya", "leo", "priya"]);
-    await pastIntro(chat); // "ok", "sure", "cool"
+    await pastIntro(chat); // "ok", "alright", "cool"
     llm.set("agent", () => textResult("great, here's where we are"));
     await chat.say("maya", "ok atlas");
     await t.app.jobs.runDue();

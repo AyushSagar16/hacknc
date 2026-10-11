@@ -29,7 +29,9 @@ describeDb("brain", () => {
     const intro = await chat.addAtlas("maya");
     expect(intro).toHaveLength(3);
     expect(intro[0]!.text).toMatch(/^hi, i'm atlas, your trip and financial planner/);
-    expect(intro[1]!.text).toContain("demo spending profiles");
+    expect(intro[1]!.text).toContain("only ever sees pooled numbers");
+    expect(intro[2]!.text).toMatch(/want to connect your capital one so i can plan around real budgets\?$/);
+    expect(intro.map((m) => m.text).join("\n")).not.toMatch(/demo|sandbox|nessie|synthetic/i);
     // Right after the intro's question, a message may be an answer: the agent decides (NO_REPLY here).
     expect(await chat.say("leo", "lol did you see the game")).toEqual([]);
     expect(llm.calls.filter((c) => c.role === "agent")).toHaveLength(1);
@@ -76,7 +78,7 @@ describeDb("brain", () => {
     const chat = t.chat("g4", ["maya", "leo", "priya"]);
     await pastIntro(chat);
     expect(await chat.say("maya", "lol that was so true yesterday")).toEqual([]);
-    expect(llm.calls.filter((c) => c.role === "agent")).toHaveLength(2); // only "sure" and "cool" answering the intro question (a bare "ok" to the room answers nothing)
+    expect(llm.calls.filter((c) => c.role === "agent")).toHaveLength(2); // only "alright" and "cool" answering the intro question (a bare "ok" to the room answers nothing)
     llm.set("agent", () => textResult("nice, that unlocks the dates"));
     expect((await chat.say("leo", "i'm in charlotte and free march 7-15")).map((r) => r.text)).toEqual(["nice, that unlocks the dates"]);
     const turn = await q<{ gate_reason: string }>(`SELECT gate_reason FROM turns WHERE route = 'agent' ORDER BY id DESC LIMIT 1`);

@@ -28,7 +28,8 @@ export interface SettlementRow {
   id: number;
   trip_id: number;
   from_id: number;
-  to_id: number;
+  /** null: a payment into the trip fund. */
+  to_id: number | null;
   amount_cents: number;
   status: "proposed" | "confirmed" | "executing" | "executed" | "failed" | "cancelled";
   plan_id: string;
@@ -94,8 +95,9 @@ export async function numberOf(expense: ExpenseRow): Promise<number> {
   return row?.n ?? 0;
 }
 
+/** Executed person-to-person settlements (payments into the trip fund count as contributions instead). */
 export async function executedSettlements(tripId: number): Promise<SettlementRow[]> {
-  return q<SettlementRow>(`SELECT * FROM settlements WHERE trip_id = $1 AND status = 'executed' ORDER BY id`, [tripId]);
+  return q<SettlementRow>(`SELECT * FROM settlements WHERE trip_id = $1 AND status = 'executed' AND to_id IS NOT NULL ORDER BY id`, [tripId]);
 }
 
 export async function tripBalances(tripId: number, memberIds: number[]): Promise<{ net: Map<number, number>; plan: Payment<number>[]; totalCents: number; count: number }> {
@@ -105,13 +107,13 @@ export async function tripBalances(tripId: number, memberIds: number[]): Promise
   const net = balances(
     members,
     expenses.map((e) => ({ payer: e.payer_id, shares: new Map(Object.entries(e.shares).map(([k, v]) => [Number(k), v])) })),
-    settled.map((s) => ({ from: s.from_id, to: s.to_id, amountCents: s.amount_cents })),
+    settled.map((s) => ({ from: s.from_id, to: s.to_id!, amountCents: s.amount_cents })),
   );
   return { net, plan: planTransfers(members, net), totalCents: expenses.reduce((a, e) => a + e.amount_cents, 0), count: expenses.length };
 }
 
-/** Replace any proposed plan with a fresh one. */
-export async function proposeSettlements(tripId: number, plan: Payment<number>[]): Promise<SettlementRow[]> {
+/** Replace any proposed plan with a fresh one. `to: null` pays into the trip fund. */
+export async function proposeSettlements(tripId: number, plan: { from: number; to: number | null; amountCents: number }[]): Promise<SettlementRow[]> {
   await q(`UPDATE settlements SET status = 'cancelled' WHERE trip_id = $1 AND status IN ('proposed')`, [tripId]);
   const planId = randomUUID().slice(0, 8);
   const rows: SettlementRow[] = [];

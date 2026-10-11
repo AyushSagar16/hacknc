@@ -1,0 +1,60 @@
+# One settle-up for the tab and the trip fund. Everyone paid their share of the stay into the fund
+# before the trip. During it: maya covers dinner for all three, priya buys leo's ticket ("i got
+# leo's ticket, $40" is all on leo), and the group puts a boat rental on the fund the day they
+# leave, so the fund comes up $240 short. Settle-up nets each person's fund position against the
+# tab: maya's dinner credit shrinks what she owes the fund, leo owes the most. One list of the
+# fewest transfers; each payer confirms and it goes into the fund, which then pays for the boat.
+today 2026-10-10 14:00
+members maya leo priya
+atlas joins
+~agent text: NO_REPLY
+maya: hi
+~extract [{"message":0,"about":"maya","key":"date_window","polarity":"positive","explicit":true,"retracts":false,"confidence":0.9,"quote":"dec 10-14","earliest":"2026-12-10","latest":"2026-12-14"},{"message":0,"about":"maya","key":"home_city","polarity":"positive","explicit":true,"retracts":false,"confidence":0.9,"quote":"raleigh","city":"Raleigh"}]
+maya: dec 10-14 from raleigh works for all of us
+~agent call lock_destination {"destination":"charleston"}
+~agent text: NO_REPLY
+maya: atlas we're doing charleston
+stays test/fixtures/serpapi/google_hotels_charleston.json | test/fixtures/serpapi/google_vacation_rentals_charleston.json
+~agent call find_stays {}
+~agent text: NO_REPLY
+leo: atlas where should we stay?
+~agent call book_stay {"option":"3"}
+~agent text: NO_REPLY
+priya: atlas book the townhouse
+expect atlas ~ "🏠 booked ✓ Harleston Village Townhouse"
+# every contribution goes in before the deadline, and the fund pays for the stay
+clock +50d
+expect transcript ~ /Harleston Village Townhouse is paid in full from the fund ✓/
+expect sql SELECT sum(amount_cents)::int AS total FROM fund_txns WHERE kind = 'contribution' AND status = 'done' = [{"total":124000}]
+# the trip
+clock +12d
+maya: i paid 90 for dinner
+expect atlas ~ "logged #1: dinner $90.00, paid by maya. split 3 ways: leo and priya owe maya $30.00 each"
+priya: i got leo's ticket, $40
+expect atlas ~ "logged #2: ticket $40.00, paid by priya. leo owes $40.00"
+expect sql SELECT shares FROM expenses WHERE description = 'ticket' ~ "40"
+~agent call add_to_fund {"description":"boat rental","amount_usd":240}
+~agent text: NO_REPLY
+leo: atlas put the boat rental on the fund, it was 240
+expect atlas ~ "🏦 charleston trip fund: $1,480"
+# settle-up: the tab and the fund in one list; nobody's budget is named
+priya: atlas let's settle up
+expect atlas ~ "the trip fund is $240.00 short of what it pays for, so that's folded in below"
+expect atlas ~ "settle-up, the fewest transfers that square the tab and the trip fund (3):"
+expect atlas ~ /maya → the trip fund \$20\.0\d/
+expect atlas ~ /leo → the trip fund \$150\.0\d/
+expect atlas ~ /priya → the trip fund \$70\.0\d/
+expect atlas ~ /maya, leo and priya, reply "confirm"/
+expect trip.status = "settling"
+expect sql SELECT count(*)::int AS n FROM fund_txns WHERE kind = 'contribution' AND status = 'scheduled' = [{"n":0}]
+expect sql SELECT count(*)::int AS n, sum(amount_cents)::int AS total FROM settlements WHERE status = 'proposed' AND to_id IS NULL = [{"n":3,"total":24000}]
+maya: confirm
+expect atlas ~ /✓ maya → the trip fund \$20\.0\d recorded/
+leo: confirm
+expect atlas ~ /✓ leo → the trip fund \$150\.0\d recorded/
+priya: confirm
+expect atlas ~ /✓ priya → the trip fund \$70\.0\d recorded/
+expect atlas ~ "boat rental is paid in full from the fund ✓"
+expect atlas ~ "all settled up"
+expect trip.status = "done"
+expect sql SELECT sum(amount_cents)::int AS total FROM fund_txns WHERE kind = 'contribution' AND status = 'done' = [{"total":148000}]
