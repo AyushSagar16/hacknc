@@ -92,6 +92,10 @@ if (!useRelay) {
     body: { target_url: `${url}${WEBHOOK_PATH}`, subscribed_events: EVENTS },
   });
   subscriptionId = created.id;
+  // The bank-connect consent page calls Atlas back through this tunnel (POST /connect-callback).
+  // cfg is the live config object the app reads, so links signed from now on carry this URL.
+  if (!process.env.PUBLIC_BASE_URL) cfg.PUBLIC_BASE_URL = url;
+  console.log(`connect callbacks: ${cfg.PUBLIC_BASE_URL}/connect-callback${cfg.CONNECT_SECRET ? "" : " (CONNECT_SECRET is not set: the site can't verify links)"}`);
   const secret = created.signing_secret ?? created.secret;
   if (!secret) throw new Error("Linq didn't return a signing secret for the subscription");
   linq.setSecret(secret);

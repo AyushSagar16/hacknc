@@ -19,6 +19,7 @@ import type { Feature, TurnCtx } from "./feature.ts";
 import { Figures } from "./figures.ts";
 import type { Llm } from "./llm.ts";
 import { nameList } from "./features/planning.ts";
+import { CONNECT_QUESTION, offerConnect } from "./features/connect.ts";
 import { warmMemory } from "./features/memory.ts";
 import { describeSituation } from "./situation.ts";
 import { isSmallTalk } from "./smallTalk.ts";
@@ -47,8 +48,8 @@ export function introLines(agentName: string): string[] {
   const n = agentName.toLowerCase();
   return [
     `hi, i'm ${n}, your trip and financial planner 👋 i'll keep track of what everyone wants and can spend, and help you all actually book this thing`,
-    `i read along and jump in when it helps the plan. tag me ("${n}") anytime, or tell me to stay quiet.\nbudgets i suggest come from demo spending profiles (sandbox data, not your real bank), and "keep my budget private" means i only ever use yours pooled`,
-    `so where are we thinking, and when?`,
+    `i read along and jump in when it helps the plan. tag me ("${n}") anytime, or tell me to stay quiet.\neveryone's budget stays private: the group only ever sees pooled numbers`,
+    `so where are we thinking, and when?\nalso, ${CONNECT_QUESTION}`,
   ];
 }
 
@@ -155,6 +156,7 @@ export function createBrain(deps: BrainDeps): TurnHandler & { settle(): Promise<
     let route = "silent";
     if (!chat.intro_sent_at && (await markIntroSent(chat.id, now))) {
       say(tc, ...introLines(agentName));
+      await offerConnect(chat.id, members.map((m) => m.id), now);
       route = "intro";
     }
 
@@ -181,9 +183,12 @@ export function createBrain(deps: BrainDeps): TurnHandler & { settle(): Promise<
         if (msg.meta?.change === "added" && route !== "intro" && chat.intro_sent_at) {
           // The message's person is whoever did the adding; the newcomers are in meta.handles.
           const handles = (msg.meta?.handles as string[] | undefined) ?? [];
-          const added = members.filter((m) => m.handle && handles.includes(m.handle)).map((m) => firstNames.get(m.id) ?? "").filter((n) => /^[a-z]/.test(n));
+          const newcomers = members.filter((m) => m.handle && handles.includes(m.handle));
+          const added = newcomers.map((m) => firstNames.get(m.id) ?? "").filter((n) => /^[a-z]/.test(n));
           const who = added.length && added.length <= 3 ? ` ${nameList(added)}` : "";
-          say(tc, `welcome${who}! i'm ${agentName.toLowerCase()}, i keep the trip + money side organized.\nsay "${agentName.toLowerCase()} summarize" and i'll catch you up`);
+          // Late joiners get the same bank-connect question as everyone at the intro.
+          say(tc, `welcome${who}! i'm ${agentName.toLowerCase()}, i keep the trip + money side organized. say "${agentName.toLowerCase()} summarize" and i'll catch you up\n${who ? `${who.trim()}, ` : ""}${CONNECT_QUESTION}`);
+          await offerConnect(chat.id, newcomers.map((m) => m.id), now);
           route = "welcome";
         }
         tc.consumed.add(msg.id);

@@ -7,6 +7,8 @@ import { createBrain } from "./agent/brain.ts";
 import type { AppServices, Feature } from "./agent/feature.ts";
 import { planningFeature } from "./agent/features/planning.ts";
 import { budgetsFeature } from "./agent/features/budgets.ts";
+import { CONNECT_CALLBACK_PATH, connectFeature, handleConnectCallback } from "./agent/features/connect.ts";
+import { SIGNATURE_HEADER } from "./connect/token.ts";
 import { proposalsFeature, reconcileOpenNativePolls, setPollSource } from "./agent/features/proposals.ts";
 import { linqPollSource } from "./transport/linq/platform.ts";
 import { moneyFeature } from "./agent/features/money.ts";
@@ -60,6 +62,7 @@ export async function startAtlas(opts: AppOptions): Promise<AtlasApp> {
   const features: Feature[] = [
     tripsFeature,
     planningFeature,
+    connectFeature,
     budgetsFeature,
     proposalsFeature,
     moneyFeature,
@@ -73,7 +76,9 @@ export async function startAtlas(opts: AppOptions): Promise<AtlasApp> {
     ...(opts.extraFeatures ?? []),
   ];
 
-  const transport = await createTransport(cfg, { world: opts.world });
+  // The bank-connect consent page calls back here (same HTTP server as the Linq webhooks).
+  const routes = { [CONNECT_CALLBACK_PATH]: ({ body, header }: { body: string; header(name: string): string | undefined }) => handleConnectCallback(body, header(SIGNATURE_HEADER), { cfg }) };
+  const transport = await createTransport(cfg, { world: opts.world, routes });
   if (transport.linq) setPollSource(linqPollSource(transport.linq.api));
   let pipeline!: Pipeline;
   const brain = createBrain({ cfg, llm, features });

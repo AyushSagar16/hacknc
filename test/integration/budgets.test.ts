@@ -8,7 +8,7 @@ import { computeBudget } from "../../src/money/budget.ts";
 import { profileFor } from "../../src/nessie/seed.ts";
 import { profileToLedger } from "../../src/nessie/personas.ts";
 import { dbAvailable } from "../helpers/db.ts";
-import { pastIntro, testAtlas, type TestAtlas } from "../helpers/atlas.ts";
+import { connectAll, pastIntro, testAtlas, type TestAtlas } from "../helpers/atlas.ts";
 import { fakeNessie } from "../helpers/fakeNessie.ts";
 
 const describeDb = dbAvailable ? describe : describe.skip;
@@ -22,13 +22,16 @@ describeDb("budgets from Nessie profiles (connected accounts in chat)", () => {
     setClock(systemClock);
   });
 
-  it("links everyone automatically and posts only the pooled budget by default (offline profile)", async () => {
+  it("links people when they connect and posts only the pooled budget by default (offline profile)", async () => {
     setClock(new FixedClock(new Date("2026-10-10T18:00:00Z")));
     setNessieClient(null);
     t = await testAtlas();
     const chat = t.chat("b1", ["maya", "leo", "priya"]);
     await pastIntro(chat);
     await t.app.jobs.runDue();
+    // Joining links nobody: a bank is only linked on connect.
+    expect(await q(`SELECT 1 FROM nessie_links`)).toHaveLength(0);
+    await connectAll(t, chat);
     const links = await q<{ persona: string; seed_status: string }>(`SELECT persona, seed_status FROM nessie_links ORDER BY person_id`);
     expect(links).toHaveLength(3);
     expect(new Set(links.map((l) => l.persona)).size).toBe(3); // persona variety across the group
@@ -50,7 +53,7 @@ describeDb("budgets from Nessie profiles (connected accounts in chat)", () => {
     t = await testAtlas();
     const chat = t.chat("b1s", ["maya", "leo", "priya"]);
     await pastIntro(chat);
-    await t.app.jobs.runDue();
+    await connectAll(t, chat);
     for (const who of ["maya", "leo", "priya"]) {
       const ack = await chat.say(who, "share my budget");
       expect(ack[0]!.text).toMatch(new RegExp(`^ok ${who}, i'll share your budget with the group`));
@@ -67,7 +70,7 @@ describeDb("budgets from Nessie profiles (connected accounts in chat)", () => {
     t = await testAtlas();
     const chat = t.chat("b2", ["maya", "leo", "priya"]);
     await pastIntro(chat);
-    await t.app.jobs.runDue();
+    await connectAll(t, chat);
     await chat.say("maya", "share my budget");
     await chat.say("leo", "share my budget");
     const ack = await chat.say("priya", "keep my budget private");
@@ -85,7 +88,7 @@ describeDb("budgets from Nessie profiles (connected accounts in chat)", () => {
     t = await testAtlas();
     const chat = t.chat("b3", ["maya", "leo", "priya"]);
     await pastIntro(chat);
-    await t.app.jobs.runDue();
+    await connectAll(t, chat);
     const quiet = await chat.say("maya", "set my budget to 600");
     expect(quiet[0]!.text).toBe("updated your budget (kept private)");
     for (const who of ["maya", "leo", "priya"]) await chat.say(who, "share my budget");
@@ -101,7 +104,7 @@ describeDb("budgets from Nessie profiles (connected accounts in chat)", () => {
     t = await testAtlas();
     const chat = t.chat("b3b", ["maya", "leo", "priya"]);
     await pastIntro(chat);
-    await t.app.jobs.runDue();
+    await connectAll(t, chat);
     const r = await chat.say("leo", "set my budget to $1");
     expect(r[0]!.text).toMatch(/^\$1 won't get anyone out of town/);
     const rows = await q<{ adjusted_cents: number | null }>(`SELECT b.adjusted_cents FROM budgets b JOIN people p ON p.id = b.person_id WHERE p.display_name = 'Leo'`);

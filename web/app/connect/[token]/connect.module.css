@@ -1,0 +1,240 @@
+/* Bank consent screen: navy + red, light surface regardless of the trip pages' theme.
+   Mobile first (it opens from iMessage); the card centres on larger screens. */
+.shell {
+  --navy: #004977;
+  --navy-deep: #013250;
+  --red: #d22e1e;
+  --red-dark: #b0261a;
+  --ink: #1b1f23;
+  --muted: #5b6670;
+  --line: #e3e8ec;
+  --surface: #f3f6f8;
+  --ok: #1f7a4d;
+
+  position: fixed;
+  inset: 0;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+  background: var(--surface);
+  color: var(--ink);
+  color-scheme: light;
+  font: 16px/1.5 -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif;
+  z-index: 10;
+}
+
+.bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 14px 16px;
+  padding-top: max(14px, env(safe-area-inset-top));
+  background: var(--navy);
+  color: #fff;
+}
+.wordmark {
+  font-weight: 700;
+  font-size: 19px;
+  letter-spacing: -0.01em;
+  font-style: italic;
+}
+.secure {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 13px;
+  opacity: 0.9;
+}
+
+.body {
+  max-width: 460px;
+  margin: 0 auto;
+  padding: 20px 16px calc(32px + env(safe-area-inset-bottom));
+}
+
+.card {
+  position: relative;
+  background: #fff;
+  border-radius: 16px;
+  border: 1px solid var(--line);
+  box-shadow: 0 1px 2px rgba(1, 50, 80, 0.06), 0 8px 24px rgba(1, 50, 80, 0.06);
+  padding: 24px 20px 20px;
+}
+
+.handshake {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  margin: 4px 0 18px;
+}
+.badgeAtlas,
+.badgeBank {
+  display: grid;
+  place-items: center;
+  width: 48px;
+  height: 48px;
+  border-radius: 14px;
+  font-weight: 700;
+  font-size: 18px;
+  color: #fff;
+}
+.badgeAtlas { background: var(--ink); }
+.badgeBank { background: var(--navy); font-style: italic; }
+.dots {
+  width: 40px;
+  height: 2px;
+  background-image: linear-gradient(90deg, var(--muted) 50%, transparent 50%);
+  background-size: 8px 2px;
+  opacity: 0.6;
+}
+
+.title {
+  font-size: 22px;
+  line-height: 1.25;
+  letter-spacing: -0.015em;
+  text-align: center;
+  margin: 0 0 6px;
+  color: var(--ink);
+}
+.as {
+  text-align: center;
+  color: var(--muted);
+  margin: 0 0 22px;
+}
+.as strong { color: var(--ink); }
+
+.listTitle {
+  font-size: 13px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--muted);
+  margin: 0 0 8px;
+}
+.list {
+  list-style: none;
+  padding: 0;
+  margin: 0 0 18px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+}
+.list li {
+  display: flex;
+  gap: 12px;
+  align-items: flex-start;
+  padding: 12px 14px;
+  margin: 0;
+}
+.list li + li { border-top: 1px solid var(--line); }
+.list strong { display: block; font-size: 15px; }
+.list span { display: block; font-size: 14px; color: var(--muted); }
+.list .icon {
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  background: #e8f0f6;
+  color: var(--navy);
+  font-weight: 700;
+  font-size: 15px;
+}
+
+.assure {
+  background: var(--surface);
+  border-radius: 12px;
+  padding: 12px 14px;
+  font-size: 14px;
+  color: var(--muted);
+  margin-bottom: 20px;
+}
+.assure p { margin: 0; }
+.assure p + p { margin-top: 6px; }
+.assure strong { color: var(--ink); }
+
+.form { margin: 0; }
+.primary {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  min-height: 52px;
+  border: 0;
+  border-radius: 10px;
+  background: var(--red);
+  color: #fff;
+  font: inherit;
+  font-weight: 600;
+  font-size: 17px;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+  transition: background 120ms ease, transform 80ms ease;
+}
+.primary:hover { background: var(--red-dark); }
+.primary:active { transform: scale(0.99); }
+.primary:focus-visible { outline: 3px solid rgba(0, 73, 119, 0.4); outline-offset: 2px; }
+.primary:disabled { cursor: progress; background: var(--red-dark); }
+
+.spinner {
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  border: 2.5px solid rgba(255, 255, 255, 0.35);
+  border-top-color: #fff;
+  animation: spin 0.8s linear infinite;
+}
+@keyframes spin { to { transform: rotate(360deg); } }
+@media (prefers-reduced-motion: reduce) { .spinner { animation-duration: 2s; } }
+
+.error {
+  margin: 0 0 12px;
+  padding: 10px 12px;
+  border-radius: 10px;
+  background: #fdecea;
+  color: var(--red-dark);
+  font-size: 14px;
+}
+
+.fine {
+  margin: 14px 0 0;
+  font-size: 13px;
+  color: var(--muted);
+  text-align: center;
+}
+
+/* The result replaces the whole card. */
+.overlay {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  display: flex;
+  align-items: center;
+  background: #fff;
+  border-radius: 16px;
+  animation: fade 180ms ease-out;
+}
+.overlay > .card { border: 0; box-shadow: none; width: 100%; }
+@keyframes fade { from { opacity: 0; } to { opacity: 1; } }
+
+.markOk,
+.markWarn {
+  display: grid;
+  place-items: center;
+  width: 64px;
+  height: 64px;
+  margin: 8px auto 16px;
+  border-radius: 50%;
+  font-size: 30px;
+  font-weight: 700;
+  color: #fff;
+}
+.markOk { background: var(--ok); }
+.markWarn { background: var(--navy); }
+.noticeBody {
+  text-align: center;
+  color: var(--muted);
+  margin: 0 0 4px;
+}
+.noticeBody strong { color: var(--ink); }

@@ -1,0 +1,51 @@
+# Bank-connect onboarding: the intro asks everyone to connect their capital one. "yes" gets a
+# signed link; tapping Connect on the consent page calls Atlas back, which links and seeds that
+# person's account, computes their budget and says so (no figure: budgets are private). "nah" gets
+# asked for a rough number instead. Whoever did neither gets one nudge about a day later.
+today 2026-10-10 14:00
+members maya leo priya
+atlas joins by maya
+expect atlas ~ "want to connect your capital one so i can plan around real budgets?"
+expect sql SELECT count(*)::int AS n FROM nessie_links = [{"n":0}]
+
+maya: yes
+expect atlas says 2
+expect atlas ~ "here's yours maya 🔒"
+expect atlas ~ "/connect/"
+expect sql SELECT b.status FROM bank_connections b JOIN people p ON p.id = b.person_id WHERE p.display_name = 'Maya' = [{"status":"link_sent"}]
+
+# Maya taps Connect: the signed callback marks her connected, seeds her account, computes her budget.
+maya connects
+expect atlas says 1
+expect atlas ~ "maya's connected ✓"
+expect atlas !~ "$"
+expect sql SELECT b.status FROM bank_connections b JOIN people p ON p.id = b.person_id WHERE p.display_name = 'Maya' = [{"status":"connected"}]
+expect sql SELECT count(*)::int AS n FROM nessie_links WHERE seed_status = 'ready' = [{"n":1}]
+expect sql SELECT count(*)::int AS n FROM budgets WHERE suggested_cents IS NOT NULL = [{"n":1}]
+# The callback is idempotent: a second tap changes nothing and posts nothing.
+maya connects
+expect atlas quiet
+
+# Leo declines: asked for a rough budget, and a bare number answers it.
+leo: nah
+expect atlas ~ "all good leo, i won't connect anything"
+expect atlas ~ "leo, roughly how much do you want to spend on this trip"
+leo: like 600
+expect atlas ~ "got it leo, i'll plan around that"
+expect sql SELECT b.adjusted_cents FROM budgets b JOIN people p ON p.id = b.person_id WHERE p.display_name = 'Leo' = [{"adjusted_cents":60000}]
+expect sql SELECT count(*)::int AS n FROM nessie_links = [{"n":1}]
+
+# Priya did neither: one nudge about a day later, and only one.
+clock +1d
+expect atlas ~ "priya, i still need a rough budget from you"
+expect atlas !~ "leo"
+expect atlas !~ "maya"
+clock +2d
+expect atlas quiet
+
+# "connect me" works anytime.
+priya: connect me
+expect atlas ~ "here's yours priya 🔒"
+priya connects
+expect atlas ~ "priya's connected ✓"
+expect transcript !~ /demo|sandbox|nessie|synthetic|simulated/

@@ -49,9 +49,11 @@ schedules are deterministic code.
 1. A friend adds the Atlas number to a group. Linq sends `participant.added` (or `chat.created`),
    which goes through the signature check, `webhook_events`, the Spectrum `addMember` record and
    the inbox. That runs a turn and sends the **intro** once. Members Atlas hasn't heard from are
-   learned with `GET /chats/{id}`. Each new person gets a **Nessie link job**, which seeds a
-   persona-varied generated profile (their first name, a generated last name, realistic payees and
-   merchants). The chat calls it their connected Capital One account and never says Nessie,
+   learned with `GET /chats/{id}`. The intro (and each late joiner's welcome) asks everyone to
+   **connect their capital one**: "yes" gets a signed link to the consent page on the trip site, whose
+   callback (`POST /connect-callback`) links and seeds that person's Nessie customer
+   (a persona-varied profile) and computes their budget. "no" gets asked for a rough number; one
+   nudge after a day (`bank_connections`, `features/connect.ts`). The chat calls it their connected Capital One account and never says Nessie,
    sandbox or demo.
 2. Friends talk. Each burst becomes one turn. **Extraction** runs on every batch in parallel with
    the **speak gate**, so Atlas learns even when it stays silent. Facts land with quotes; the

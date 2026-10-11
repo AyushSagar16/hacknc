@@ -68,6 +68,9 @@ export function signForTest(secret: string, id: string, timestamp: string, body:
   return `v1,${createHmac("sha256", key).update(`${id}.${timestamp}.${body}`).digest("base64")}`;
 }
 
+/** Another POST endpoint on the same server (e.g. /connect-callback). Gets the raw body. */
+export type RouteHandler = (req: { body: string; header(name: string): string | undefined }) => Promise<{ status: number; json?: unknown }>;
+
 export interface WebhookServerOptions {
   port: number;
   host?: string;
@@ -82,6 +85,7 @@ export interface WebhookServerOptions {
   sink: WebhookSink;
   now?: () => Date;
   maxBodyBytes?: number;
+  routes?: Record<string, RouteHandler>;
 }
 
 export function startWebhookServer(options: WebhookServerOptions): Promise<Server> {
@@ -92,7 +96,9 @@ export function startWebhookServer(options: WebhookServerOptions): Promise<Serve
 
   const server = createServer(async (req, res) => {
     try {
-      if (req.method !== "POST" || new URL(req.url ?? "/", "http://localhost").pathname !== WEBHOOK_PATH) {
+      const path = new URL(req.url ?? "/", "http://localhost").pathname;
+      const route = options.routes?.[path];
+      if (req.method !== "POST" || (path !== WEBHOOK_PATH && !route)) {
         res.writeHead(404).end();
         return;
       }
@@ -101,6 +107,11 @@ export function startWebhookServer(options: WebhookServerOptions): Promise<Serve
         const v = req.headers[name];
         return Array.isArray(v) ? v[0] : v;
       };
+      if (route) {
+        const out = await route({ body, header });
+        res.writeHead(out.status, { "content-type": "application/json" }).end(JSON.stringify(out.json ?? {}));
+        return;
+      }
       const webhookId = header("webhook-id") ?? header("x-webhook-id");
       const secret = options.secret();
       if (secret) {

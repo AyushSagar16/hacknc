@@ -7,11 +7,10 @@
 import { now } from "../../clock.ts";
 import { formatUsd } from "../../money/cents.ts";
 import { one, q } from "../../db/pool.ts";
-import { activeMembers, getChat, getPerson, labelOf, type MessageRow } from "../../db/repos/core.ts";
-import { rosterPersona } from "../../roster.ts";
+import { activeMembers, getChat, labelOf, type MessageRow } from "../../db/repos/core.ts";
 import { enqueueJob } from "../../pipeline/jobs.ts";
 import { budgetRows, effectiveCents, ensureBudgets, markAnnounced, pool, setAdjusted, setVisibility, type BudgetRow } from "../../nessie/budgets.ts";
-import { ensureLink, linkFor, seedPerson } from "../../nessie/seed.ts";
+import { linkFor, seedPerson } from "../../nessie/seed.ts";
 import { tripFor, type TripRow } from "../../trips/state.ts";
 import { planTotals } from "./money.ts";
 import { isoDate } from "../../clock.ts";
@@ -119,8 +118,16 @@ function saidLoadingRecently(tc: TurnCtx): boolean {
 async function postBudgets(tc: TurnCtx, opts: { asked?: boolean } = {}): Promise<void> {
   const view = await tc.view();
   const tripStart = tc.trip.start_date ?? view.dates?.start ?? null;
-  const { rows, pending } = await ensureBudgets(tc.trip.id, tc.members.map((m) => m.id), tc.today, tripStart);
+  const { rows, pending: waiting } = await ensureBudgets(tc.trip.id, tc.members.map((m) => m.id), tc.today, tripStart);
   const label = (id: number) => tc.label(id);
+  // Only people who connected their bank have a linked customer to seed (bank-connect onboarding);
+  // the rest are waiting on a connect or a stated number.
+  const linked = await Promise.all(waiting.map((id) => linkFor(id)));
+  const pending = waiting.filter((_, i) => linked[i]);
+  const unconnected = waiting.filter((_, i) => !linked[i]);
+  const missingLine = unconnected.length
+    ? `still need a budget from ${nameList(unconnected.map((id) => label(id).toLowerCase()))}: say "connect me" to connect your capital one, or just tell me a rough number`
+    : "";
   if (pending.length) {
     for (const id of pending) await enqueueJob("nessie.link", { personId: id }, { singletonKey: `nessie:${id}` });
     await enqueueJob("budgets.announce", { chatId: tc.chat.id, attempt: 0 }, { singletonKey: `budgets:${tc.chat.id}`, dueAt: new Date(tc.now.getTime() + 5_000) });
@@ -132,9 +139,13 @@ async function postBudgets(tc: TurnCtx, opts: { asked?: boolean } = {}): Promise
     say(tc, `one sec, ${LOADING_TEXT} ${nameList(pending.map((id) => label(id).toLowerCase()))} from your connected accounts. i'll post the budgets right after`);
     return;
   }
+  if (rows.length === 0) {
+    if (missingLine) say(tc, missingLine);
+    return;
+  }
   const firstTime = rows.some((r) => r.announced_at === null);
   tc.figures.addAll(budgetFigures(rows, label));
-  say(tc, ...budgetMessage(rows, label, { firstTime, planTotals: await lockedTotals(tc.trip) }));
+  say(tc, ...budgetMessage(rows, label, { firstTime, planTotals: await lockedTotals(tc.trip) }), missingLine);
   await markAnnounced(tc.trip.id, rows.map((r) => r.person_id));
 }
 
@@ -205,12 +216,6 @@ export const budgetsFeature: Feature = {
   name: "budgets",
   tools: [showBudgets, setMyBudget],
 
-  async onNewMember(_chatId, personId) {
-    const person = await getPerson(personId);
-    const link = await ensureLink(personId, { persona: person ? rosterPersona(person.handle) : undefined });
-    if (link.seed_status !== "ready") await enqueueJob("nessie.link", { personId }, { singletonKey: `nessie:${personId}` });
-  },
-
   jobs(svc) {
     return {
       "nessie.link": async (payload) => {
@@ -223,7 +228,8 @@ export const budgetsFeature: Feature = {
         if (!chat) return;
         const members = await activeMembers(chatId);
         const links = await Promise.all(members.map((m) => linkFor(m.id)));
-        if (links.some((l) => !l || l.seed_status !== "ready")) {
+        // Waits for connected people's profiles; people who never connected aren't waited on.
+        if (links.some((l) => l && l.seed_status !== "ready")) {
           if (attempt >= 40) return;
           return { rescheduleAt: new Date(now().getTime() + 8_000), payload: { chatId, attempt: attempt + 1 } };
         }
