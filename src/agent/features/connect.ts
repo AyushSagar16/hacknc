@@ -20,6 +20,7 @@ import { CONNECT_CALLBACK_PATH, signToken, verifyBody, verifyToken } from "../..
 import type { AppServices, Feature, TurnCtx } from "../feature.ts";
 import { ToolError, say, str, type Tool, type ToolCtx } from "../tools.ts";
 import { MAX_BUDGET_CENTS, MIN_BUDGET_CENTS } from "./budgets.ts";
+import { isNameLine } from "./names.ts";
 import { nameList } from "./planning.ts";
 
 export const CONNECT_QUESTION = "want to connect your capital one so i can plan around real budgets?";
@@ -161,6 +162,7 @@ export function parseRoughBudget(text: string): number | null {
 
 /** Atlas's own connect-flow replies, which don't close the ask ("here's yours maya 🔒", the link). */
 function isFlowReply(text: string): boolean {
+  if (isNameLine(text)) return true;
   return /🔒|connected ✓|\/connect\/|won't connect anything|roughly how much do you want to spend|i'll plan around that 👍/.test(text);
 }
 

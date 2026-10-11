@@ -52,7 +52,11 @@ schedules are deterministic code.
 1. A friend adds the Atlas number to a group. Linq sends `participant.added` (or `chat.created`),
    which goes through the signature check, `webhook_events`, the Spectrum `addMember` record and
    the inbox. That runs a turn and sends the **intro** once. Members Atlas hasn't heard from are
-   learned with `GET /chats/{id}`. The intro (and each late joiner's welcome) asks everyone to
+   learned with `GET /chats/{id}`. Linq gives phone numbers, not contact names, so for anyone
+   `demo/roster.json` doesn't name, the intro (and a late joiner's welcome) first asks everyone to
+   reply with their first name; a chat that was already going gets the question once
+   (`features/names.ts`, `asks` field `name`). "ayush", "i'm ayush" or "8005 is maya" are read with
+   no model. The intro (and each late joiner's welcome) also asks everyone to
    **connect their capital one**: "yes" gets a signed link to the consent page on the trip site, whose
    approval (filed in Supabase's `connect_events` and polled by `src/connect/inbox.ts`, so no tunnel is
    needed; `POST /connect-callback` for older links) links and seeds that person's Nessie customer
@@ -78,7 +82,8 @@ schedules are deterministic code.
    reopens it as a two-option poll. That fires `onTripLocked`: a recurring **weather.check** job and a decision memory. Once dates
    are set, `find_stays` searches SerpApi google_hotels (hotels and `vacation_rentals=true`), sized
    for the group and filtered to its budget, and polls three options. The winner is booked
-   (`trips.stay`) onto the **trip fund**: a Nessie customer "<Trip> Trip Fund" with a checking
+   (`trips.stay`) onto the **trip fund** (a place someone booked themselves, "i booked mountain
+   inn, 2 nights at 100", is logged on the tab and becomes `trips.stay` too, so the plan moves on): a Nessie customer "<Trip> Trip Fund" with a checking
    account. Each person's share (by `split_mode`) is planned as contributions on the day after each
    payday before a deposit deadline two weeks out; the `fund.collect` job moves them as Nessie
    transfers checking → fund (ledger only for people with no bank) and pays the stay as a fund

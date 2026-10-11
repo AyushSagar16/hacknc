@@ -22,6 +22,7 @@ import { Figures } from "./figures.ts";
 import type { Llm } from "./llm.ts";
 import { nameList } from "./features/planning.ts";
 import { CONNECT_QUESTION, offerConnect } from "./features/connect.ts";
+import { NAME_QUESTION, recordNameAsks, unnamed } from "./features/names.ts";
 import { warmMemory } from "./features/memory.ts";
 import { oneSiteLink } from "./links.ts";
 import { describeSituation } from "./situation.ts";
@@ -52,11 +53,13 @@ export const MAX_ACKS_PER_TURN = 4;
 /** A silent reply waits this long for extraction, to know which messages gave Atlas something. */
 const ACK_EXTRACTION_WAIT_MS = 20_000;
 
-export function introLines(agentName: string): string[] {
+/** The intro. `askNames`: some members are only phone numbers to Atlas, so it asks who's who first. */
+export function introLines(agentName: string, opts: { askNames?: boolean } = {}): string[] {
   const n = agentName.toLowerCase();
   return [
     `hi, i'm ${n}, your trip and financial planner 👋 i'll keep track of what everyone wants and can spend, and help you all actually book this thing`,
     `i read along and jump in when it helps the plan. tag me ("${n}") anytime, or tell me to stay quiet.\neveryone's budget stays private: the group only ever sees pooled numbers`,
+    ...(opts.askNames ? [NAME_QUESTION] : []),
     `so where are we thinking, and when?\nalso, ${CONNECT_QUESTION}`,
   ];
 }
@@ -166,7 +169,9 @@ export function createBrain(deps: BrainDeps): TurnHandler & { settle(): Promise<
     const actions = tc.out;
     let route = "silent";
     if (!chat.intro_sent_at && (await markIntroSent(chat.id, now))) {
-      say(tc, ...introLines(agentName));
+      const nameless = unnamed(members);
+      say(tc, ...introLines(agentName, { askNames: nameless.length > 0 }));
+      await recordNameAsks(chat.id, nameless.map((m) => m.id), now);
       await offerConnect(chat.id, members.map((m) => m.id), now);
       route = "intro";
     }
@@ -197,8 +202,14 @@ export function createBrain(deps: BrainDeps): TurnHandler & { settle(): Promise<
           const newcomers = members.filter((m) => m.handle && handles.includes(m.handle));
           const added = newcomers.map((m) => firstNames.get(m.id) ?? "").filter((n) => /^[a-z]/.test(n));
           const who = added.length && added.length <= 3 ? ` ${nameList(added)}` : "";
-          // Late joiners get the same bank-connect question as everyone at the intro.
-          say(tc, `welcome${who}! i'm ${agentName.toLowerCase()}, i keep the trip + money side organized. say "${agentName.toLowerCase()} summarize" and i'll catch you up\n${who ? `${who.trim()}, ` : ""}${CONNECT_QUESTION}`);
+          // Late joiners get the same bank-connect question as everyone at the intro, and the name
+          // question when Atlas only has their number.
+          const nameless = unnamed(newcomers);
+          if (nameless.length) {
+            say(tc, `welcome! i'm ${agentName.toLowerCase()}, i keep the trip + money side organized. say "${agentName.toLowerCase()} summarize" and i'll catch you up\n${NAME_QUESTION}`);
+            await recordNameAsks(chat.id, nameless.map((m) => m.id), now);
+            say(tc, `${who ? `${who.trim()}, ` : ""}${CONNECT_QUESTION}`);
+          } else say(tc, `welcome${who}! i'm ${agentName.toLowerCase()}, i keep the trip + money side organized. say "${agentName.toLowerCase()} summarize" and i'll catch you up\n${who ? `${who.trim()}, ` : ""}${CONNECT_QUESTION}`);
           await offerConnect(chat.id, newcomers.map((m) => m.id), now);
           route = "welcome";
         }

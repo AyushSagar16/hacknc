@@ -269,3 +269,11 @@ nav.sections a[aria-current="page"] {
   .stage-detail { font-size: 11px; }
   .fund { padding: 16px 14px 12px; margin-left: -4px; margin-right: -4px; }
 }
+
+/* The homepage (app/page.tsx) runs edge to edge in its own always-light sky. */
+body:has(.landing-page) { background: #f6fafd; color-scheme: light; }
+body:has(.landing-page)::before,
+body:has(.landing-page)::after { display: none; }
+body:has(.landing-page) main { max-width: none; padding: 0; }
+html:has(.landing-page) { scroll-behavior: smooth; scroll-padding-top: 88px; }
+@media (prefers-reduced-motion: reduce) { html:has(.landing-page) { scroll-behavior: auto; } }

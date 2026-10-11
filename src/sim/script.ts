@@ -8,7 +8,7 @@
 //
 // Format, one step per line (# comments):
 //   today 2026-10-10 14:00          pin the clock for date-relative facts
-//   members maya leo priya          create the group (first)
+//   members maya leo priya          create the group (first); "maya?" = atlas only sees her number
 //   caps local                      a line without polls/tapbacks/threads
 //   atlas joins [by maya]
 //   maya: text                      (append & for a burst: don't wait)
@@ -123,7 +123,7 @@ export class ScenarioRunner {
       return;
     }
     if ((m = /^atlas joins(?:\s+by\s+(\w+))?$/.exec(text))) return this.act(() => this.need().addAtlas(m![1]));
-    if ((m = /^(\w+) joins$/.exec(text))) return this.act(() => this.need().addMember(m![1]!, `+1555019${String(this.need().members.length + 1).padStart(4, "0")}`));
+    if ((m = /^(\w+)(\??) joins$/.exec(text))) return this.act(() => this.need().addMember(m![1]!, `+1555019${String(this.need().members.length + 1).padStart(4, "0")}`, { unnamed: m![2] === "?" }));
     if ((m = /^(\w+) leaves$/.exec(text))) return this.act(() => this.need().removeMember(m![1]!));
     if ((m = /^(\w+) connects$/.exec(text))) return this.connects(m[1]!);
     if ((m = /^(\w+) reply ([^:]+):\s*(.+)$/.exec(text))) return this.act(() => this.need().reply(m![1]!, unquote(m![2]!), m![3]!));

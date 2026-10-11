@@ -1,0 +1,34 @@
+# Who's who on a real line: Atlas only sees phone numbers ("…0001"), so the intro asks everyone
+# to reply with their first name before the bank-connect question. A bare name answers it (a 👍,
+# no model), anyone can name someone by their last four digits, and once everyone has a name
+# Atlas says so. "yes" still answers the connect question, and a late joiner it can't name is
+# asked too.
+today 2026-10-10 14:00
+members maya? leo? priya?
+atlas joins by maya
+expect atlas says 4
+expect atlas ~ "so i know who's who"
+expect atlas ~ "reply with your first name"
+expect atlas ~ "want to connect your capital one"
+expect sql SELECT count(*)::int AS n FROM asks WHERE field = 'name' = [{"n":3}]
+maya: Maya
+expect atlas reacted like
+expect sql SELECT display_name FROM people WHERE handle = '+15550100001' = [{"display_name":"Maya"}]
+leo: 0003 is priya
+expect atlas ~ "got it: …0003 is priya 👍"
+expect sql SELECT display_name FROM people WHERE handle = '+15550100003' = [{"display_name":"Priya"}]
+# "im so hungry" isn't a name
+leo: im so hungry
+expect sql SELECT display_name FROM people WHERE handle = '+15550100002' = [{"display_name":null}]
+leo: im leo
+expect atlas ~ "i know everyone now 👋 maya, leo and priya"
+# the connect question is still open: the name replies don't close it
+priya: yes
+expect atlas ~ "here's yours priya 🔒"
+sam? joins
+expect atlas ~ "so i know who's who"
+expect atlas ~ "want to connect your capital one"
+sam: sam here!
+expect atlas reacted like
+expect sql SELECT display_name FROM people WHERE handle LIKE '+1555019%' = [{"display_name":"Sam"}]
+expect transcript !~ /…0001|…0002/

@@ -25,7 +25,8 @@ export interface SimCapabilities {
 export const LINQ_LIKE: SimCapabilities = { polls: true, reactions: true, replies: true };
 export const LOCAL_LIKE: SimCapabilities = { polls: false, reactions: false, replies: false };
 
-export type SimMember = { name: string; handle: string };
+/** `unnamed`: Atlas only sees the phone number, like a real line with no roster entry. */
+export type SimMember = { name: string; handle: string; unnamed?: boolean };
 
 export type SimEntry = {
   id: string;
@@ -66,8 +67,8 @@ export class SimChat {
     return this.deliver(sys, { type: "addMember", members: this.members.map((m) => m.handle) } as Content, undefined, { memberEvent: "joined", isGroup: true });
   }
 
-  async addMember(name: string, handle: string): Promise<SimEntry[]> {
-    const member = { name: name.toLowerCase(), handle };
+  async addMember(name: string, handle: string, opts: { unnamed?: boolean } = {}): Promise<SimEntry[]> {
+    const member: SimMember = { name: name.toLowerCase(), handle, ...(opts.unnamed ? { unnamed: true } : {}) };
     this.members.push(member);
     const sys = this.add({ from: "system", text: `${member.name} joined`, kind: "system" });
     return this.deliver(sys, { type: "addMember", members: [handle] } as Content, undefined, { memberEvent: "added", isGroup: true });
@@ -213,7 +214,7 @@ export class SimWorld {
   nameOf(handle: string): string | undefined {
     for (const chat of this.chats.values()) {
       const m = chat.members.find((x) => x.handle === handle);
-      if (m) return m.name.charAt(0).toUpperCase() + m.name.slice(1);
+      if (m) return m.unnamed ? undefined : m.name.charAt(0).toUpperCase() + m.name.slice(1);
     }
     return undefined;
   }
@@ -227,7 +228,11 @@ export class SimWorld {
 
 /** Fake phones (+1555…) per name, stable across runs. */
 export function simMembers(names: string[]): SimMember[] {
-  return names.map((name, i) => ({ name: name.toLowerCase(), handle: `+1555010${String(i + 1).padStart(4, "0")}` }));
+  // "maya?" is a member Atlas only knows by number.
+  return names.map((raw, i) => {
+    const name = raw.replace(/\?$/, "").toLowerCase();
+    return { name, handle: `+1555010${String(i + 1).padStart(4, "0")}`, ...(raw.endsWith("?") ? { unnamed: true } : {}) };
+  });
 }
 
 export function simPlatform(world: SimWorld) {

@@ -1,0 +1,28 @@
+# Someone books the stay themselves ("i booked mountain inn for 2 nights at 100 dollars a night")
+# instead of picking from Atlas's options. It's logged on the tab (they paid already, so it's not
+# on the trip fund) and it's the trip's stay: the stage is decided and, on its own, Atlas moves on
+# to what food everyone's into.
+today 2026-10-10 14:00
+members maya leo priya
+atlas joins
+~agent text: NO_REPLY
+maya: hey
+~extract [{"message":0,"about":"maya","key":"date_window","polarity":"positive","explicit":true,"retracts":false,"confidence":0.9,"quote":"nov 12-14","earliest":"2026-11-12","latest":"2026-11-14"},{"message":0,"about":"maya","key":"home_city","polarity":"positive","explicit":true,"retracts":false,"confidence":0.9,"quote":"chapel hill","city":"Chapel Hill"}]
+maya: nov 12-14 from chapel hill works for all of us
+~agent call lock_destination {"destination":"gatlinburg"}
+~agent text: NO_REPLY
+leo: atlas we all agreed on gatlinburg
+expect trip.status = "locked"
+~gate SPEAK booked the stay
+~agent call log_expense {"amount_usd":200,"description":"Mountain Inn - 2 nights","is_stay":true}
+~agent text: NO_REPLY
+maya: I booked mountain inn for 2 nights at 100 dollars a night
+expect atlas ~ "logged #1: Mountain Inn - 2 nights $200.00, paid by maya"
+expect atlas ~ "🏠 Mountain Inn is our stay ✓"
+expect sql SELECT stages->>'stay' AS stage, stay->>'name' AS name, (stay->>'total_cents')::int AS total FROM trips = [{"stage":"decided","name":"Mountain Inn","total":20000}]
+expect sql SELECT count(*)::int AS n FROM fund_items WHERE status = 'active' = [{"n":0}]
+# nobody has to ask: the food question follows on its own
+clock +1m
+expect atlas ~ "mountain inn is locked in, so now food and things to do"
+expect atlas ~ "what kind of food is everyone into"
+expect sql SELECT stages->>'food_activities' AS food FROM trips = [{"food":"in_progress"}]
