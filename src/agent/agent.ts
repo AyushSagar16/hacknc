@@ -141,7 +141,7 @@ export async function runAgent(input: AgentInput): Promise<AgentOutput> {
   const log = childLog({ component: "agent", chatId: input.ctx.chat.id });
   const contents: LlmContent[] = [{ role: "user", parts: [{ text: input.situation }] }];
   const toolCalls: AgentOutput["toolCalls"] = [];
-  const toolNames = input.tools.decls().map((d) => d.name);
+  const toolNames = input.tools.declsFor(input.ctx.chat).map((d) => d.name);
   const outStart = input.ctx.out.length;
   let soloPosted = false;
   const maxRounds = input.maxRounds ?? 4;
@@ -155,7 +155,7 @@ export async function runAgent(input: AgentInput): Promise<AgentOutput> {
         model: input.model,
         system: SYSTEM_PROMPT,
         contents,
-        tools: round < rounds ? input.tools.decls() : undefined,
+        tools: round < rounds ? input.tools.declsFor(input.ctx.chat) : undefined,
         temperature: 0.6,
         timeoutMs: 20_000,
         thinking,

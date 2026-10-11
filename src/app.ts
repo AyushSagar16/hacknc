@@ -7,6 +7,7 @@ import { createBrain } from "./agent/brain.ts";
 import type { AppServices, Feature } from "./agent/feature.ts";
 import { planningFeature } from "./agent/features/planning.ts";
 import { budgetsFeature } from "./agent/features/budgets.ts";
+import { bankingFeature } from "./agent/features/banking.ts";
 import { CONNECT_CALLBACK_PATH, connectFeature, handleConnectCallback, loadInstanceId } from "./agent/features/connect.ts";
 import { startConnectInbox } from "./connect/inbox.ts";
 import { SIGNATURE_HEADER } from "./connect/token.ts";
@@ -71,6 +72,7 @@ export async function startAtlas(opts: AppOptions): Promise<AtlasApp> {
     planningFeature,
     namesFeature,
     connectFeature,
+    bankingFeature,
     budgetsFeature,
     proposalsFeature,
     moneyFeature,

@@ -37,7 +37,12 @@ export async function describeSituation(
 
   const lines: string[] = [];
   lines.push(`today is ${weekday} (${tc.chat.timezone}). today's date: ${tc.today}.`);
-  lines.push(`group chat with ${tc.members.map((m) => tc.label(m.id)).join(", ")} (${tc.members.length} people).${tc.chat.quiet_mode ? " quiet mode is ON: only reply when tagged." : ""}`);
+  if (tc.chat.is_group) lines.push(`group chat with ${tc.members.map((m) => tc.label(m.id)).join(", ")} (${tc.members.length} people).${tc.chat.quiet_mode ? " quiet mode is ON: only reply when tagged." : ""}`);
+  else {
+    lines.push(
+      `PRIVATE 1:1 chat with ${tc.members.map((m) => tc.label(m.id)).join(", ")}: every message is to you. this is their own money (their balances, spending, bills and budget are theirs to see) and any trip planned here is a solo trip for one person. never mention anyone else's money or plans.`,
+    );
+  }
   lines.push("");
   lines.push("# trip");
   if (trip.title) lines.push(`name: ${trip.title}`);
@@ -104,7 +109,7 @@ export async function describeSituation(
     }
   }
 
-  const allowed = tc.figures.describe({ isGroup: true });
+  const allowed = tc.figures.describe(tc.chat.is_group ? { isGroup: true } : { isGroup: false, viewerId: tc.senderId ?? tc.members[0]?.id });
   lines.push("", "# dollar figures you may quote (nothing else)");
   lines.push(...(allowed.length ? allowed.map((a) => `- ${a}`) : ["- none yet: call a tool if you need a number"]));
 

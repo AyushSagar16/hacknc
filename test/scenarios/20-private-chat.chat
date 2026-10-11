@@ -1,0 +1,70 @@
+# Texting Atlas one-on-one: "atlas" gets the private-chat intro; balances, spending, bills, recent
+# transactions and moving money between your own checking and savings are answered by code from your
+# connected capital one; anything else goes to the agent (always answered: no speak gate), which can
+# plan a solo trip. The banking tools only exist in private chats: a group never sees anyone's balance.
+today 2026-10-10 14:00
+members maya leo
+atlas joins by maya
+expect atlas ~ "want to connect your capital one"
+
+dm maya
+maya: atlas
+expect atlas ~ "in here it's just you and me"
+expect atlas ~ "plan a solo trip"
+expect atlas ~ "want to connect your capital one"
+
+# Not connected yet: the link, not a guess.
+maya: what's my balance
+expect atlas ~ "i need your capital one connected first"
+expect atlas ~ "here's yours maya 🔒"
+expect atlas ~ "/connect/"
+maya connects
+expect atlas ~ "you're connected ✓"
+
+maya: what's my balance?
+expect atlas ~ "your accounts right now"
+expect atlas ~ /- checking: \$[\d,]+\.\d\d/
+expect atlas ~ /- savings: \$[\d,]+\.\d\d/
+expect atlas ~ "charged this month"
+maya: how much did i spend this month
+expect atlas ~ "last 30 days you spent"
+expect atlas ~ "where it went"
+maya: what bills are coming up
+expect atlas ~ "bills in the next 30 days"
+expect atlas ~ "total:"
+maya: show me my recent transactions
+expect atlas ~ "latest activity"
+
+# Moving money: only between her own accounts, once per message, never more than she has.
+maya: move $50 to savings
+expect atlas ~ "done ✓ moved $50.00 from checking to savings"
+expect sql SELECT from_account, to_account, amount_cents::int AS cents FROM bank_transfers = [{"from_account":"checking","to_account":"savings","cents":5000}]
+maya: transfer 99999999 from savings to checking
+expect atlas ~ "you've only got"
+expect atlas ~ "so i can't move $99,999,999.00"
+expect sql SELECT count(*)::int AS n FROM bank_transfers = [{"n":1}]
+
+# Her own budget, in full (it's her chat).
+maya: what's my budget?
+expect atlas ~ "your trip budget"
+expect atlas ~ "based on your last few months of spending"
+
+# Fuzzier asks go to the agent, with the banking tools in reach.
+~agent call check_my_bank {"what":"spending","days":7}
+maya: ugh i feel broke lately
+expect atlas ~ "last 7 days you spent"
+
+# A solo trip: no gate, the agent always answers in a private chat.
+~agent text: a solo beach weekend sounds great. when are you thinking, and where are you flying from?
+maya: i want to plan a solo beach weekend in november
+expect atlas ~ "when are you thinking"
+expect sql SELECT count(*)::int AS n FROM llm_traces WHERE role = 'gate' = [{"n":0}]
+
+# The group never gets the banking tools.
+group
+~agent call check_my_bank {"what":"balance"}
+leo: atlas can you check my bank account
+expect atlas speaks
+expect atlas !~ "your accounts right now"
+expect atlas !~ "checking:"
+expect transcript !~ /demo|sandbox|nessie|synthetic|simulated/
