@@ -13,9 +13,9 @@ export type NearbyKind = "food" | "activity";
 
 export interface NearbyPlace {
   kind: NearbyKind;
-  /** SerpApi place_id / data_id, or "catalog:<activity id>". */
+  /** SerpApi place_id / data_id, "catalog:<activity id>" or "web:<name>". */
   sourceId: string;
-  source: "serpapi" | "catalog";
+  source: "serpapi" | "catalog" | "web";
   name: string;
   /** "Vegetarian restaurant", "Museum". */
   category?: string;

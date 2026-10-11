@@ -22,7 +22,11 @@ import { tripDestination } from "../../trips/place.ts";
 import { markPicked, placesFor, saveShortlist, type TripPlaceRow } from "../../trips/placesStore.ts";
 import { getStages, setStage } from "../../trips/stages.ts";
 import { tripById, updateTrip, type ItineraryDay, type TripRow } from "../../trips/state.ts";
+import type { Config } from "../../config.ts";
 import type { AppServices, Feature, TurnCtx } from "../feature.ts";
+import type { Llm } from "../llm.ts";
+import { stripArtifacts } from "../../search/format.ts";
+import { lookup } from "./search.ts";
 import { ToolError, say, str, strList, type Tool } from "../tools.ts";
 import { nameList } from "./planning.ts";
 import { pricingDeps } from "./proposals.ts";
@@ -43,10 +47,16 @@ const MAX_ITEMS_PER_DAY = 8;
 /** Distances are from the booked stay; before one is booked, from the middle of the destination. */
 export function originFor(trip: Pick<TripRow, "stay" | "destination_id" | "destination_place" | "destination_name">): Origin | undefined {
   const stay = trip.stay;
-  if (stay && typeof stay.lat === "number" && typeof stay.lon === "number") return { lat: stay.lat, lon: stay.lon, label: stay.name.toLowerCase() };
+  if (stay && typeof stay.lat === "number" && typeof stay.lon === "number") return { lat: stay.lat, lon: stay.lon, label: stayLabel(stay.name) };
   const dest = tripDestination(trip);
   if (!dest) return undefined;
   return { lat: dest.lat, lon: dest.lon, label: `downtown ${dest.name.toLowerCase()}` };
+}
+
+/** A hotel's name reads fine ("aloft asheville downtown"); a listing's pitch ("cozy efficiency with kitchenette. pet friendly") doesn't. */
+export function stayLabel(name: string): string {
+  const n = name.trim().toLowerCase();
+  return n.length > 32 || n.split(/\s+/).length > 5 || /[.!|•·]|\b(cozy|charming|stunning|private|pet friendly|bedroom|br\b|w\/)/.test(n) ? "your stay" : n;
 }
 
 export interface GroupPrefs {
@@ -143,8 +153,9 @@ export function shortlistLine(idx: number, p: Pick<NearbyPlace, "name" | "catego
   return `${idx}. ${p.name}${facts ? `: ${facts}` : ""}`;
 }
 
-export function shortlistText(kind: NearbyKind, places: { idx: number; place: NearbyPlace }[], origin: Origin, prefs: GroupPrefs): string {
-  const head = kind === "food" ? `🍽️ places to eat near ${origin.label}${dietNote(prefs.dietary)}` : `🎟️ things to do near ${origin.label}`;
+export function shortlistText(kind: NearbyKind, places: { idx: number; place: NearbyPlace }[], origin: Origin, prefs: GroupPrefs, inCity = false): string {
+  const at = `${inCity ? "in" : "near"} ${origin.label}`;
+  const head = kind === "food" ? `🍽️ places to eat ${at}${dietNote(prefs.dietary)}` : `🎟️ things to do ${at}`;
   return [head, ...places.map((x) => shortlistLine(x.idx, x.place))].join("\n");
 }
 
@@ -156,31 +167,102 @@ export interface Shortlist {
   sources: string[];
 }
 
+/** The model and config, for a web lookup when the map search isn't available. */
+export interface WebSearchDeps {
+  llm: Llm;
+  cfg: Config;
+  today: string;
+  trace?: { chatId?: number; turnId?: number };
+}
+
+/** What to look up on the web for a kind: the specific ask, else the group's favourite cuisines or interests. */
+export function webQueryFor(kind: NearbyKind, place: string, prefs: GroupPrefs, query?: string): string {
+  const top = (w: Record<string, number>) =>
+    Object.entries(w)
+      .filter(([k, v]) => v > 0 && k !== "anything")
+      .sort((a, b) => b[1] - a[1])
+      .slice(0, 2)
+      .map(([k]) => k.replace(/_/g, " "));
+  if (query) return `${query} in ${place}`;
+  if (kind === "food") {
+    const cuisines = top(prefs.cuisines);
+    const diet = [...prefs.dietary.keys()].map((d) => NEED_WORDS[d]).filter(Boolean);
+    return `best ${[...diet, ...cuisines].join(" ")} restaurants in ${place}`.replace(/\s+/g, " ");
+  }
+  const likes = top(prefs.interests);
+  return `things to do in ${place}${likes.length ? ` for people who like ${likes.join(" and ")}` : ""}`;
+}
+
+/** Places from a web lookup (no map): names and a one-line detail, no ratings or distances. */
+async function webPlaces(kind: NearbyKind, place: string, prefs: GroupPrefs, query: string | undefined, web: WebSearchDeps, exclude: ReadonlySet<string>): Promise<NearbyPlace[]> {
+  try {
+    const found = await lookup(web.llm, web.cfg, {
+      query: webQueryFor(kind, place, prefs, query),
+      purpose: kind === "food" ? "food" : "things_to_do",
+      context: [`trip destination: ${place}`, ...[...prefs.dietary].map(([need, who]) => `${who.join(" and ")}: ${need}`)],
+      today: web.today,
+      place,
+      ...(web.trace ? { trace: web.trace } : {}),
+    });
+    if (found.kind !== "list") return [];
+    return found.items
+      .map((it): NearbyPlace => {
+        const name = stripArtifacts(it.name).replace(/\$/g, "").trim();
+        const detail = it.detail ? stripArtifacts(it.detail).replace(/\$/g, "").trim() : undefined;
+        return { kind, sourceId: `web:${norm(name)}`, source: "web", name, types: [], ...(detail ? { category: detail } : {}) };
+      })
+      .filter((p) => p.name && !exclude.has(p.sourceId) && !exclude.has(p.name.toLowerCase()))
+      .slice(0, SHORTLIST_SIZE);
+  } catch (err) {
+    log.warn({ kind, err: (err as Error).message.slice(0, 160) }, "web lookup for places failed");
+    return [];
+  }
+}
+
 /** Search, rank, save and word the shortlists. Throws a ToolError when there's nowhere to search around. */
-export async function buildShortlist(trip: TripRow, view: GroupView, kinds: NearbyKind[], opts: { query?: string; at: Date }): Promise<Shortlist> {
+export async function buildShortlist(trip: TripRow, view: GroupView, kinds: NearbyKind[], opts: { query?: string; at: Date; web?: WebSearchDeps }): Promise<Shortlist> {
   const origin = originFor(trip);
   if (!origin) throw new ToolError("no destination is locked yet; settle where first");
   const prefs = prefsOf(view);
   const existing = await placesFor(trip.id);
   const picked = new Set(existing.filter((r) => r.status === "picked").flatMap((r) => [r.source_id, r.name.toLowerCase()]));
   const dest = tripDestination(trip);
+  const place = (dest?.name ?? trip.destination_name ?? "").split(",")[0]!.trim().toLowerCase();
+  const query = kinds.length === 1 ? opts.query : undefined;
+  // Both kinds look up at once (a web lookup takes seconds).
+  const results = await Promise.all(
+    kinds.map(async (kind) => {
+      const nearby = await searchNearby(
+        kind,
+        origin,
+        { dest, query, dietary: [...prefs.dietary.keys()], interests: prefs.interests, cuisines: prefs.cuisines, lowMobility: prefs.lowMobility, exclude: picked, limit: SHORTLIST_SIZE },
+        pricingDeps(),
+      );
+      // No live map: the web knows real places for what they asked; the catalog is the last resort.
+      if (nearby.source !== "serpapi" && opts.web && place) {
+        const found = await webPlaces(kind, place, prefs, query, opts.web, picked);
+        if (found.length) return { kind, places: found, source: "web" as const };
+      }
+      return { kind, places: nearby.places, source: nearby.source };
+    }),
+  );
   const texts: string[] = [];
   const rows: TripPlaceRow[] = [];
   const sources: string[] = [];
-  for (const kind of kinds) {
-    const result = await searchNearby(
-      kind,
-      origin,
-      { dest, query: kinds.length === 1 ? opts.query : undefined, dietary: [...prefs.dietary.keys()], interests: prefs.interests, cuisines: prefs.cuisines, lowMobility: prefs.lowMobility, exclude: picked, limit: SHORTLIST_SIZE },
-      pricingDeps(),
-    );
+  const listed = new Set<string>();
+  for (const result of results) {
+    const kind = result.kind;
     sources.push(`${kind}:${result.source}`);
-    if (!result.places.length) continue;
+    // A place already on the food list isn't repeated under things to do.
+    const places = result.places.filter((p) => !listed.has(norm(p.name)));
+    if (!places.length) continue;
+    for (const p of places) listed.add(norm(p.name));
     // Food is numbered 1–5 and activities 6–10, so one number always means one place.
     const start = kind === "food" ? 1 : SHORTLIST_SIZE + 1;
-    const saved = await saveShortlist(trip.id, kind, result.places, start, opts.at);
+    const saved = await saveShortlist(trip.id, kind, places, start, opts.at);
     rows.push(...saved);
-    texts.push(shortlistText(kind, result.places.map((place, i) => ({ idx: start + i, place })), origin, prefs));
+    const where = result.source === "web" || result.source === "catalog" ? { ...origin, label: place || origin.label } : origin;
+    texts.push(shortlistText(kind, places.map((p, i) => ({ idx: start + i, place: p })), where, prefs, result.source !== "serpapi"));
   }
   // What the trip's research found on during the dates, so nothing good gets missed.
   if (kinds.includes("activity") && texts.length && !opts.query) {
@@ -412,7 +494,7 @@ const suggestPlacesTool: Tool = {
     const tc = ctx as TurnCtx;
     const kinds: NearbyKind[] = args.kind === "food" ? ["food"] : args.kind === "activities" ? ["activity"] : ["food", "activity"];
     await tc.nonCancellable();
-    const list = await buildShortlist(tc.trip, await tc.view(), kinds, { query: str(args.looking_for), at: tc.now });
+    const list = await buildShortlist(tc.trip, await tc.view(), kinds, { query: str(args.looking_for), at: tc.now, web: { llm: tc.llm, cfg: tc.cfg, today: tc.today, trace: { chatId: tc.chat.id, turnId: tc.turnId } } });
     if (!list.texts.length) throw new ToolError("couldn't look up places there right now; say so in a few words and offer to try again later");
     say(tc, ...list.texts);
     await setStage(tc.trip.id, "food_activities", "in_progress");
@@ -589,7 +671,7 @@ export const placesFeature: Feature = {
  * (or, when most of them have said before, go straight to the shortlist), then check back in
  * FOOD_WAIT_MS. Later runs (most have answered, or the wait is over): post the shortlist.
  */
-export async function suggestFromJob(svc: Pick<AppServices, "post">, tripId: number, guid: string): Promise<void | { rescheduleAt: Date; payload: Record<string, unknown> }> {
+export async function suggestFromJob(svc: Pick<AppServices, "post"> & Partial<Pick<AppServices, "llm" | "cfg">>, tripId: number, guid: string): Promise<void | { rescheduleAt: Date; payload: Record<string, unknown> }> {
   const trip = await tripById(tripId);
   if (!trip || !stayBooked(trip)) return;
   const focused = await one<{ focus_trip_id: number | null }>(`SELECT focus_trip_id FROM chats WHERE id = $1`, [trip.chat_id]);
@@ -612,7 +694,10 @@ export async function suggestFromJob(svc: Pick<AppServices, "post">, tripId: num
   }
   let list: Shortlist;
   try {
-    list = await buildShortlist(trip, view, ["food", "activity"], { at: now() });
+    list = await buildShortlist(trip, view, ["food", "activity"], {
+      at: now(),
+      ...(svc.llm && svc.cfg ? { web: { llm: svc.llm, cfg: svc.cfg, today: now().toISOString().slice(0, 10), trace: { chatId: trip.chat_id } } } : {}),
+    });
   } catch (err) {
     log.warn({ err: (err as Error).message, tripId }, "no shortlist after the stay was booked");
     return;

@@ -1,0 +1,16 @@
+# Real chat: after the shortlist, "I'll go to universal find me the tickets to that" got
+# "universal's a solid choice" and nothing else: no pick, no lookup. Saying you'll go to a place
+# on the shortlist puts it on the plan (pick_place), and asking for tickets looks them up.
+today 2026-10-10 14:00
+members maya leo
+atlas joins by maya
+maya: atlas we all agreed on asheville nov 12-15, lock it in
+expect trip.status = "locked"
+nearby food google_maps_asheville_restaurants.json
+nearby activity google_maps_asheville_things_to_do.json
+stay booked Aloft Asheville Downtown | 35.5935 -82.5536
+maya: just show us places now
+expect atlas ~ /things to do/
+maya: I'll go to the biltmore find me the tickets to that
+expect sql SELECT count(*)::int AS n FROM trip_places WHERE status = 'picked' AND name ILIKE '%biltmore%' = [{"n":1}]
+expect transcript !~ /solid choice/

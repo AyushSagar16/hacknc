@@ -17,7 +17,7 @@ export interface TripPlaceRow {
   reviews: number | null;
   price_level: number | null;
   distance_m: number | null;
-  source: "serpapi" | "catalog";
+  source: "serpapi" | "catalog" | "web";
   source_id: string;
   status: "suggested" | "picked";
   picked_by: number | null;
