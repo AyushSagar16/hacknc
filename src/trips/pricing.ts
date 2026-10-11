@@ -199,7 +199,8 @@ export async function priceOption(
     for (const m of members) {
       if (m.noFlying || estimates.get(m.personId)?.transportMode !== "flight") continue;
       const origin = originIata(m);
-      if (!origin || origin === dest.iata) continue;
+      // An off-catalog place with no airport nearby has no arrival code: flights stay estimates.
+      if (!origin || !dest.iata || origin === dest.iata) continue;
       flyersByOrigin.set(origin, [...(flyersByOrigin.get(origin) ?? []), m.personId]);
     }
 
