@@ -57,3 +57,16 @@ describe("addressedReason", () => {
     expect(reason(msg({ text: "6pm" }, 1), [fq])).toBeNull();
   });
 });
+
+describe("addressedReason: who an open question is for", () => {
+  it("a question ending in a name is that person's to answer", () => {
+    const q = msg({ direction: "outbound", person_id: null, text: "got it, seattle for zoe.\nwant me to add you to the payment plan, priya?" });
+    expect(reason(msg({ person_id: 2, text: "ok" }, 1), [q])).toBeNull();
+    expect(reason(msg({ person_id: 3, text: "yes please" }, 1), [q])).toBe("answers_question");
+  });
+  it("a bare ack to a question for the room answers nothing", () => {
+    const q = msg({ direction: "outbound", person_id: null, text: "options? dates?" });
+    expect(reason(msg({ person_id: 2, text: "ok" }, 1), [q])).toBeNull();
+    expect(reason(msg({ person_id: 2, text: "late jan works" }, 1), [q])).toBe("answers_question");
+  });
+});

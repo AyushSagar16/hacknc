@@ -7,13 +7,13 @@ import { isoDate, now as clockNow } from "../clock.ts";
 import { childLog } from "../log.ts";
 import { one, q } from "../db/pool.ts";
 import { activeMembers, labelOf, markIntroSent, recentMessages, setQuiet, type MemberRow, type MessageRow } from "../db/repos/core.ts";
-import { extractFacts, markExtracted, type Tension } from "../profile/extract.ts";
+import { extractFacts, markExtracted, type KnownSoFar, type Tension } from "../profile/extract.ts";
 import { groupView } from "../profile/groupView.ts";
 import { profilesFor } from "../profile/store.ts";
 import type { TurnHandler, TurnInput, TurnResult } from "../pipeline/pipeline.ts";
 import { advanceTripStatus, tripFor } from "../trips/state.ts";
 import { addressedReason } from "./addressed.ts";
-import { guardBubbles, runAgent } from "./agent.ts";
+import { dropUnknownClaims, guardBubbles, runAgent } from "./agent.ts";
 import { parseCommand, type Command } from "./commands.ts";
 import type { Feature, TurnCtx } from "./feature.ts";
 import { Figures } from "./figures.ts";
@@ -22,7 +22,7 @@ import { nameList } from "./features/planning.ts";
 import { warmMemory } from "./features/memory.ts";
 import { describeSituation } from "./situation.ts";
 import { isSmallTalk } from "./smallTalk.ts";
-import { RECENT_MESSAGE_COUNT, speakGate } from "./speakGate.ts";
+import { mentionsTrip, RECENT_MESSAGE_COUNT, roomNeedsAtlas, speakGate } from "./speakGate.ts";
 import { ToolRegistry, say } from "./tools.ts";
 
 export interface BrainDeps {
@@ -32,6 +32,16 @@ export interface BrainDeps {
 }
 
 export const UNPROMPTED_PER_HOUR = 12;
+/**
+ * How long a reply waits for this turn's extraction. Extraction on a struggling model took 24–36 s
+ * live, and the reply doesn't need it: the new messages are in the situation verbatim. Past this,
+ * the agent runs on the profiles from before and extraction finishes in the background.
+ */
+export const EXTRACTION_WAIT_MS = 4_000;
+/** One retry of a failed agent call (quota/overload), after this pause. */
+const AGENT_RETRY_MS = 3_000;
+/** How far back a reply is compared with Atlas's own messages, to avoid restating one. */
+const REPEAT_WINDOW_MESSAGES = 8;
 
 export function introLines(agentName: string): string[] {
   const n = agentName.toLowerCase();
@@ -42,18 +52,23 @@ export function introLines(agentName: string): string[] {
   ];
 }
 
-export function createBrain(deps: BrainDeps): TurnHandler {
+export function createBrain(deps: BrainDeps): TurnHandler & { settle(): Promise<void> } {
   const { cfg, llm, features } = deps;
   const tools = new ToolRegistry();
   for (const f of features) if (f.tools) tools.add(...f.tools);
   const agentName = cfg.AGENT_NAME;
+  /** The extraction in flight per chat: the next turn's waits for it so no message is read twice. */
+  const extracting = new Map<number, Promise<unknown>>();
 
-  return async (input: TurnInput): Promise<TurnResult> => {
+  const handler = async (input: TurnInput): Promise<TurnResult> => {
     let ctxRef: TurnCtx | undefined;
     const result = await turn(input, (tc) => (ctxRef = tc));
     if (ctxRef) for (const f of features) if (f.afterTurn) await f.afterTurn(ctxRef).catch(() => {});
     return result;
   };
+  // Extraction can outlive its turn (see EXTRACTION_WAIT_MS); shutdown waits for it so a write never
+  // lands after the database is closed (or, in the simulator, in the next session's database).
+  return Object.assign(handler, { settle: async () => void (await Promise.allSettled([...extracting.values()])) });
 
   async function turn(input: TurnInput, expose: (tc: TurnCtx) => void): Promise<TurnResult> {
     const log = childLog({ component: "brain", chatId: input.chat.id, turnId: input.turnId });
@@ -140,9 +155,17 @@ export function createBrain(deps: BrainDeps): TurnHandler {
     }
 
     // ---------- extraction runs alongside everything below ----------
-    const extraction = runExtraction(tc, llm, cfg, agentName).catch((err) => {
-      log.warn({ err: (err as Error).message }, "extraction crashed");
-      return { tensions: [] as Tension[], newConstraints: false };
+    const previous = extracting.get(chat.id) ?? Promise.resolve();
+    const extraction = previous
+      .catch(() => {})
+      .then(() => runExtraction(tc, llm, cfg, agentName))
+      .catch((err) => {
+        log.warn({ err: (err as Error).message }, "extraction crashed");
+        return { tensions: [] as Tension[], newConstraints: false };
+      });
+    extracting.set(chat.id, extraction);
+    void extraction.finally(() => {
+      if (extracting.get(chat.id) === extraction) extracting.delete(chat.id);
     });
 
     // ---------- deterministic per-message handling ----------
@@ -189,7 +212,9 @@ export function createBrain(deps: BrainDeps): TurnHandler {
     }
 
     if (remaining.length === 0) {
-      await extraction;
+      // Everything was handled by commands and fast paths: send that now, and let extraction
+      // finish in the background ("keep my budget private" waited 39 s on a slow extract call).
+      if (actions.length === 0) await extraction;
       return { actions, route };
     }
 
@@ -210,12 +235,23 @@ export function createBrain(deps: BrainDeps): TurnHandler {
     let gate: { decision: string; reason: string } | undefined;
     let speak = addressed;
     if (!addressed && quiet) {
-      await extraction;
+      if (actions.length === 0) await extraction;
       return { actions, route: route === "silent" ? "quiet" : route, addressed: false };
+    }
+    const memberNames = [...firstNames.values()].filter(Boolean);
+    // A trip/money question to the room, an objection or a change of mind always gets an answer:
+    // no gate call to get wrong (or to fail on a 429).
+    const needsAtlas = addressed ? null : [...remaining].reverse().map((m) => ({ m, why: roomNeedsAtlas(m.text, memberNames) })).find((x) => x.why);
+    if (needsAtlas?.why) {
+      gate = { decision: "SPEAK", reason: `${firstNames.get(needsAtlas.m.person_id ?? -1) ?? "someone"} ${needsAtlas.why}`.slice(0, 200) };
+      speak = unprompted < UNPROMPTED_PER_HOUR;
     }
     // Laughter and acks with nothing pending: no gate call (the deterministic triggers below still run).
     const smallTalk = !addressed && hints.length === 0 && remaining.every((m) => isSmallTalk(m.text));
-    if (!addressed && !smallTalk) {
+    // Untagged chatter with no trip or money words ("did anyone watch the game") isn't Atlas's to
+    // answer, whatever a gate model might say: no gate call, and no reply. Extraction still reads it.
+    const offTopic = !addressed && !needsAtlas && remaining.every((m) => !mentionsTrip(m.text));
+    if (!addressed && !smallTalk && !needsAtlas && !offTopic) {
       const lastAtlas = [...history].reverse().find((h) => h.direction === "outbound");
       const verdict = await speakGate(
         llm,
@@ -229,6 +265,7 @@ export function createBrain(deps: BrainDeps): TurnHandler {
           unpromptedLastHour: unprompted,
           recent: history.slice(-RECENT_MESSAGE_COUNT).map((h) => ({ label: label(h.person_id), text: h.text })),
           newest: remaining.map((m) => ({ label: label(m.person_id), text: m.text })),
+          memberNames,
         },
         { chatId: chat.id, turnId: input.turnId },
       );
@@ -236,7 +273,10 @@ export function createBrain(deps: BrainDeps): TurnHandler {
       speak = verdict.speak && unprompted < UNPROMPTED_PER_HOUR;
     }
 
-    const extracted = await extraction;
+    // Replying: don't hold the first bubble for a slow extraction. Staying quiet: wait, because
+    // what extraction finds (a fresh disagreement) can still be a reason to speak.
+    const settled = speak ? await within(extraction, EXTRACTION_WAIT_MS) : await extraction;
+    const extracted = settled ?? { tensions: [] as Tension[], newConstraints: false };
     profilesCache = undefined; // new facts landed
     if (!speak && !addressed && !quiet && unprompted < UNPROMPTED_PER_HOUR) {
       // A disagreement or a plan-breaking constraint is worth one unprompted line even if the gate passed.
@@ -258,14 +298,43 @@ export function createBrain(deps: BrainDeps): TurnHandler {
     const speakingBecause = addressed ? undefined : gate?.reason === "deterministic trigger" ? "something just changed the plan (see heads up)" : gate?.reason;
     const situation = await describeSituation(tc, { remaining, reasons, hints, tensions: extracted.tensions, features, agentName, speakingBecause });
     const toolStart = actions.length;
-    const out = await runAgent({ llm, model: cfg.GEMINI_MODEL_AGENT, situation, tools, ctx: tc, signal: input.signal, agentName, mustAnswer: explicitlyAddressed });
+    if (!settled) {
+      // The situation went out with the profiles from before this batch; tools (who's still missing
+      // what, dates) read them after extraction lands, so nobody is asked for what they just said.
+      const fresh = () => profilesFor(members.map((m) => m.id));
+      profilesCache = undefined;
+      tc.profiles = () => (profilesCache ??= extraction.then(fresh, fresh));
+    }
+    const agentRun = () => runAgent({ llm, model: cfg.GEMINI_MODEL_AGENT, situation, tools, ctx: tc, signal: input.signal, agentName, mustAnswer: explicitlyAddressed || Boolean(needsAtlas) });
+    let out = await agentRun();
+    // A quota or overload error on a reply someone is waiting for: one retry after a short pause,
+    // unless a tool already did something this turn.
+    if (out.failed && out.failed !== "no_key" && out.failed !== "refused" && actions.length === toolStart && (addressed || needsAtlas) && !input.signal.aborted) {
+      log.warn({ kind: out.failed }, "agent call failed; retrying once");
+      await new Promise((r) => setTimeout(r, AGENT_RETRY_MS));
+      if (!input.signal.aborted) out = await agentRun();
+    }
     if (out.failed) {
-      if (explicitlyAddressed) say(tc, out.failed === "no_key" ? "my language brain isn't connected right now (no gemini key) — commands like \"summarize\", \"what's our budget\" and \"settle up\" still work" : "sorry, my brain glitched for a sec — say that again?");
+      if (actions.length === toolStart && (explicitlyAddressed || needsAtlas)) {
+        say(tc, out.failed === "no_key" ? "my language brain isn't connected right now (no gemini key) — commands like \"summarize\", \"what's our budget\" and \"settle up\" still work" : "sorry, my brain glitched for a sec — say that again?");
+      }
       return { actions, route: "agent_failed", addressed, gate };
     }
     let bubbles = addressed ? out.bubbles : out.bubbles.slice(0, 1);
+    // Never claim someone's dates or home city that nobody has given ("ravi's dates are set too").
+    const known = (await tc.view()).members.map((m) => ({ name: firstNames.get(m.personId) ?? "", dates: Boolean(m.profile.earliest || m.profile.latest), city: Boolean(m.profile.homeCity) }));
+    const claims = dropUnknownClaims(bubbles.join("\n\n"), known);
+    if (claims.dropped.length) {
+      log.warn({ dropped: claims.dropped }, "agent stated a person's dates/city nobody gave; cut it");
+      bubbles = claims.text ? claims.text.split(/\n\s*\n/) : [];
+    }
     // A tool already posted the question/breakdown: the model's lead-in would only repeat it.
     if (out.soloPosted || (!addressed && actions.length > toolStart)) bubbles = [];
+    // A tool asked the group something ("omar, nina wants to make it $54.00… reply yes"): the model's
+    // own question ("want me to update it?") would be a second prompt for the same answer.
+    if (actions.length > toolStart && actions.slice(toolStart).some((a) => a.type === "say" && asksForAnswer(a.text))) bubbles = bubbles.filter((b) => !/\?\s*$/.test(b));
+    // Unprompted, never restate something Atlas just said.
+    if (!explicitlyAddressed) bubbles = bubbles.filter((b) => !repeatsRecent(b, history));
     const guarded = guardBubbles(bubbles, figures, { isGroup: true });
     if (guarded.violations.length) {
       log.warn({ violations: guarded.violations }, "money guard dropped the model's text");
@@ -303,7 +372,10 @@ export function createBrain(deps: BrainDeps): TurnHandler {
     const out = await runAgent({ llm, model: cfg.GEMINI_MODEL_AGENT, situation, tools, ctx: tc, signal: input.signal, agentName });
     if (out.failed) return { actions, route: "nudge_failed", addressed: false, gate: gate("NO_REPLY") };
     const toolPosts = actions.splice(toolStart);
-    const guarded = guardBubbles(out.soloPosted || toolPosts.length ? [] : out.bubbles.slice(0, 2), tc.figures, { isGroup: true });
+    // A follow-up that restates an earlier Atlas message is a nag ("sol and ravi, cast your votes…"
+    // then "sol and ravi, drop your votes…" two minutes later): drop it.
+    const fresh = (out.soloPosted || toolPosts.length ? [] : out.bubbles.slice(0, 2)).filter((b) => !repeatsRecent(b, tc.history));
+    const guarded = guardBubbles(fresh, tc.figures, { isGroup: true });
     if (guarded.violations.length) log.warn({ violations: guarded.violations }, "money guard dropped the follow-up text");
     for (const b of guarded.bubbles) actions.push({ type: "say", text: b });
     actions.push(...toolPosts);
@@ -359,18 +431,34 @@ export async function nextStepLine(tc: TurnCtx, features: Feature[]): Promise<st
 
 async function runExtraction(tc: TurnCtx, llm: Llm, cfg: Config, agentName: string): Promise<{ tensions: Tension[]; newConstraints: boolean }> {
   // Everything not yet read: this batch plus anything a failed earlier extraction left behind.
-  const pending = await q<MessageRow>(
+  const since = new Date(tc.now.getTime() - 6 * 3_600_000);
+  const recent = await q<MessageRow>(
     `SELECT * FROM messages WHERE chat_id = $1 AND direction = 'inbound' AND kind = 'text' AND extracted_at IS NULL
        AND sent_at > $2 ORDER BY sent_at, id LIMIT 30`,
-    [tc.chat.id, new Date(tc.now.getTime() - 6 * 3_600_000)],
+    [tc.chat.id, since],
   );
+  // Sweep: anything older a failed or skipped extraction left behind (a home city in message 1
+  // must not be lost), oldest first, in whatever room the batch leaves.
+  const older =
+    recent.length < 30
+      ? await q<MessageRow>(
+          `SELECT * FROM messages WHERE chat_id = $1 AND direction = 'inbound' AND kind = 'text' AND extracted_at IS NULL
+             AND sent_at <= $2 AND sent_at > $3 ORDER BY sent_at, id LIMIT $4`,
+          [tc.chat.id, since, new Date(tc.now.getTime() - 14 * 86_400_000), 30 - recent.length],
+        )
+      : [];
+  const pending = [...older, ...recent];
   if (pending.length === 0) return { tensions: [], newConstraints: false };
   if (pending.every((m) => isSmallTalk(m.text))) {
     await markExtracted(pending.map((m) => m.id), tc.now);
     return { tensions: [], newConstraints: false };
   }
   const firstId = pending[0]!.id;
-  const context = tc.history.filter((h) => h.id < firstId).slice(-6);
+  const context = tc.history.filter((h) => h.id < firstId).slice(-12);
+  const profiles = await profilesFor(tc.members.map((m) => m.id));
+  const known = new Map<number, KnownSoFar>(
+    [...profiles].map(([id, p]) => [id, { earliest: p.earliest?.value ?? null, latest: p.latest?.value ?? null, city: p.homeCity?.value ?? null }]),
+  );
   const privateRows = await q<{ person_id: number }>(`SELECT person_id FROM budgets WHERE trip_id = $1 AND visibility = 'private'`, [tc.trip.id]);
   const result = await extractFacts({
     llm,
@@ -385,12 +473,45 @@ async function runExtraction(tc: TurnCtx, llm: Llm, cfg: Config, agentName: stri
     agentName,
     label: tc.label,
     privateBudgetPeople: new Set(privateRows.map((r) => r.person_id)),
+    known,
   });
   if (!result.failed) await markExtracted(pending.map((m) => m.id), tc.now);
   const constraintFacts = result.factIds.length
     ? await one<{ n: number }>(`SELECT count(*)::int AS n FROM facts WHERE id = ANY($1) AND (polarity = 'negative' OR key IN ('dietary','travel_limit','date_window','blackout'))`, [result.factIds])
     : undefined;
   return { tensions: result.tensions, newConstraints: (constraintFacts?.n ?? 0) > 0 };
+}
+
+/** The promise's value, or undefined if it isn't settled within ms. */
+async function within<T>(p: Promise<T>, ms: number): Promise<T | undefined> {
+  let timer: NodeJS.Timeout | undefined;
+  const timeout = new Promise<undefined>((resolve) => (timer = setTimeout(() => resolve(undefined), ms)));
+  try {
+    return await Promise.race([p, timeout]);
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
+/** A post that waits on someone's answer: a question, or "reply yes"/"say confirm". */
+export function asksForAnswer(text: string): boolean {
+  return /\?\s*$/.test(text.trim()) || /\b(?:reply|say|type|text)\s+"?(?:yes|no|confirm|ok)\b/i.test(text);
+}
+
+const STOP = new Set("a an the and or but so to of in on for at by with is are was be it its this that you your we our us i me my just now then up so can will would should do does did have has had from as if not no yes ok".split(" "));
+const words = (t: string) => new Set(t.toLowerCase().replace(/[^\p{L}\p{N}\s]/gu, " ").split(/\s+/).filter((w) => w.length > 1 && !STOP.has(w)));
+
+/** True when text says nearly the same thing as one of Atlas's last few messages (content-word overlap). */
+export function repeatsRecent(text: string, history: Pick<MessageRow, "direction" | "text">[], windowSize = REPEAT_WINDOW_MESSAGES): boolean {
+  const mine = words(text);
+  if (mine.size < 5) return false;
+  const recent = history.filter((h) => h.direction === "outbound" && h.text).slice(-windowSize);
+  return recent.some((h) => {
+    const theirs = words(h.text);
+    let shared = 0;
+    for (const w of mine) if (theirs.has(w)) shared += 1;
+    return shared / Math.min(mine.size, theirs.size || 1) >= 0.7 && shared >= 3;
+  });
 }
 
 function tripFacts(tc: TurnCtx): string[] {

@@ -30,6 +30,7 @@ import {
 import { normalize, type InboundEvent } from "../transport/inbound.ts";
 import { render, type Action } from "../transport/outbound.ts";
 import { enqueueJob, recordJobFailure } from "./jobs.ts";
+import { logSent, restates } from "../memory/atlasLog.ts";
 import { markWebhookProcessed } from "./webhookStore.ts";
 
 export interface TurnInput {
@@ -161,6 +162,8 @@ export class Pipeline {
   private readonly byChatId = new Map<number, ChatState>();
   private readonly spaces = new Map<number, Space>();
   private readonly log = childLog({ component: "pipeline" });
+  /** Turns that spoke without being asked (follow-ups, chime-ins): logged as such in atlas_log. */
+  private readonly unpromptedTurns = new Set<number>();
   private readonly debounceMs: number;
   private readonly maxWaitMs: number;
   private readonly staleAfterMs: number;
@@ -398,6 +401,10 @@ export class Pipeline {
         },
       });
       if (abort.signal.aborted && st.running?.cancellable) throw new Cancelled();
+      if (!result.addressed && (result.route === "agent" || result.route === "nudge")) {
+        this.unpromptedTurns.add(turnId);
+        result.actions = await this.dropRestated(chatId, turnId, result.actions);
+      }
       await this.enqueue(chatId, `t${turnId}`, result.actions, turnId);
       await this.flush(chatId, { turnId, signal: abort.signal, onFirstSend: () => st.running && (st.running.cancellable = false) });
       await q(
@@ -420,6 +427,7 @@ export class Pipeline {
         await q(`UPDATE turns SET status='failed', finished_at=$2 WHERE id=$1`, [turnId, now()]);
       }
     } finally {
+      this.unpromptedTurns.delete(turnId);
       // Typing still showing with nothing sent after it (a silent, failed or cancelled turn): clear it.
       if (st.typingOn) await this.setTyping(st, chatId, false);
       st.running = undefined;
@@ -428,6 +436,22 @@ export class Pipeline {
       if ((await hasUnclaimed(chatId)) || st.nudge) this.bump(st);
       else this.checkIdle(st);
     }
+  }
+
+  /** An unprompted bubble that restates a recent ask or nudge (atlas_log, pg_trgm) isn't sent again. */
+  private async dropRestated(chatId: number, turnId: number, actions: Action[]): Promise<Action[]> {
+    const kept: Action[] = [];
+    for (const action of actions) {
+      if (action.type === "say") {
+        const prior = await restates(chatId, action.text, now()).catch(() => undefined);
+        if (prior) {
+          this.log.info({ chatId, turnId, similarity: prior.similarity.toFixed(2) }, "dropped a follow-up that restates a recent message");
+          continue;
+        }
+      }
+      kept.push(action);
+    }
+    return kept;
   }
 
   // ---------- outbound ----------
@@ -579,6 +603,11 @@ export class Pipeline {
       if ((err as { code?: string }).code !== "23503" || row.turn_id === null) throw err;
       this.log.warn({ chatId, turnId: row.turn_id }, "outbound message's turn no longer exists; logging it without one");
       await insertMessage({ ...message, turnId: null });
+    }
+    if (action.type === "say" || action.type === "poll") {
+      await logSent({ chatId, turnId: row.turn_id, text: rendered.shownText, unprompted: row.turn_id !== null && this.unpromptedTurns.has(row.turn_id), actionType: action.type, at }).catch((err) =>
+        this.log.warn({ chatId, err: (err as Error).message }, "could not write atlas_log"),
+      );
     }
     if (action.type === "poll" && action.pollId) {
       const [first, ...optionIds] = rendered.providerMessageIds;

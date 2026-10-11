@@ -22,7 +22,8 @@
       "food",
       "music",
       "relaxing",
-      "budget_friendly"
+      "budget_friendly",
+      "holiday"
     ],
     "dietary": {
       "vegetarian": 0.9,
@@ -180,7 +181,14 @@
         "setting": "outdoor",
         "costCents": 2500,
         "durationHours": 3,
-        "mobility": "easy"
+        "mobility": "easy",
+        "months": [
+          5,
+          6,
+          7,
+          8,
+          9
+        ]
       },
       {
         "id": "asheville-food-tour",
@@ -205,6 +213,22 @@
         "costCents": 0,
         "durationHours": 2,
         "mobility": "easy"
+      },
+      {
+        "id": "asheville-biltmore-christmas",
+        "name": "Biltmore Christmas candlelight evening",
+        "tags": [
+          "holiday",
+          "history"
+        ],
+        "setting": "either",
+        "costCents": 11000,
+        "durationHours": 3,
+        "mobility": "easy",
+        "months": [
+          11,
+          12
+        ]
       }
     ]
   },
@@ -1056,7 +1080,8 @@
       "outdoors",
       "adventure",
       "relaxing",
-      "budget_friendly"
+      "budget_friendly",
+      "holiday"
     ],
     "dietary": {
       "vegetarian": 0.4,
@@ -1230,7 +1255,33 @@
         "setting": "outdoor",
         "costCents": 5000,
         "durationHours": 3,
-        "mobility": "strenuous"
+        "mobility": "strenuous",
+        "months": [
+          4,
+          5,
+          6,
+          7,
+          8,
+          9,
+          10
+        ]
+      },
+      {
+        "id": "gatlinburg-winterfest-lights",
+        "name": "Winterfest lights trolley tour",
+        "tags": [
+          "holiday",
+          "relaxing"
+        ],
+        "setting": "outdoor",
+        "costCents": 500,
+        "durationHours": 2,
+        "mobility": "easy",
+        "months": [
+          11,
+          12,
+          1
+        ]
       }
     ]
   },
@@ -1469,7 +1520,8 @@
       "walkable",
       "food",
       "nightlife",
-      "budget_friendly"
+      "budget_friendly",
+      "holiday"
     ],
     "dietary": {
       "vegetarian": 0.85,
@@ -1668,7 +1720,8 @@
       "nightlife",
       "food",
       "city",
-      "culture"
+      "culture",
+      "holiday"
     ],
     "dietary": {
       "vegetarian": 0.7,
@@ -1874,7 +1927,8 @@
       "shopping",
       "walkable",
       "music",
-      "history"
+      "history",
+      "holiday"
     ],
     "dietary": {
       "vegetarian": 0.95,
@@ -2050,6 +2104,23 @@
         "costCents": 0,
         "durationHours": 1.5,
         "mobility": "easy"
+      },
+      {
+        "id": "new-york-winter-village",
+        "name": "Bryant Park Winter Village and Rockefeller tree",
+        "tags": [
+          "holiday",
+          "shopping",
+          "walkable"
+        ],
+        "setting": "outdoor",
+        "costCents": 1500,
+        "durationHours": 3,
+        "mobility": "easy",
+        "months": [
+          11,
+          12
+        ]
       }
     ]
   },
@@ -2694,7 +2765,8 @@
       "music",
       "nightlife",
       "walkable",
-      "shopping"
+      "shopping",
+      "holiday"
     ],
     "dietary": {
       "vegetarian": 0.85,
@@ -2872,6 +2944,23 @@
         "costCents": 4500,
         "durationHours": 3,
         "mobility": "easy"
+      },
+      {
+        "id": "chicago-christkindlmarket",
+        "name": "Christkindlmarket in Daley Plaza",
+        "tags": [
+          "holiday",
+          "food",
+          "shopping"
+        ],
+        "setting": "outdoor",
+        "costCents": 2000,
+        "durationHours": 2,
+        "mobility": "easy",
+        "months": [
+          11,
+          12
+        ]
       }
     ]
   },
@@ -4726,7 +4815,8 @@
       "walkable",
       "food",
       "culture",
-      "nightlife"
+      "nightlife",
+      "holiday"
     ],
     "dietary": {
       "vegetarian": 0.85,
@@ -6750,7 +6840,8 @@
       "history",
       "city",
       "snow",
-      "budget_friendly"
+      "budget_friendly",
+      "holiday"
     ],
     "dietary": {
       "vegetarian": 0.85,
@@ -6958,7 +7049,8 @@
       "nightlife",
       "shopping",
       "walkable",
-      "music"
+      "music",
+      "holiday"
     ],
     "dietary": {
       "vegetarian": 0.85,
@@ -7566,7 +7658,8 @@
       "nightlife",
       "walkable",
       "music",
-      "shopping"
+      "shopping",
+      "holiday"
     ],
     "dietary": {
       "vegetarian": 0.9,

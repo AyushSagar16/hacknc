@@ -10,7 +10,8 @@ import { rosterPersona } from "../../roster.ts";
 import { enqueueJob } from "../../pipeline/jobs.ts";
 import { budgetRows, effectiveCents, ensureBudgets, markAnnounced, pool, setAdjusted, setVisibility, type BudgetRow } from "../../nessie/budgets.ts";
 import { ensureLink, linkFor, seedPerson } from "../../nessie/seed.ts";
-import { tripFor } from "../../trips/state.ts";
+import { tripFor, type TripRow } from "../../trips/state.ts";
+import { planTotals } from "./money.ts";
 import { isoDate } from "../../clock.ts";
 import type { Action } from "../../transport/outbound.ts";
 import type { Feature, TurnCtx } from "../feature.ts";
@@ -43,20 +44,41 @@ export function budgetFigures(rows: BudgetRow[], label: (id: number) => string):
   return figures;
 }
 
-/** The group message, deterministic: the list, the number Atlas plans around, and (first time) how. */
-export function budgetMessage(rows: BudgetRow[], label: (id: number) => string, opts: { firstTime: boolean }): string[] {
+const SOURCE_NOTE = "(from demo spending profiles, not your real bank)";
+
+/** Who the locked plan bills more than their budget. Names only: never a private number. */
+export function overBudgetNames(rows: BudgetRow[], planTotals: Map<number, number> | undefined, label: (id: number) => string): string[] {
+  if (!planTotals?.size) return [];
+  return rows.filter((r) => effectiveCents(r) !== null && (planTotals.get(r.person_id) ?? 0) > effectiveCents(r)!).map((r) => label(r.person_id).toLowerCase());
+}
+
+/**
+ * The group message, deterministic: the list, the number Atlas plans around, and (first time)
+ * how and where the numbers come from. With a locked plan (`planTotals`, what each person is
+ * billed), it never claims the plan "works for everyone" when it's over someone's budget.
+ */
+export function budgetMessage(rows: BudgetRow[], label: (id: number) => string, opts: { firstTime: boolean; planTotals?: Map<number, number> }): string[] {
   if (rows.length === 0) return [];
   const p = pool(rows);
   const out: string[] = [];
+  const note = opts.firstTime ? `\n${SOURCE_NOTE}` : "";
+  const over = overBudgetNames(rows, opts.planTotals, label);
+  const locked = Boolean(opts.planTotals?.size);
+  const verdict = over.length
+    ? `heads up: the locked plan is over budget for ${nameList(over)}`
+    : locked
+      ? "and the locked plan fits everyone's budget"
+      : `so i'll plan around ${formatUsd(p.ceilingCents)} each, which works for everyone`;
   if (!p.anyPrivate) {
     const each = rows.map((r) => `${label(r.person_id).toLowerCase()}: ${formatUsd(effectiveCents(r)!)}`).join("\n");
     out.push(`💰 trip budgets\n${each}`);
-    if (p.count >= 2) out.push(`so i'll plan around ${formatUsd(p.ceilingCents)} each, which works for everyone\n(from demo spending profiles, not your real bank)`);
-    else out.push(`(from demo spending profiles, not your real bank)`);
+    if (p.count >= 2 || over.length) out.push(`${verdict}${note}`);
+    else if (note) out.push(SOURCE_NOTE);
   } else if (p.count >= 3) {
-    out.push(`💰 someone's keeping their budget private, so here's just the pooled number:\neveryone's good up to ${formatUsd(p.ceilingCents)} each\n(from demo spending profiles, not your real bank)`);
+    const pooled = `everyone's good up to ${formatUsd(p.ceilingCents)} each`;
+    out.push(`💰 someone's keeping their budget private, so here's just the pooled number:\n${pooled}${over.length ? `\n${verdict}` : ""}${note}`);
   } else {
-    out.push(`budgets stay pooled between you two (${DISCLAIMER}). i'll flag anything over what you can both do`);
+    out.push(`budgets stay pooled between you two${opts.firstTime ? ` (${DISCLAIMER})` : ""}. ${over.length ? `${verdict}` : "i'll flag anything over what you can both do"}`);
   }
   if (opts.firstTime) {
     out.push(`how i got these: what you earn, minus bills and everyday spending, for each month until the trip, then half of that\nwant a different number? say "set my budget to ___" or "keep my budget private"`);
@@ -66,6 +88,12 @@ export function budgetMessage(rows: BudgetRow[], label: (id: number) => string, 
 
 /** Below this nothing on the map is plannable (gas alone costs more); treat it as a joke, not a budget. */
 export const MIN_BUDGET_CENTS = 50_00;
+/** Above this it's a joke too ("set my budget to 1000000"), and it would wreck the pooled numbers. */
+export const MAX_BUDGET_CENTS = 20_000_00;
+
+function tooHighReply(name: string, cents: number): string {
+  return `${formatUsd(cents)}? must be nice 😅 ${name}, what's a real number for this trip? anything up to ${formatUsd(MAX_BUDGET_CENTS)} works`;
+}
 
 function tooLowReply(name: string, cents: number): string {
   return `${formatUsd(cents)} won't get anyone out of town 😅 ${name}, what's a real number? anything ${formatUsd(MIN_BUDGET_CENTS)}+ works`;
@@ -96,8 +124,15 @@ async function postBudgets(tc: TurnCtx, opts: { asked?: boolean } = {}): Promise
   }
   const firstTime = rows.some((r) => r.announced_at === null);
   tc.figures.addAll(budgetFigures(rows, label));
-  say(tc, ...budgetMessage(rows, label, { firstTime }));
+  say(tc, ...budgetMessage(rows, label, { firstTime, planTotals: await lockedTotals(tc.trip) }));
   await markAnnounced(tc.trip.id, rows.map((r) => r.person_id));
+}
+
+/** What the locked plan bills each person, once there is one. */
+async function lockedTotals(trip: Pick<TripRow, "id" | "status">): Promise<Map<number, number> | undefined> {
+  if (!["locked", "ongoing"].includes(trip.status)) return undefined;
+  const totals = await planTotals(trip.id);
+  return totals.size ? totals : undefined;
 }
 
 const showBudgets: Tool = {
@@ -126,9 +161,10 @@ const setMyBudget: Tool = {
   },
   async run(args, ctx) {
     const amount = num(args.amount_usd);
-    if (!amount || amount <= 0 || amount > 50_000) throw new ToolError("amount_usd must be a positive dollar amount");
+    if (!amount || amount <= 0) throw new ToolError("amount_usd must be a positive dollar amount");
     if (ctx.senderId === null) throw new ToolError("no sender");
     if (Math.round(amount * 100) < MIN_BUDGET_CENTS) throw new ToolError(`budgets under ${formatUsd(MIN_BUDGET_CENTS)} aren't realistic; ask what they really want to spend`);
+    if (Math.round(amount * 100) > MAX_BUDGET_CENTS) throw new ToolError(`budgets over ${formatUsd(MAX_BUDGET_CENTS)} aren't realistic; tease them a little and ask for a real number`);
     const row = await setAdjusted(ctx.senderId, ctx.trip.id, Math.round(amount * 100));
     const text = row.visibility === "private" ? "updated your budget (kept private)" : `done, your budget is now ${formatUsd(effectiveCents(row)!)} 👍`;
     say(ctx, text);
@@ -184,7 +220,7 @@ export const budgetsFeature: Feature = {
         const { rows } = await ensureBudgets(trip.id, members.map((m) => m.id), today, trip.start_date);
         const byId = new Map(members.map((m) => [m.id, m]));
         const label = (id: number) => labelOf(byId.get(id) ?? { display_name: null, handle: null });
-        const lines = budgetMessage(rows, label, { firstTime: rows.some((r) => r.announced_at === null) });
+        const lines = budgetMessage(rows, label, { firstTime: rows.some((r) => r.announced_at === null), planTotals: await lockedTotals(trip) });
         await markAnnounced(trip.id, rows.map((r) => r.person_id));
         await svc.post(chatId, `budgets${jobId}-${attempt}`, lines.map((text): Action => ({ type: "say", text })));
       },
@@ -205,16 +241,21 @@ export const budgetsFeature: Feature = {
     },
     budget_set: async (msg, tc, cmd) => {
       if (msg.person_id === null || cmd.kind !== "budget_set") return;
-      if (cmd.amountCents < MIN_BUDGET_CENTS) {
+      if (cmd.amountCents < MIN_BUDGET_CENTS || cmd.amountCents > MAX_BUDGET_CENTS) {
         tc.figures.add({ cents: cmd.amountCents, label: "budget someone typed", source: "user:stated", visibility: "public" });
-        say(tc, tooLowReply(tc.label(msg.person_id).toLowerCase(), cmd.amountCents));
+        if (cmd.amountCents > MAX_BUDGET_CENTS) tc.figures.add({ cents: MAX_BUDGET_CENTS, label: "budget ceiling", source: "rule:max_budget", visibility: "public" });
+        const name = tc.label(msg.person_id).toLowerCase();
+        say(tc, cmd.amountCents < MIN_BUDGET_CENTS ? tooLowReply(name, cmd.amountCents) : tooHighReply(name, cmd.amountCents));
         return;
       }
       const row = await setAdjusted(msg.person_id, tc.trip.id, cmd.amountCents);
-      if (row.visibility === "private") say(tc, "updated your budget (kept private)");
+      const billed = (await lockedTotals(tc.trip))?.get(msg.person_id);
+      const overNow = billed !== undefined && billed > cmd.amountCents;
+      const planNote = billed === undefined ? "" : overNow ? "\nheads up, your share of the locked plan is above that. say the word and we can look at something cheaper" : "\n(the payment plan is based on trip cost, so it doesn't change)";
+      if (row.visibility === "private") say(tc, `updated your budget (kept private)${planNote}`);
       else {
         tc.figures.add({ cents: cmd.amountCents, label: "budget just set", source: "user:stated", visibility: "public" });
-        say(tc, `done, ${tc.label(msg.person_id).toLowerCase()}'s budget is now ${formatUsd(cmd.amountCents)} 👍${tc.trip.status === "locked" ? "\n(the payment plan is based on trip cost, so it doesn't change)" : ""}`);
+        say(tc, `done, ${tc.label(msg.person_id).toLowerCase()}'s budget is now ${formatUsd(cmd.amountCents)} 👍${planNote}`);
       }
     },
   },

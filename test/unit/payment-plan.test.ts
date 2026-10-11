@@ -151,8 +151,14 @@ describe("planInstallments", () => {
     expect(plan.map((i) => i.dueDate)).toEqual(["2026-10-11", "2026-11-30"]);
   });
 
-  it("falls back to one installment tomorrow (or at the deadline) when no payday fits", () => {
-    expect(planInstallments({ shareCents: 12_345, today, deadline: "2026-11-30", paydays: [] })).toEqual([{ dueDate: "2026-10-11", amountCents: 12_345 }]);
+  it("without a payday rhythm, spreads payments every two weeks from a week out (or pays at a near deadline)", () => {
+    expect(planInstallments({ shareCents: 12_345, today, deadline: "2026-11-30", paydays: [] })).toEqual([
+      { dueDate: "2026-10-17", amountCents: 3_087 },
+      { dueDate: "2026-10-31", amountCents: 3_086 },
+      { dueDate: "2026-11-14", amountCents: 3_086 },
+      { dueDate: "2026-11-28", amountCents: 3_086 },
+    ]);
+    expect(planInstallments({ shareCents: 12_345, today, deadline: "2026-10-14", paydays: [] })).toEqual([{ dueDate: "2026-10-14", amountCents: 12_345 }]);
     expect(planInstallments({ shareCents: 12_345, today, deadline: today, paydays: ["2026-10-20"] })).toEqual([{ dueDate: today, amountCents: 12_345 }]);
     expect(planInstallments({ shareCents: 0, today, deadline: "2026-11-30", paydays: [] })).toEqual([]);
   });

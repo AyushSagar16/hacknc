@@ -1,0 +1,12 @@
+# Persona QA: "we want a beach trip" returned Washington, Mexico City and Montreal, then inland
+# Atlanta and Asheville after "these arent even beaches".
+today 2026-10-10 14:00
+members maya leo priya dev
+atlas joins by maya
+maya: hey atlas we want a beach trip for spring break, march 7-12 2027
+leo: same dates, i'm in charlotte
+priya: atlanta for me
+dev: dc, and i'm vegetarian
+maya: i'm raleigh. atlas show us options
+expect transcript ~ /^1\. /m
+expect transcript !~ /^\d\. (washington|mexico city|montreal|atlanta|asheville|denver|chicago)/m

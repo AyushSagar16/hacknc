@@ -67,13 +67,16 @@ export interface Tally {
   winner: number | null;
   /** More than one option shares the top count. */
   tie: boolean;
+  /** Everyone voted and the top is tied: nobody wins until someone switches or the group says "pick for us". */
+  deadlocked: boolean;
 }
 
 /**
  * Count votes in arrival order. Each person counts at most once per option and their latest
  * selected state wins; selecting several options is allowed. The poll is decided when the
- * leader has a strict majority of the group or every member has voted. Ties go to the lowest
- * cost when costs are given, else the lowest index. No votes, no winner.
+ * leader has a strict majority of the group or every member has voted without a tie. A tie with
+ * everyone voted is deadlocked (no winner); `leader` is then the cheapest tied option (else the
+ * lowest index), which is what "pick for us" resolves to. No votes, no winner.
  */
 export function tally(
   options: number,
@@ -102,13 +105,15 @@ export function tally(
   }
 
   const top = counts.length ? Math.max(...counts) : 0;
-  if (top === 0) return { counts, voters, leader: null, decided: false, winner: null, tie: false };
+  if (top === 0) return { counts, voters, leader: null, decided: false, winner: null, tie: false, deadlocked: false };
 
   const leaders = counts.flatMap((c, i) => (c === top ? [i] : []));
   const costOf = (i: number): number => costs?.[i] ?? Number.POSITIVE_INFINITY;
   const leader = leaders.reduce((best, i) => (costOf(i) < costOf(best) ? i : best));
-  const decided = top * 2 > groupSize || voters >= groupSize;
-  return { counts, voters, leader, decided, winner: decided ? leader : null, tie: leaders.length > 1 };
+  const tie = leaders.length > 1;
+  const everyone = voters >= groupSize;
+  const decided = top * 2 > groupSize || (everyone && !tie);
+  return { counts, voters, leader, decided, winner: decided ? leader : null, tie, deadlocked: everyone && tie && !decided };
 }
 
 export interface StoredVote extends VoteEvent {

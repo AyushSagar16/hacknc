@@ -54,10 +54,31 @@ export async function describeSituation(
     const p = profiles.get(m.id);
     lines.push(`- ${tc.label(m.id)}: ${p ? describeProfile(p) : "nothing yet"}`);
   }
+  // Per person, what's known and what isn't, so the agent never claims an unknown.
+  const askedAt = await askTimes(tc.chat.id);
+  const ago = (d: Date | undefined) => (d ? ` (asked ${humanAgo(tc.now.getTime() - d.getTime())} ago)` : "");
+  lines.push("", "# known / unknown (never state a person's dates or home city unless it's ✓ here)");
+  for (const m of tc.members) {
+    const p = profiles.get(m.id);
+    const dates = p?.earliest || p?.latest ? `✓ ${p.earliest?.value ?? "?"} to ${p.latest?.value ?? "?"}` : `UNKNOWN${ago(askedAt.get(`${m.id}:dates`))}`;
+    const noFly = p?.travelLimits.some((l) => l.value.kind === "no_flying");
+    const city = p?.homeCity ? `✓ ${p.homeCity.value}` : `UNKNOWN${noFly ? " (drives)" : ""}${ago(askedAt.get(`${m.id}:home_city`))}`;
+    lines.push(`- ${tc.label(m.id)}: dates ${dates}; home city ${city}`);
+  }
   const w = view.window;
   lines.push(
     `group date window: ${w.earliest || w.latest ? `${w.earliest ?? "?"} to ${w.latest ?? "?"}${w.conflict ? " (CONFLICT: windows don't overlap)" : ""} from ${w.knownFrom} of ${tc.members.length}` : "unknown"}${view.dates ? `; first workable dates ${view.dates.start} to ${view.dates.end} (${view.dates.nights} nights)` : ""}`,
   );
+  if (w.earliest && w.latest && !w.conflict && w.knownFrom >= 2 && !(trip.start_date && trip.end_date)) {
+    const wider = view.members
+      .filter((m) => (m.profile.earliest && m.profile.earliest.value < w.earliest!) || (m.profile.latest && m.profile.latest.value > w.latest!))
+      .map((m) => `${m.label} said ${m.profile.earliest?.value ?? "?"} to ${m.profile.latest?.value ?? "?"}`);
+    if (wider.length) lines.push(`the overlap (${w.earliest} to ${w.latest}) is narrower than what ${wider.join("; ")}. if you haven't said so yet, say the overlap in one line ("overlap is mar 9–14, that work?").`);
+  }
+  if (view.dates && w.earliest && w.latest && (view.dates.start !== w.earliest || view.dates.end !== w.latest)) {
+    lines.push(`note: the first workable dates are shorter than the window (trips default to at most a week); if you propose them, say so.`);
+  }
+  lines.push(`a majority has shared dates and home cities: ${view.majorityHasShared ? "yes" : "no (hold off on budgets and options unless someone asks)"}`);
   if (view.missing.length) {
     lines.push(
       `still missing: ${view.missing
@@ -111,6 +132,18 @@ export async function describeSituation(
     );
   }
   return lines.join("\n");
+}
+
+async function askTimes(chatId: number): Promise<Map<string, Date>> {
+  const rows = await q<{ person_id: number; field: string; asked_at: Date }>(`SELECT person_id, field, asked_at FROM asks WHERE chat_id = $1`, [chatId]).catch(() => []);
+  return new Map(rows.map((r) => [`${r.person_id}:${r.field}`, r.asked_at]));
+}
+
+function humanAgo(ms: number): string {
+  const min = Math.max(1, Math.round(ms / 60_000));
+  if (min < 60) return `${min} min`;
+  const h = Math.round(min / 60);
+  return h < 48 ? `${h}h` : `${Math.round(h / 24)}d`;
 }
 
 function line(m: MessageRow, tc: TurnCtx): string {

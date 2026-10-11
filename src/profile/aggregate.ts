@@ -2,10 +2,15 @@
 // reports what people said; this decides what's true now. Rules:
 //   1. facts under the confidence floor are ignored;
 //   2. facts compete per slot (e.g. "destination:cancun", "date_window.latest", "dietary:vegan");
-//   3. within a slot an explicit statement beats an implied one, and the newest of the
+//   3. within a slot the person's own word beats a friend's report about them, an explicit
+//      statement beats an implied one, and the newest of the
 //      strongest kind wins — so a later "actually i can do the 15th" overrides, but a later
 //      vague hint doesn't override something said outright;
-//   4. a winning neutral or retracting fact clears the slot.
+//   4. for preference keys (destination, activity, budget mood) a winning neutral fact clears
+//      the slot; for constraint keys (blackout, dietary, travel limit) only a retraction clears it,
+//      whatever polarity the model picked ("omar can't fly" often comes back negative, and it is
+//      still a no-flying limit); for plain facts (home city, dates, name, trip length) polarity
+//      means nothing and the newest statement wins.
 import type { Fact } from "./schema.ts";
 
 export const MIN_CONFIDENCE = 0.6;
@@ -61,7 +66,8 @@ function claimsOf(f: Fact): Claim[] {
   // Constraint keys assert the constraint by existing, so a retraction clears them; for preference
   // keys the polarity carries the meaning and a retraction is just the newer statement.
   const assertive = f.key === "blackout" || f.key === "dietary" || f.key === "travel_limit";
-  const cleared = f.polarity === "neutral" || (assertive && f.retracted);
+  const factual = f.key === "home_city" || f.key === "name" || f.key === "date_window" || f.key === "trip_length";
+  const cleared = assertive ? f.retracted : factual ? false : f.polarity === "neutral";
   const claim = (slot: string, apply?: Claim["apply"]): Claim => ({ slot, fact: f, apply: cleared ? undefined : apply });
   switch (f.key) {
     case "name":
@@ -83,7 +89,7 @@ function claimsOf(f: Fact): Claim[] {
       return out;
     }
     case "dietary":
-      return [{ slot: `dietary:${v.need}`, fact: f, apply: cleared || f.polarity === "negative" ? undefined : (p, r) => p.dietary.push(r as Resolved<string>) }];
+      return [claim(`dietary:${v.need}`, (p, r) => p.dietary.push(r as Resolved<string>))];
     case "destination": {
       const place = normPlace(String(v.name));
       return [
@@ -93,13 +99,7 @@ function claimsOf(f: Fact): Claim[] {
     case "activity":
       return [claim(`activity:${v.tag}`, (p, r) => (f.polarity === "negative" ? p.dislikes : p.likes).push(r as Resolved<string>))];
     case "travel_limit":
-      return [
-        {
-          slot: `travel_limit:${v.kind}`,
-          fact: f,
-          apply: cleared || f.polarity === "negative" ? undefined : (p, r) => p.travelLimits.push(r as Resolved<{ kind: string; hours: number | null }>),
-        },
-      ];
+      return [claim(`travel_limit:${v.kind}`, (p, r) => p.travelLimits.push(r as Resolved<{ kind: string; hours: number | null }>))];
     case "budget_comment": {
       const kind = v.kind as string;
       if (kind === "ceiling" && typeof v.amountUsd === "number") return [claim("budget.ceiling", (p, r) => (p.budgetCeilingUsd = r as Resolved<number>))];
@@ -136,15 +136,17 @@ function valueFor(f: Fact): unknown {
   }
 }
 
-/** Stronger claims sort later: implied before explicit, then older before newer. */
-function strength(f: Fact): [number, number, number] {
-  return [f.explicit ? 1 : 0, f.observedAt.getTime(), f.id];
+/** Stronger claims sort later: a friend's report before the person's own word, implied before explicit, then older before newer. */
+function strength(f: Fact): number[] {
+  const self = f.reportedBy == null || f.reportedBy === f.personId;
+  return [self ? 1 : 0, f.explicit ? 1 : 0, f.observedAt.getTime(), f.id];
 }
 
 function stronger(a: Fact, b: Fact): boolean {
-  const [ae, at, ai] = strength(a);
-  const [be, bt, bi] = strength(b);
-  return ae !== be ? ae > be : at !== bt ? at > bt : ai > bi;
+  const sa = strength(a);
+  const sb = strength(b);
+  for (let i = 0; i < sa.length; i++) if (sa[i] !== sb[i]) return sa[i]! > sb[i]!;
+  return false;
 }
 
 export function aggregate(personId: number, facts: readonly Fact[], minConfidence = MIN_CONFIDENCE): PersonProfile {

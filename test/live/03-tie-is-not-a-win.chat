@@ -1,0 +1,15 @@
+# Persona QA: a 2–2 vote was announced as a win and locked.
+today 2026-10-10 14:00
+members maya leo priya dev
+atlas joins by maya
+maya: atlas beach trip march 7-12 2027, i fly from raleigh
+leo: same dates, charlotte
+priya: same, atlanta
+dev: same, dc
+maya: atlas give us some options
+maya vote 1
+dev vote 1
+leo vote 2
+priya vote 2
+expect trip.status = "voting"
+expect transcript ~ /tie|tied/

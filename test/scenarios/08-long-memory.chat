@@ -4,11 +4,9 @@
 today 2026-10-10 14:00
 members maya leo priya
 atlas joins
-~agent text: NO_REPLY
+# bare "ok"s to the intro's room question answer nothing, so no agent call
 maya: ok
-~agent text: NO_REPLY
 leo: ok
-~agent text: NO_REPLY
 priya: ok
 leo: i went to lisbon last year and the food was unreal
 expect atlas quiet
@@ -19,6 +17,39 @@ expect sql SELECT count(*)::int AS n FROM memory_chunks WHERE kind = 'message' A
 expect sql SELECT content FROM memory_chunks WHERE kind = 'message' AND content ILIKE '%lisbon%' = [{"content":"[Leo] i went to lisbon last year and the food was unreal"}]
 expect sql SELECT count(*)::int AS n FROM memory_chunks WHERE content ILIKE '%] ok' = [{"n":0}]
 clock +21d
+# three weeks of chatter push leo's line out of the 30 lines atlas can see; only recall brings it back
+maya: lol
+leo: haha
+priya: lmao
+maya: lol
+leo: haha
+priya: lmao
+maya: lol
+leo: haha
+priya: lmao
+maya: lol
+leo: haha
+priya: lmao
+maya: lol
+leo: haha
+priya: lmao
+maya: lol
+leo: haha
+priya: lmao
+maya: lol
+leo: haha
+priya: lmao
+maya: lol
+leo: haha
+priya: lmao
+maya: lol
+leo: haha
+priya: lmao
+maya: lol
+leo: haha
+priya: lmao
+maya: lol
+leo: haha
 ~agent text: he said he went last year and the food was unreal
 maya: atlas what did leo say about lisbon?
 expect atlas ~ "the food was unreal"

@@ -46,12 +46,12 @@ const v = (personId: number, optionIdx: number, selected = true): VoteEvent => (
 
 describe("tally", () => {
   it("no votes, no winner", () => {
-    expect(tally(3, [], 4)).toEqual({ counts: [0, 0, 0], voters: 0, leader: null, decided: false, winner: null, tie: false });
+    expect(tally(3, [], 4)).toEqual({ counts: [0, 0, 0], voters: 0, leader: null, decided: false, winner: null, tie: false, deadlocked: false });
   });
 
   it("most votes leads; a strict majority of the group decides", () => {
     const early = tally(3, [v(1, 0), v(2, 0), v(3, 1)], 5);
-    expect(early).toMatchObject({ counts: [2, 1, 0], voters: 3, leader: 0, decided: false, winner: null, tie: false });
+    expect(early).toMatchObject({ counts: [2, 1, 0], voters: 3, leader: 0, decided: false, winner: null, tie: false, deadlocked: false });
 
     const majority = tally(3, [v(1, 0), v(2, 0), v(3, 1), v(4, 0)], 5);
     expect(majority).toMatchObject({ counts: [3, 1, 0], leader: 0, decided: true, winner: 0 });
@@ -85,12 +85,19 @@ describe("tally", () => {
     expect(t).toMatchObject({ leader: 1, decided: true, winner: 1, tie: false });
   });
 
-  it("ties go to the cheapest option, else the lowest index", () => {
+  it("a tie with everyone voted is deadlocked, not a win; the leader is the cheapest tied option", () => {
     const votes = [v(1, 0), v(2, 1)];
     const costs = [90_000, 75_000, 80_000];
-    expect(tally(3, votes, 2, costs)).toMatchObject({ tie: true, decided: true, leader: 1, winner: 1 });
-    expect(tally(3, votes, 2)).toMatchObject({ tie: true, decided: true, leader: 0, winner: 0 });
-    expect(tally(3, votes, 4, costs)).toMatchObject({ tie: true, decided: false, leader: 1, winner: null });
+    expect(tally(3, votes, 2, costs)).toMatchObject({ tie: true, decided: false, deadlocked: true, leader: 1, winner: null });
+    expect(tally(3, votes, 2)).toMatchObject({ tie: true, decided: false, deadlocked: true, leader: 0, winner: null });
+    expect(tally(3, votes, 4, costs)).toMatchObject({ tie: true, decided: false, deadlocked: false, leader: 1, winner: null });
+  });
+
+  it("2–2 in a group of four doesn't lock (the asheville bug); a switch to 3–1 does", () => {
+    const costs = [70_000, 80_000];
+    const tied = [v(1, 0), v(2, 0), v(3, 1), v(4, 1)];
+    expect(tally(2, tied, 4, costs)).toMatchObject({ counts: [2, 2], decided: false, deadlocked: true, leader: 0 });
+    expect(tally(2, [...tied, v(4, 1, false), v(4, 0)], 4, costs)).toMatchObject({ counts: [3, 1], decided: true, winner: 0 });
   });
 
   it("ignores votes for options that don't exist", () => {

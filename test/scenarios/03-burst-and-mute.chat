@@ -2,11 +2,9 @@
 today 2026-10-10 14:00
 members maya leo priya
 atlas joins
-~agent text: NO_REPLY
+# bare "ok"s to the intro's room question answer nothing, so no agent call
 maya: ok
-~agent text: NO_REPLY
 leo: ok
-~agent text: NO_REPLY
 priya: ok
 maya: hey &
 maya: wait &

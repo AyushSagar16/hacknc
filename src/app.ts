@@ -11,7 +11,7 @@ import { proposalsFeature, reconcileOpenNativePolls, setPollSource } from "./age
 import { linqPollSource } from "./transport/linq/platform.ts";
 import { moneyFeature } from "./agent/features/money.ts";
 import { weatherFeature } from "./agent/features/weather.ts";
-import { memoryFeature } from "./agent/features/memory.ts";
+import { memoryFeature, selfMemoryFeature } from "./agent/features/memory.ts";
 import { presenceFeature, scheduleOnlineNudges } from "./agent/features/presence.ts";
 import { searchFeature } from "./agent/features/search.ts";
 import { createLlm, type Llm } from "./agent/llm.ts";
@@ -54,7 +54,7 @@ export async function startAtlas(opts: AppOptions): Promise<AtlasApp> {
   await migrate();
   const llm = opts.llm ?? createLlm({ mode: cfg.LLM_MODE, apiKey: cfg.GEMINI_API_KEY, embedModel: cfg.GEMINI_EMBED_MODEL, fallbacks: cfg.GEMINI_FALLBACK_MODELS });
   const jobs = new JobRunner();
-  const features: Feature[] = [planningFeature, budgetsFeature, proposalsFeature, moneyFeature, weatherFeature, memoryFeature, presenceFeature, searchFeature, ...(opts.extraFeatures ?? [])];
+  const features: Feature[] = [planningFeature, budgetsFeature, proposalsFeature, moneyFeature, weatherFeature, memoryFeature, selfMemoryFeature, presenceFeature, searchFeature, ...(opts.extraFeatures ?? [])];
 
   const transport = await createTransport(cfg, { world: opts.world });
   if (transport.linq) setPollSource(linqPollSource(transport.linq.api));
@@ -140,6 +140,7 @@ export async function startAtlas(opts: AppOptions): Promise<AtlasApp> {
       consoleServer?.close();
       await transport.stop();
       await done;
+      await brain.settle();
     },
   };
 }

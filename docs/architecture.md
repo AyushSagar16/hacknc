@@ -96,16 +96,26 @@ and extraction's in `src/agent/prompts/extract.md`.
 
 ## Memory design
 
+Research and trade-offs: `docs/memory-research.md`.
+
 - **Write:** after each turn a `memory.embed` job embeds message windows (≤2,400 chars,
   speaker-labeled, pure acknowledgements skipped) and resolved facts (budget amounts omitted).
   Decisions are written when a trip locks. Rows record chat, person, kind, visibility and source
   message ids, and writes are idempotent.
-- **Read:** before every agent reply, the query is the new messages. Candidates are this chat's
-  history and decisions plus current members' facts from any chat, filtered by visibility (private
-  only in that person's DM). They come from `ORDER BY embedding <=> $q LIMIT 50` over `diskann`
-  with search-list and rescore settings tuned so the top hits match an exact scan. They're then
-  reranked by `similarity × (0.85 + 0.15·e^(−age/14d))`, keeping the top 8 and excluding the last
-  6 hours (already in context).
+- **Read (hybrid):** one SQL statement ranks this chat's history and decisions twice, by BM25
+  (`pg_textsearch`, `memory_chunks_bm25`) and by vector distance (pgvectorscale `diskann`), and
+  fuses the ranks with reciprocal rank fusion (k = 60). A word match always counts; a vector-only
+  neighbour must reach cosine 0.70 with Gemini embeddings. Results are reranked by
+  `similarity × (0.85 + 0.15·e^(−age/14d)) × importance` (decisions 1.2), top 8. Only chunks made
+  entirely of lines the agent can already see (the last 30 + this batch) are skipped. A query
+  with no content words ("ok yes") recalls nothing, and a one-word query ("gatlinburg?") is a free
+  BM25 search with no embedding call. Facts aren't recalled from chunks: every member's resolved
+  facts are in the situation each turn, and old fact chunks go stale.
+- **Atlas's own words (`atlas_log` hypertable):** every bubble Atlas sends is classified with no
+  model call (ask, nudge, proposal, decision, money, answer), along with who it named and which
+  details it asked for. The agent sees "what you already said" with who's still quiet since each
+  ask. An unprompted bubble whose `pg_trgm` similarity to an ask or nudge from the last 6 hours
+  is over 0.6 is dropped before it's sent, so Atlas doesn't nag with the same line twice.
 
 ## Reliability rules
 

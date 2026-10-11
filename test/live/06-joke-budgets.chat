@@ -1,0 +1,10 @@
+# Real chat + persona QA: "set my budget to $1" and "$1,000,000" were saved.
+today 2026-10-10 14:00
+members jay kim ravi
+atlas joins by kim
+kim: hi atlas
+jay: set my budget to $1
+expect atlas ~ /won't|real number|realistic/
+jay: set my budget to 1000000
+expect atlas !~ /budget is now \$1,000,000/
+expect sql SELECT count(*)::int AS n FROM budgets WHERE adjusted_cents IS NOT NULL AND (adjusted_cents < 5000 OR adjusted_cents > 2000000) = [{"n":0}]

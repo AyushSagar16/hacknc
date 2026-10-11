@@ -109,3 +109,20 @@ export async function setVote(pollId: number, personId: number, optionIdx: numbe
 export async function openNativePolls(): Promise<PollRow[]> {
   return q<PollRow>(`SELECT * FROM polls WHERE status = 'open' AND rendered_as = 'native' AND provider_poll_id IS NOT NULL ORDER BY id`);
 }
+
+/** A closed poll in this chat matched by its native poll id or one of its option bubbles (late votes). */
+export async function closedPollFor(chatId: number, ref: { providerPollId?: string | null; optionMessageId?: string | null }): Promise<PollRow | undefined> {
+  if (ref.providerPollId) {
+    const hit = await one<PollRow>(`SELECT * FROM polls WHERE chat_id = $1 AND status = 'closed' AND provider_poll_id = $2 ORDER BY id DESC LIMIT 1`, [chatId, ref.providerPollId]);
+    if (hit) return hit;
+  }
+  if (ref.optionMessageId) {
+    return one<PollRow>(`SELECT * FROM polls WHERE chat_id = $1 AND status = 'closed' AND option_message_ids @> $2::jsonb ORDER BY id DESC LIMIT 1`, [chatId, JSON.stringify([ref.optionMessageId])]);
+  }
+  return undefined;
+}
+
+/** The most recent decided poll of a kind in this chat (for "what did the vibe poll say"). */
+export async function lastDecidedPoll(chatId: number, kind: string): Promise<PollRow | undefined> {
+  return one<PollRow>(`SELECT * FROM polls WHERE chat_id = $1 AND kind = $2 AND status = 'closed' AND winner_idx IS NOT NULL ORDER BY closed_at DESC LIMIT 1`, [chatId, kind]);
+}

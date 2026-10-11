@@ -16,6 +16,7 @@ interface FactRow {
   quote: string | null;
   observed_at: Date;
   retracted: boolean;
+  reported_by?: number | null;
 }
 
 const toFact = (r: FactRow): Fact => ({
@@ -31,6 +32,7 @@ const toFact = (r: FactRow): Fact => ({
   quote: r.quote,
   observedAt: r.observed_at,
   retracted: r.retracted,
+  reportedBy: r.reported_by ?? null,
 });
 
 export interface NewFact {
@@ -46,15 +48,17 @@ export interface NewFact {
   quote: string | null;
   observedAt: Date;
   retracted: boolean;
+  /** The sender; differs from personId when someone reports a friend's fact. */
+  reportedBy?: number | null;
 }
 
 export async function insertFacts(facts: NewFact[], on: Queryable = db()): Promise<number[]> {
   const ids: number[] = [];
   for (const f of facts) {
     const rows = await q<{ id: number }>(
-      `INSERT INTO facts (person_id, chat_id, key, value, polarity, explicit, confidence, visibility, source_message_id, quote, observed_at, retracted)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12) RETURNING id`,
-      [f.personId, f.chatId, f.key, JSON.stringify(f.value), f.polarity, f.explicit, f.confidence, f.visibility ?? "public", f.sourceMessageId, f.quote, f.observedAt, f.retracted],
+      `INSERT INTO facts (person_id, chat_id, key, value, polarity, explicit, confidence, visibility, source_message_id, quote, observed_at, retracted, reported_by)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13) RETURNING id`,
+      [f.personId, f.chatId, f.key, JSON.stringify(f.value), f.polarity, f.explicit, f.confidence, f.visibility ?? "public", f.sourceMessageId, f.quote, f.observedAt, f.retracted, f.reportedBy ?? null],
       on,
     );
     ids.push(rows[0]!.id);

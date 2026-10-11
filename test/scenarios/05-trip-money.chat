@@ -22,7 +22,7 @@ expect atlas ~ "charleston it is!"
 expect atlas ~ "locked in for nov 12–16"
 expect atlas ~ "💸 payment plan"
 expect trip.status = "locked"
-expect sql SELECT count(*)::int AS n FROM installments = [{"n":3}]
+expect sql SELECT count(*)::int AS n FROM installments = [{"n":6}]
 # "everyone should pay the same": one equal share each, the old plan retired
 leo: everyone should be paying the same amount
 expect atlas ~ "💸 payment plan, split evenly"

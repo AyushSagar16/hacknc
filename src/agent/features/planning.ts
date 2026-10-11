@@ -1,6 +1,7 @@
 // Core planning: who still owes which detail (asked at most once each), trip dates, and the
 // deterministic summary.
 import { daysBetween } from "../../clock.ts";
+import { normPlace } from "../../profile/aggregate.ts";
 import { recordAsk } from "../../profile/store.ts";
 import { updateTrip } from "../../trips/state.ts";
 import { startWeatherWatch } from "./weather.ts";
@@ -132,7 +133,18 @@ const setTripDates: Tool = {
     ctx.trip = await updateTrip(ctx.trip.id, { start_date: start, end_date: end });
     // A locked trip watches the forecast for its dates; restart the watch for the new ones.
     if (ctx.trip.status === "locked" || ctx.trip.status === "ongoing") await startWeatherWatch(ctx.trip);
-    return { ok: true, data: { start, end, nights }, next: "dates saved; mention them in one line if helpful" };
+    // Someone's own window got trimmed (the overlap is narrower, or the trip is shorter than their
+    // window): say so instead of silently changing what they said.
+    const tc = ctx as Partial<TurnCtx>;
+    const members = tc.view ? (await tc.view().catch(() => undefined))?.members ?? [] : [];
+    const trimmed = members
+      .filter((m) => m.profile.earliest && m.profile.latest && (m.profile.earliest.value < start || m.profile.latest.value > end))
+      .map((m) => `${m.label.toLowerCase().split(/\s+/)[0]} said ${formatRange(m.profile.earliest!.value, m.profile.latest!.value)}`);
+    const range = formatRange(start, end);
+    const next = trimmed.length
+      ? `dates saved as ${range}. that's narrower than what some people said (${trimmed.join("; ")}), so say it in one line, e.g. "overlap is ${range}, that work?"`
+      : `dates saved as ${range}; mention them in one line`;
+    return { ok: true, data: { start, end, nights, range }, next };
   },
 };
 
@@ -154,14 +166,20 @@ export const planningFeature: Feature = {
     if (t.start_date && t.end_date) lines.push(`dates: ${formatRange(t.start_date, t.end_date)}`);
     else if (view.dates) lines.push(`dates that work so far: ${formatRange(view.dates.start, view.dates.end)}`);
     else if (view.window.conflict) lines.push("dates: windows don't overlap yet");
-    const vetoes = [...view.vetoes.values()].map((v) => `${v.name} (${v.people.join(", ")})`);
+    // The place the group picked isn't "ruled out", whatever someone said about it on the way there.
+    const picked = t.destination_name ? normPlace(t.destination_name) : null;
+    const vetoes = [...view.vetoes].filter(([key]) => key !== picked).map(([, v]) => `${v.name} (${v.people.join(", ")})`);
     if (vetoes.length) lines.push(`ruled out: ${vetoes.join(", ")}`);
     const diets = [...view.dietary].map(([need, people]) => `${need.replace(/_/g, " ")} (${people.join(", ")})`);
     if (diets.length) lines.push(`food: ${diets.join(", ")}`);
     if (view.limits.length) lines.push(`limits: ${view.limits.map((l) => `${l.label} ${l.kind.replace(/_/g, " ")}`).join(", ")}`);
-    if (view.missing.length) {
+    // Once the trip has dates, nobody's own dates are still "needed".
+    const missing = view.missing
+      .map((m) => ({ ...m, fields: t.start_date && t.end_date ? m.fields.filter((f) => f !== "dates") : m.fields }))
+      .filter((m) => m.fields.length > 0);
+    if (missing.length) {
       const what = (fields: string[]) => fields.map((f) => (f === "home_city" ? "home city" : f)).join(" + ");
-      lines.push(`still need: ${view.missing.map((m) => `${m.label.toLowerCase()}'s ${what(m.fields)}`).join(", ")}${view.majorityHasShared ? " (enough of us have shared to keep going)" : ""}`);
+      lines.push(`still need: ${missing.map((m) => `${m.label.toLowerCase()}'s ${what(m.fields)}`).join(", ")}`);
     }
     return lines;
   },

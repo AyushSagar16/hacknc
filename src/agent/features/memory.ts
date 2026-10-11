@@ -8,7 +8,8 @@ import { now } from "../../clock.ts";
 import { one, q } from "../../db/pool.ts";
 import { enqueueJob } from "../../pipeline/jobs.ts";
 import { embedTurn, rememberDecision } from "../../memory/write.ts";
-import { recall, warmRecall, type MemoryHit, type RecallInput } from "../../memory/retrieve.ts";
+import { MIN_SIMILARITY, MIN_VECTOR_ONLY, recall, warmRecall, type MemoryHit, type RecallInput } from "../../memory/retrieve.ts";
+import { ago, openAsks } from "../../memory/atlasLog.ts";
 import type { Feature, TurnCtx } from "../feature.ts";
 import { CassetteLlm, FakeLlm, NoKeyLlm, type Llm } from "../llm.ts";
 import { str, type Tool, type ToolCtx } from "../tools.ts";
@@ -17,8 +18,9 @@ import { formatRange } from "./planning.ts";
 export const MEMORY_EMBED_JOB = "memory.embed";
 export const MEMORY_DECISION_JOB = "memory.decision";
 export const MEMORY_SECTION_TITLE = "recalled from earlier chats (semantic memory)";
-/** Messages this recent are part of the live conversation the agent already reads; don't recall them. */
-export const FRESH_MS = 6 * 3_600_000;
+export const SAID_SECTION_TITLE = "what you already said (your asks and follow-ups, last 24h)";
+/** The situation shows this many recent lines; recall skips chunks made only of them. */
+export const VISIBLE_HISTORY = 30;
 /** How long the embed job waits for a still-running turn to finish sending before embedding anyway. */
 const TURN_WAIT_MS = 2 * 60_000;
 const EXCERPT_CHARS = 360;
@@ -67,6 +69,11 @@ export function embedderName(llm: Llm, cfg: Config): string {
   return cfg.GEMINI_EMBED_MODEL;
 }
 
+/** Real embeddings cluster high (unrelated text scores ~0.6); the test hash embedder doesn't. */
+function minVectorFor(ctx: ToolCtx): number {
+  return embedderName(ctx.llm, ctx.cfg) === "hash" ? MIN_SIMILARITY : MIN_VECTOR_ONLY;
+}
+
 function recallScope(ctx: ToolCtx): { isGroup: boolean; viewerId?: number } {
   return ctx.chat.is_group ? { isGroup: true } : { isGroup: false, viewerId: ctx.senderId ?? ctx.members[0]?.id };
 }
@@ -97,7 +104,7 @@ const recallMemory: Tool = {
   decl: {
     name: "recall_memory",
     description:
-      "Search long-term memory: everything said in this chat before (including weeks ago, beyond the recent chat you can see) plus each member's saved preferences from any chat they're in. Use it when someone asks what was said or decided earlier, or what someone likes or ruled out. Returns dated snippets in people's own words; quote them, never guess.",
+      "Search long-term memory: everything said and decided in this chat before (including weeks ago, beyond the recent chat you can see), by keywords and meaning. Members' preferences are already in your situation. Use it when someone asks what was said or decided earlier, or what someone likes or ruled out. Returns dated snippets in people's own words; quote them, never guess.",
     parameters: {
       type: "object",
       properties: { query: { type: "string", description: "what to look for, in plain words (e.g. \"leo lisbon trip food\")" } },
@@ -110,7 +117,7 @@ const recallMemory: Tool = {
     const t0 = Date.now();
     let hits: MemoryHit[];
     try {
-      hits = await recall({ llm: ctx.llm, chatId: ctx.chat.id, memberIds: ctx.members.map((m) => m.id), query, ...recallScope(ctx), now: ctx.now });
+      hits = await recall({ llm: ctx.llm, chatId: ctx.chat.id, memberIds: ctx.members.map((m) => m.id), query, ...recallScope(ctx), now: ctx.now, minVectorSimilarity: minVectorFor(ctx) });
     } catch (err) {
       log.warn({ chatId: ctx.chat.id, err: (err as Error).message }, "recall_memory failed");
       await trace(ctx, query, [], Date.now() - t0, (err as Error).message);
@@ -129,9 +136,10 @@ const recallMemory: Tool = {
 function situationRecall(tc: TurnCtx): RecallInput | undefined {
   const query = memoryQuery(tc);
   if (!query) return undefined;
-  const cutoff = tc.now.getTime() - FRESH_MS;
-  const excludeMessageIds = tc.history.filter((h) => h.sent_at.getTime() >= cutoff).map((h) => h.id);
-  return { llm: tc.llm, chatId: tc.chat.id, memberIds: tc.members.map((m) => m.id), query, ...recallScope(tc), excludeMessageIds, now: tc.now };
+  // Skip only what the agent can already read this turn (the recent lines + this batch), not a
+  // whole time window: earlier today is often exactly what someone's asking about.
+  const excludeMessageIds = [...new Set([...tc.history.slice(-VISIBLE_HISTORY).map((h) => h.id), ...tc.batch.map((m) => m.id)])];
+  return { llm: tc.llm, chatId: tc.chat.id, memberIds: tc.members.map((m) => m.id), query, ...recallScope(tc), excludeMessageIds, now: tc.now, minVectorSimilarity: minVectorFor(tc) };
 }
 
 /** Start this turn's recall early (the brain calls it once it knows Atlas will answer). */
@@ -212,5 +220,28 @@ export const memoryFeature: Feature = {
         await rememberDecision({ llm: svc.llm, chatId, text, at: Number.isNaN(at.getTime()) ? now() : at, meta: { tripId: payload.tripId ?? null, kind: "trip_locked" } });
       },
     };
+  },
+};
+
+/** Atlas's memory of its own asks and follow-ups (atlas_log), so it doesn't repeat itself or nag. */
+export const selfMemoryFeature: Feature = {
+  name: "self-memory",
+  async situation(tc) {
+    let asks: Awaited<ReturnType<typeof openAsks>>;
+    try {
+      asks = await openAsks(tc.chat.id, tc.now);
+    } catch (err) {
+      log.warn({ chatId: tc.chat.id, err: (err as Error).message }, "could not read atlas_log");
+      return null;
+    }
+    if (asks.length === 0) return null;
+    const names = (ids: number[]) => ids.map((id) => tc.label(id).toLowerCase().split(/\s+/)[0]).join(", ");
+    const lines = asks.map((a) => {
+      const status = a.waitingOn.length ? `still waiting on ${names(a.waitingOn)}` : a.answered.length ? `${names(a.answered)} replied since` : "nobody named";
+      const nudged = a.kind === "nudge" ? " (follow-up)" : "";
+      return `- ${ago(a.at, tc.now)}${nudged}: "${a.text.replace(/\s+/g, " ").slice(0, 160)}" → ${status}`;
+    });
+    lines.push("don't restate any of these. someone already nudged once and still quiet: plan without them and say so in passing");
+    return { title: SAID_SECTION_TITLE, lines };
   },
 };

@@ -1,0 +1,28 @@
+# A 2–2 tie with everyone voted is called out once, not locked; "pick for us" goes with the
+# cheaper option. A vote after the lock gets one short "voting's closed" reply.
+today 2026-10-10 14:00
+members maya leo priya dev
+atlas joins by maya
+~agent text: NO_REPLY
+~extract [{"message":0,"about":"maya","key":"home_city","polarity":"positive","explicit":true,"retracts":false,"confidence":0.95,"quote":"from raleigh","city":"Raleigh"},{"message":0,"about":"maya","key":"date_window","polarity":"positive","explicit":true,"retracts":false,"confidence":0.9,"quote":"nov 13-16","earliest":"2026-11-13","latest":"2026-11-16"}]
+maya: we're all free nov 13-16, i'm from raleigh
+expect atlas quiet
+maya: set my budget to 900
+leo: set my budget to 900
+priya: set my budget to 900
+dev: set my budget to 900
+maya: atlas give us some options
+expect atlas ~ "three options for nov 13–16"
+maya vote 1
+leo vote 1
+priya vote 2
+dev vote 2
+expect atlas ~ "it's a tie"
+expect atlas ~ "pick for us"
+expect trip.status = "voting"
+leo: ok atlas you pick
+expect atlas ~ "going with"
+expect atlas ~ "the cheaper one"
+expect trip.status = "locked"
+dev vote 2
+expect atlas ~ "voting's closed"

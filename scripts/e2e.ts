@@ -7,8 +7,10 @@ import { startSession } from "../src/sim/session.ts";
 import { simExtensions } from "../src/sim/extensions.ts";
 
 const live = process.argv.includes("--live");
-const only = process.argv.slice(2).filter((a) => !a.startsWith("--"));
-const dir = join(process.cwd(), "test", "scenarios");
+const only = process.argv.slice(2).filter((a, i, all) => !a.startsWith("--") && all[i - 1] !== "--dir");
+// --dir test/live runs the live behavior regressions (real Gemini; wording-tolerant checks).
+const dirArg = process.argv.indexOf("--dir");
+const dir = join(process.cwd(), dirArg >= 0 ? process.argv[dirArg + 1]! : join("test", "scenarios"));
 const files = (await readdir(dir)).filter((f) => f.endsWith(".chat") && (only.length === 0 || only.some((o) => f.includes(o)))).sort();
 
 let passed = 0;

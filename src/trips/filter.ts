@@ -1,7 +1,7 @@
 // Hard constraints only: a destination either survives every member's dealbreakers or is
 // rejected with a plain-language reason naming who it fails. Preferences live in score.ts.
 import { destinationKeys, findDestination, normalizeName, normalizeTag, type DietaryNeed, type Destination, type Region } from "./catalog.ts";
-import { estimateCost, memberRegion, travelPlan, DEFAULT_ORIGIN, type CostBreakdown } from "./estimate.ts";
+import { driveHoursFor, estimateCost, travelPlan, type CostBreakdown } from "./estimate.ts";
 
 export interface MemberConstraints {
   personId: number;
@@ -25,6 +25,13 @@ export interface GroupConstraints {
   endDate?: string;
   nights: number;
   tier: "budget" | "mid";
+}
+
+/** Places that have this tag, minus wrong-season holiday spots. */
+export function hasTag(dest: Destination, tag: string, months: number[] = []): boolean {
+  if (!dest.tags.includes(tag as Destination["tags"][number])) return false;
+  if (tag === "holiday" && months.length > 0) return months.some((m) => m === 11 || m === 12);
+  return true;
 }
 
 export interface Rejection {
@@ -189,14 +196,13 @@ export function hardFilter(catalog: Destination[], g: GroupConstraints): { passe
       if (m.noPassport && dest.passportRequired) reject(`${m.name} doesn't have a passport`, m.personId);
 
       if (m.noFlying) {
-        // Unknown home: assume the Triangle, same as the cost estimate does.
-        const region = memberRegion(m) ?? DEFAULT_ORIGIN;
-        const hours = dest.driveFromRegion?.[region];
+        // Unknown home: assume the southeast, same as the cost estimate does.
+        const hours = driveHoursFor(dest, m);
         const max = m.maxDriveHours ?? DEFAULT_MAX_DRIVE_HOURS;
         if (hours === undefined) reject(`${m.name} can't fly and there's no reasonable drive`, m.personId);
         else if (hours > max) reject(`too far to drive for ${m.name} (~${hours}h, max ${max}h)`, m.personId);
       } else if (m.maxFlightHours !== undefined) {
-        const plan = travelPlan(dest, m);
+        const plan = travelPlan(dest, m, g.nights);
         if (plan.mode === "flight" && plan.hours > m.maxFlightHours) {
           reject(`flight's too long for ${m.name} (~${plan.hours}h, max ${m.maxFlightHours}h)`, m.personId);
         }

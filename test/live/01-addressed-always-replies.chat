@@ -1,0 +1,11 @@
+# Real chat: messages naming Atlas mid-sentence got no reply (thought-only answers, and
+# "free. Atlas. Let's keep moving" didn't count as addressed).
+today 2026-10-10 18:00
+members ayush sai sakshi jason
+atlas joins by ayush
+ayush: Atlas hello
+expect atlas speaks
+sai: I think during my winter break. I go to UNC chapel hill. I will be leaving from Charlotte. I wanna go to the mountains
+ayush: UNC winter break, I'm free. Atlas. Let's keep moving. What is there to do? I don't think Jason's gonna respond.
+expect atlas speaks
+expect transcript !~ /NO_REPLY|default_api|tool_call/

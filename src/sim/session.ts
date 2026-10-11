@@ -41,6 +41,8 @@ const TEMPLATE = "atlas_sim_template";
 async function cloneDatabase(cfg: Config): Promise<string> {
   const admin = new pg.Client({ connectionString: adminUrl(cfg) });
   await admin.connect();
+  // Several simulators can start at once (persona tests): one at a time rebuilds and clones.
+  await admin.query(`SELECT pg_advisory_lock(hashtext('atlas_sim_template'))`);
   try {
     const exists = await admin.query(`SELECT 1 FROM pg_database WHERE datname = $1`, [TEMPLATE]);
     if (!exists.rowCount || !templateReady) {
@@ -60,6 +62,7 @@ async function cloneDatabase(cfg: Config): Promise<string> {
     await admin.query(`CREATE DATABASE ${name} TEMPLATE ${TEMPLATE}`);
     return name;
   } finally {
+    await admin.query(`SELECT pg_advisory_unlock(hashtext('atlas_sim_template'))`).catch(() => {});
     await admin.end();
   }
 }

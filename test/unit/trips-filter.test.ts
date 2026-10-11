@@ -112,10 +112,10 @@ describe("hardFilter", () => {
     const g = group([member({ personId: 4, name: "sam", noFlying: true }), member({ personId: 5, name: "maya" })]);
     const { passed, rejected } = hardFilter(catalog, g);
     expect(passed.length).toBeGreaterThan(3);
-    for (const p of passed) expect(p.dest.driveFromRegion?.southeast_us).toBeLessThanOrEqual(8);
+    for (const p of passed) expect(p.perPerson.get(4)!.transportHours).toBeLessThanOrEqual(8);
     expect(ids(passed)).toEqual(expect.arrayContaining(["asheville", "charleston", "outer-banks", "washington-dc"]));
     expect(reasonsFor(rejected, "cancun")).toEqual(["sam can't fly and there's no reasonable drive"]);
-    expect(reasonsFor(rejected, "orlando")).toEqual(["too far to drive for sam (~9h, max 8h)"]);
+    expect(reasonsFor(rejected, "orlando")).toEqual(["too far to drive for sam (~10h, max 8h)"]);
     for (const p of passed) expect(p.perPerson.get(4)!.transportMode).toBe("drive");
   });
 

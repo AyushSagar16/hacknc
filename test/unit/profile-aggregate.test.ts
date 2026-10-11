@@ -166,3 +166,36 @@ describe("groupView", () => {
     expect(pickDates("2026-11-10", "2026-11-12", 2, [{ start: "2026-11-09", end: "2026-11-30" }])).toBeNull();
   });
 });
+
+describe("aggregate: polarity the model gets wrong", () => {
+  it("a travel limit or diet filed as negative is still a constraint ('omar can't fly')", () => {
+    const p = aggregate(1, [
+      fact({ key: "travel_limit", value: { kind: "no_flying", hours: null }, polarity: "negative", quote: "omar can't fly" }),
+      fact({ key: "travel_limit", value: { kind: "max_drive_hours", hours: 5 } }),
+      fact({ key: "dietary", value: { need: "vegan" }, polarity: "neutral" }),
+    ]);
+    expect(p.travelLimits.map((l) => l.value.kind).sort()).toEqual(["max_drive_hours", "no_flying"]);
+    expect(p.dietary.map((d) => d.value)).toEqual(["vegan"]);
+  });
+  it("a home city stated as neutral in the first message still lands", () => {
+    const p = aggregate(1, [fact({ key: "home_city", value: { city: "charlotte" }, polarity: "neutral", quote: "i'm in charlotte" })]);
+    expect(p.homeCity?.value).toBe("charlotte");
+  });
+  it("only a retraction clears a constraint", () => {
+    const p = aggregate(1, [
+      fact({ key: "travel_limit", value: { kind: "no_flying", hours: null } }, 0),
+      fact({ key: "travel_limit", value: { kind: "no_flying", hours: null }, polarity: "neutral", retracted: true, quote: "actually i can fly" }, 5),
+    ]);
+    expect(p.travelLimits).toEqual([]);
+  });
+});
+
+describe("aggregate: who said it", () => {
+  it("the person's own word beats a friend's later report", () => {
+    const p = aggregate(1, [
+      fact({ key: "home_city", value: { city: "charlotte" }, reportedBy: 1 }, 0),
+      fact({ key: "home_city", value: { city: "raleigh" }, reportedBy: 2 }, 10),
+    ]);
+    expect(p.homeCity?.value).toBe("charlotte");
+  });
+});

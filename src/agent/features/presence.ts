@@ -46,7 +46,7 @@ function reason(why: string, last: MessageRow, label: string, at: Date): string 
   const opener = why === "online"
     ? `you just came back online; the last message, ${mins} min ago from ${label}, never got a reply from you.`
     : `the chat went quiet ${mins} min ago after ${label}'s message, and you haven't replied since.`;
-  return `${opener} follow up now and move the plan one step forward: answer anything left hanging, say who's still missing what by name (don't re-ask someone you already asked), or call the tool for the next step (budgets once dates are in, options once a majority has dates and home cities, a reminder on an open poll, settle up after the trip). one or two short lines. NO_REPLY only if the last messages were pure banter with nothing about the trip or money.`;
+  return `${opener} follow up now and move the plan one step forward: answer anything left hanging, say who's still missing what by name (don't re-ask someone you already asked), or call the tool for the next step (budgets once dates are in, options once a majority has dates and home cities, a reminder on an open poll, settle up after the trip). one or two short lines. never restate one of your earlier messages, and never nudge someone about something you already nudged them about: if they still haven't answered, go with the majority ("going with the four of us unless ravi shouts") or NO_REPLY. NO_REPLY only if the last messages were pure banter with nothing about the trip or money.`;
 }
 
 export const presenceFeature: Feature = {

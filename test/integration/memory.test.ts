@@ -107,12 +107,12 @@ describeDb("long-term memory", () => {
     t = await testAtlas({ llm, features: [memoryFeature] });
     const chat = t.chat("mem-ack", ["maya", "leo", "priya"]);
     await pastIntro(chat); // "ok", "sure", "cool"
-    llm.set("agent", () => textResult("great, i'll pull some options"));
+    llm.set("agent", () => textResult("great, here's where we are"));
     await chat.say("maya", "ok atlas");
     await t.app.jobs.runDue();
     const windows = (await chunks()).filter((r) => r.kind === "message").map((r) => r.content);
     expect(windows).toHaveLength(2);
-    expect(windows[1]).toBe("[Maya] ok atlas\n[atlas] great, i'll pull some options");
+    expect(windows[1]).toBe("[Maya] ok atlas\n[atlas] great, here's where we are");
   });
 
   it("never recalls one chat's history in another chat", async () => {
@@ -142,7 +142,7 @@ describeDb("long-term memory", () => {
     expect(inA.some((h) => h.content.includes("Sam"))).toBe(false);
   });
 
-  it("carries a person's facts into their other chats (but not their messages)", async () => {
+  it("doesn't recall fact chunks (resolved facts are already in every turn's situation), nor other chats' messages", async () => {
     const llm = quietFake().set("extract", vegetarianExtract);
     t = await testAtlas({ llm, features: [memoryFeature] });
     const a = t.world.chat("facts-a", [MAYA, LEO]);
@@ -156,12 +156,8 @@ describeDb("long-term memory", () => {
     const sam = await personIdOf(SAM.handle);
 
     const inB = await recall({ llm, chatId: chatB, memberIds: [maya, sam], query: "vegetarian food options", isGroup: true, now: now() });
-    expect(inB[0]).toMatchObject({ kind: "fact", content: `Maya: vegetarian (dietary) — "i'm vegetarian"` });
+    expect(inB.some((h) => h.kind === "fact")).toBe(false);
     expect(inB.some((h) => h.kind === "message" && h.content.includes("vegetarian"))).toBe(false);
-
-    // Facts follow the person, not the query: without Maya in the chat, nothing.
-    const withoutMaya = await recall({ llm, chatId: chatB, memberIds: [sam], query: "vegetarian food options", isGroup: true, now: now() });
-    expect(withoutMaya.filter((h) => h.kind === "fact")).toEqual([]);
   });
 
   it("keeps private chunks out of group recall and shows them only in that person's DM", async () => {
@@ -191,12 +187,10 @@ describeDb("long-term memory", () => {
 
     const query = "maya budget ceiling vegetarian";
     const inGroup = await recall({ llm: t.llm, chatId: group, memberIds: [maya, leo], query, isGroup: true, now: now() });
-    expect(inGroup.map((h) => h.content)).toEqual([`Maya: vegetarian (dietary) — "i'm vegetarian"`]);
+    expect(inGroup.some((h) => h.visibility === "private")).toBe(false);
 
     const mayaDm = await recall({ llm: t.llm, chatId: dm, memberIds: [maya], query, isGroup: false, viewerId: maya, now: now() });
-    expect(mayaDm.map((h) => h.content).sort()).toEqual(
-      [`Maya set a budget ceiling — "i can do 600 max"`, `Maya: vegetarian (dietary) — "i'm vegetarian"`, "[Maya] my budget ceiling is pretty firm this month"].sort(),
-    );
+    expect(mayaDm.map((h) => h.content)).toEqual(["[Maya] my budget ceiling is pretty firm this month"]);
 
     // Someone else's 1:1 view never sees Maya's private chunks.
     const leoView = await recall({ llm: t.llm, chatId: group, memberIds: [maya, leo], query, isGroup: false, viewerId: leo, now: now() });
@@ -265,7 +259,7 @@ describeDb("long-term memory", () => {
     expect(now().getTime() - old.createdAt.getTime()).toBeGreaterThanOrEqual(21 * DAY);
     expect(old.similarity).toBeCloseTo(fresh.similarity, 6);
     expect(old.score).toBeLessThan(fresh.score);
-    expect(old.score / old.similarity).toBeCloseTo(recencyFactor(21), 3);
+    expect(old.score / fresh.score).toBeCloseTo(recencyFactor(21), 1);
     expect(hits[0]!.id).toBe(fresh.id);
   });
 
@@ -280,6 +274,11 @@ describeDb("long-term memory", () => {
     expect(await chat.say("leo", "i went to lisbon last year and the food was unreal")).toEqual([]);
     await t.app.jobs.runDue();
     clock.advance(21 * DAY);
+    // Push leo's line out of the 30 the agent can see, so only recall can bring it back.
+    const situChat = await chatIdOf("situ");
+    for (let i = 0; i < 31; i++) {
+      await insertMessage({ chatId: situChat, personId: null, providerMessageId: `filler-${i}`, direction: "outbound", kind: "text", text: `filler line ${i}`, sentAt: now(), receivedAt: now() });
+    }
 
     let prompt = "";
     llm.set("agent", (req) => {

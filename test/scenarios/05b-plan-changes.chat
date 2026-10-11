@@ -1,0 +1,47 @@
+# The payment plan follows the group: an over-budget share is flagged, someone who joins after
+# the lock gets one line (not the whole plan again), someone who leaves stops being billed, and
+# re-locking a different destination retires the old destination's installments.
+today 2026-10-10 14:00
+members maya leo priya
+atlas joins
+~agent text: NO_REPLY
+maya: hi
+~agent text: NO_REPLY
+leo: hi
+~agent text: NO_REPLY
+priya: hi
+jobs
+~extract [{"message":0,"about":"maya","key":"date_window","polarity":"positive","explicit":true,"retracts":false,"confidence":0.9,"quote":"nov 12-16","earliest":"2026-11-12","latest":"2026-11-16"},{"message":0,"about":"maya","key":"home_city","polarity":"positive","explicit":true,"retracts":false,"confidence":0.9,"quote":"raleigh","city":"Raleigh"}]
+maya: nov 12-16 from raleigh works for all of us
+maya: set my budget to 900
+leo: set my budget to 900
+priya: set my budget to 100
+maya: set my budget to 1000000
+expect atlas ~ "must be nice"
+expect sql SELECT count(*)::int AS n FROM budgets WHERE adjusted_cents > 2000000 = [{"n":0}]
+~agent call lock_destination {"destination":"charleston"}
+~agent text: NO_REPLY
+maya: atlas everyone agreed, we're doing charleston
+expect atlas ~ "💸 payment plan"
+expect atlas ~ "all done by oct 31"
+expect atlas ~ "(estimates · demo profiles are offline"
+expect atlas ~ "heads up: this is over budget for priya"
+leo: what's our budget
+expect atlas ~ "the locked plan is over budget for priya"
+expect atlas !~ "which works for everyone"
+# a late joiner gets their own plan and one line
+sam joins
+jobs
+expect atlas ~ "added sam to the payment plan: $"
+expect sql SELECT count(*)::int AS n FROM installments i JOIN people p ON p.id = i.person_id WHERE p.display_name = 'Sam' AND i.status = 'scheduled' = [{"n":2}]
+# someone who leaves stops being billed
+leo leaves
+jobs
+expect atlas ~ "took leo's payments off the plan"
+expect sql SELECT count(*)::int AS n FROM installments i JOIN people p ON p.id = i.person_id WHERE p.display_name = 'Leo' AND i.status = 'scheduled' = [{"n":0}]
+# switching destination: everyone ends up on exactly one plan, the new one
+~agent call lock_destination {"destination":"savannah"}
+~agent text: NO_REPLY
+maya: atlas actually let's do savannah instead
+expect atlas ~ "💸 payment plan"
+expect sql SELECT count(*)::int AS n FROM (SELECT person_id FROM installments WHERE status = 'scheduled' GROUP BY person_id HAVING count(DISTINCT split_part(idempotency_key, ':', 3)) > 1) s = [{"n":0}]

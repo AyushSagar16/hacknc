@@ -34,8 +34,8 @@ describeDb("brain", () => {
     expect(await chat.say("leo", "lol did you see the game")).toEqual([]);
     expect(llm.calls.filter((c) => c.role === "agent")).toHaveLength(1);
     for (const text of ["haha yes", "insane", "that game was wild"]) expect(await chat.say("priya", text)).toEqual([]);
-    const gateCalls = llm.calls.filter((c) => c.role === "gate").length;
-    expect(gateCalls).toBeGreaterThanOrEqual(1);
+    // Off-topic chatter ("that game was wild") never reaches the gate: nothing about the trip to weigh.
+    expect(llm.calls.filter((c) => c.role === "gate")).toHaveLength(0);
     // Pure laughter costs no model calls at all.
     const before = llm.calls.length;
     expect(await chat.say("leo", "lmaooo 😂")).toEqual([]);
@@ -64,19 +64,43 @@ describeDb("brain", () => {
     await pastIntro(chat);
     llm.set("gate", () => jsonResult({ decision: "SPEAK", reason: "trip question to the room" }));
     llm.set("agent", () => textResult("flights are usually cheaper midweek\n\nwant me to pull options?"));
-    const replies = await chat.say("leo", "anyone know if flights are cheaper midweek?");
+    const replies = await chat.say("leo", "i heard flights are cheaper midweek");
     expect(replies.map((r) => r.text)).toEqual(["flights are usually cheaper midweek"]);
     const turn = await q<{ gate_decision: string; gate_reason: string }>(`SELECT gate_decision, gate_reason FROM turns WHERE route = 'agent' AND gate_decision IS NOT NULL ORDER BY id DESC LIMIT 1`);
     expect(turn[0]).toEqual({ gate_decision: "SPEAK", gate_reason: "trip question to the room" });
   });
 
-  it("fails closed when the gate errors", async () => {
+  it("when the gate errors, banter stays quiet but trip talk still gets an answer", async () => {
     const llm = new FakeLlm({ extract: () => jsonResult({ facts: [], tensions: [] }), agent: () => textResult("NO_REPLY") }); // no gate handler → throws
     t = await testAtlas({ llm });
     const chat = t.chat("g4", ["maya", "leo", "priya"]);
     await pastIntro(chat);
-    expect(await chat.say("maya", "what should we do about flights")).toEqual([]);
-    expect(llm.calls.filter((c) => c.role === "agent")).toHaveLength(3); // only the 3 replies to the intro question
+    expect(await chat.say("maya", "lol that was so true yesterday")).toEqual([]);
+    expect(llm.calls.filter((c) => c.role === "agent")).toHaveLength(2); // only "sure" and "cool" answering the intro question (a bare "ok" to the room answers nothing)
+    llm.set("agent", () => textResult("nice, that unlocks the dates"));
+    expect((await chat.say("leo", "i'm in charlotte and free march 7-15")).map((r) => r.text)).toEqual(["nice, that unlocks the dates"]);
+    const turn = await q<{ gate_reason: string }>(`SELECT gate_reason FROM turns WHERE route = 'agent' ORDER BY id DESC LIMIT 1`);
+    expect(turn[0]!.gate_reason).toMatch(/shared trip details/);
+  });
+
+  it("questions to the room, objections and changes of mind skip the gate and get an answer", async () => {
+    const llm = quietFake(); // the gate would say NO_REPLY
+    t = await testAtlas({ llm });
+    const chat = t.chat("g4b", ["maya", "leo", "priya"]);
+    await pastIntro(chat);
+    const gateCalls = () => llm.calls.filter((c) => c.role === "gate").length;
+    const before = gateCalls();
+    llm.set("agent", () => textResult("highs around 50, lows near 30"));
+    expect((await chat.say("leo", "what's the typical high and low temp in december there tho")).map((r) => r.text)).toEqual(["highs around 50, lows near 30"]);
+    llm.set("agent", () => textResult("each share is your own travel plus an equal part of the rest"));
+    expect((await chat.say("priya", "how is the split calculated?")).length).toBe(1);
+    llm.set("agent", () => textResult("got it ana. we can look at cheaper spots"));
+    expect((await chat.say("maya", "honestly that's too expensive for me")).length).toBe(1);
+    llm.set("agent", () => textResult("ana wants asheville instead. luis, carmen, switch?"));
+    expect((await chat.say("maya", "hmm actually can we do asheville instead? the lights there are better")).length).toBe(1);
+    expect(gateCalls()).toBe(before);
+    // A question for one friend is still theirs to answer.
+    expect(await chat.say("leo", "priya do u have a car or are we flying")).toEqual([]);
   });
 
   it("stay quiet / talk again", async () => {
@@ -85,13 +109,13 @@ describeDb("brain", () => {
     const chat = t.chat("g5", ["maya", "leo", "priya"]);
     await pastIntro(chat);
     llm.set("gate", () => jsonResult({ decision: "SPEAK", reason: "x" }));
-    llm.set("agent", () => textResult("on it"));
+    llm.set("agent", () => textResult("flights from rdu are cheapest midweek"));
     const gateCalls = () => llm.calls.filter((c) => c.role === "gate").length;
     const before = gateCalls();
     expect((await chat.say("maya", "atlas stay quiet for a bit"))[0]!.text).toMatch(/i'll stay quiet unless someone tags me/);
     expect(await chat.say("leo", "what's the move for food tonight?")).toEqual([]);
     expect(gateCalls()).toBe(before);
-    expect((await chat.say("leo", "atlas can you help with flights?"))[0]!.text).toBe("on it");
+    expect((await chat.say("leo", "atlas can you help with flights?"))[0]!.text).toBe("flights from rdu are cheapest midweek");
     expect((await chat.say("maya", "atlas you can talk again"))[0]!.text).toMatch(/i'm back/);
   });
 
@@ -294,5 +318,48 @@ describeDb("brain", () => {
     const situation = situationOf(llm.calls.filter((c) => c.role === "agent").at(-1)!);
     expect(situation).toContain(`dates given as a named period, not exact days: Maya ("i'm free during nc state's winter break")`);
     expect(situation).toContain("set_trip_dates");
+  });
+
+  it("never sends a bare promise: one more round asks for the tool or a direct answer", async () => {
+    const llm = quietFake();
+    t = await testAtlas({ llm });
+    const chat = t.chat("g-promise", ["maya", "leo", "priya"]);
+    await pastIntro(chat);
+    let n = 0;
+    llm.set("agent", (req) => {
+      n += 1;
+      if (n === 1) return textResult("got it, let me look for beach spots under 800.");
+      expect(lastText(req)).toMatch(/you can't come back later/);
+      return textResult("under 800 each, myrtle beach and wilmington fit (est.)");
+    });
+    const replies = await chat.say("maya", "atlas can u show beach options under like 800 each");
+    expect(replies.map((r) => r.text)).toEqual(["under 800 each, myrtle beach and wilmington fit (est.)"]);
+  });
+
+  it("a promise that survives the nudge is cut, never sent", async () => {
+    const llm = quietFake().set("agent", () => textResult("one sec, pulling those now"));
+    t = await testAtlas({ llm });
+    const chat = t.chat("g-promise2", ["maya", "leo", "priya"]);
+    await pastIntro(chat);
+    const replies = await chat.say("maya", "atlas can u show beach options under like 800 each");
+    expect(replies.map((r) => r.text).join("\n")).not.toMatch(/one sec|pulling/);
+  });
+
+  it("a command's reply doesn't wait for a slow extraction", async () => {
+    const llm = quietFake();
+    t = await testAtlas({ llm });
+    const chat = t.chat("g-fastcmd", ["maya", "leo", "priya"]);
+    await pastIntro(chat);
+    let release!: () => void;
+    const gate = new Promise<void>((r) => (release = r));
+    llm.set("extract", async () => {
+      await gate;
+      return jsonResult({ facts: [], tensions: [] });
+    });
+    const started = Date.now();
+    const replies = await chat.say("priya", "atlas keep my budget private");
+    expect(replies[0]!.text).toMatch(/private/);
+    expect(Date.now() - started).toBeLessThan(3_000);
+    release();
   });
 });

@@ -4,10 +4,14 @@
 export interface ListItem {
   name: string;
   detail?: string;
+  /** Events only: the dates the sources give (yyyy-mm-dd). */
+  start?: string;
+  end?: string;
 }
 
 export const MAX_ITEMS = 5;
-export const MIN_ITEMS = 3;
+/** Two solid, verified items beat three where one is made up. */
+export const MIN_ITEMS = 2;
 export const MAX_ITEM_CHARS = 90;
 /** How far past MAX_ITEM_CHARS a line may run to keep its detail whole. */
 export const ITEM_SLACK = 10;
@@ -109,4 +113,31 @@ export function formatList(heading: string, items: ListItem[]): string | null {
 /** A short factual answer for the agent (not posted): one or two sentences, no artifacts. */
 export function cleanAnswer(text: string, max = 400): string {
   return clip(stripArtifacts(text).replace(/\s*\n+\s*/g, " "), max);
+}
+
+const MONTH_ABBR = ["jan", "feb", "mar", "apr", "may", "jun", "jul", "aug", "sep", "oct", "nov", "dec"];
+
+/** "2026-12-16" → "dec 16". */
+export function shortDate(iso: string): string {
+  const m = Number(iso.slice(5, 7));
+  const d = Number(iso.slice(8, 10));
+  return MONTH_ABBR[m - 1] ? `${MONTH_ABBR[m - 1]} ${d}` : iso;
+}
+
+/** "dec 16–23", "dec 30 – jan 2", "dec 16". */
+export function rangeLabel(start: string, end?: string | null): string {
+  if (!end || end === start) return shortDate(start);
+  if (start.slice(0, 7) === end.slice(0, 7)) return `${shortDate(start)}–${Number(end.slice(8, 10))}`;
+  return `${shortDate(start)} – ${shortDate(end)}`;
+}
+
+/** The dietary ask in a question, as a heading word: "veggie-friendly", "vegan-friendly"... */
+export function dietLabel(text: string): string | null {
+  const t = text.toLowerCase();
+  if (/\bvegan\b/.test(t)) return "vegan-friendly";
+  if (/\b(vegetarian|veggie|plant[- ]based|meatless)\b/.test(t)) return "veggie-friendly";
+  if (/\b(gluten[- ]free|celiac|coeliac)\b/.test(t)) return "gluten-free-friendly";
+  if (/\bhalal\b/.test(t)) return "halal";
+  if (/\bkosher\b/.test(t)) return "kosher";
+  return null;
 }
