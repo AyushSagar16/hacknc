@@ -19,8 +19,12 @@
   --imessage: #0a7cff;
   --imessage-top: #3a9bff;
   --ease: cubic-bezier(0.16, 1, 0.3, 1);
+  --nav-h: 56px;
+  --nav-gap: 12px;
 
   position: relative;
+  /* Keeps the nav's top margin inside, so the sky starts at the very top of the page. */
+  display: flow-root;
   overflow-x: clip;
   color: var(--text);
   color-scheme: light;
@@ -42,13 +46,14 @@
 /* ---------- Nav ---------- */
 .nav {
   position: sticky;
-  top: 12px;
+  top: var(--nav-gap);
   z-index: 20;
   display: flex;
   align-items: center;
   gap: 16px;
   max-width: 1080px;
-  margin: 12px auto 0;
+  height: var(--nav-h);
+  margin: var(--nav-gap) auto 0;
   width: calc(100% - 32px);
   padding: 8px 8px 8px 16px;
   border-radius: 999px;
@@ -105,15 +110,16 @@
 .hero {
   position: relative;
   isolation: isolate;
-  min-height: min(calc(100svh - 70px), 940px);
+  min-height: min(100svh, 1010px);
   display: flex;
   flex-direction: column;
   align-items: center;
   justify-content: center;
   text-align: center;
   padding: 72px 16px 120px;
-  margin-top: -70px;
-  padding-top: 142px;
+  /* Slides up under the nav so its sky runs to the top edge. */
+  margin-top: calc(-1 * (var(--nav-h) + var(--nav-gap)));
+  padding-top: calc(var(--nav-h) + var(--nav-gap) + 72px);
 }
 .sky {
   position: absolute;
@@ -255,6 +261,7 @@
   font-size: clamp(17px, 1.6vw, 20px);
   font-weight: 600;
   color: var(--muted);
+  text-wrap: pretty;
   animation: fadeUp 0.8s var(--ease) 0.9s both;
 }
 @keyframes fadeUp {
@@ -818,7 +825,7 @@
 .stageBar li { margin: 0; display: flex; flex-direction: column; gap: 2px; min-width: 0; }
 .stageBar i { display: block; height: 5px; border-radius: 3px; background: linear-gradient(180deg, #5cc4f4, var(--accent)); }
 .stageBar span { font-size: 11px; font-weight: 800; line-height: 1.2; }
-.stageBar small { font-size: 10.5px; color: var(--muted); font-weight: 600; line-height: 1.2; overflow-wrap: anywhere; }
+.stageBar small { font-size: 10.5px; color: var(--muted); font-weight: 600; line-height: 1.2; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 
 .memoryOrb {
   position: absolute;
@@ -894,6 +901,43 @@
 .stack > span:first-child { font-size: 11.5px; font-weight: 800; letter-spacing: 0.1em; text-transform: uppercase; align-self: center; }
 .stack i { font-style: normal; opacity: 0.4; margin-right: 10px; }
 .fine { margin: 0; font-size: 12.5px; opacity: 0.8; }
+
+/* ---------- Phones ---------- */
+@media (max-width: 640px) {
+  .section { padding: 56px 16px; }
+  .sectionHead { margin-bottom: 28px; }
+  .steps { margin-top: 24px; }
+  .steps li { padding: 14px 16px; }
+
+  /* "quote → tag" stacks: the tag sits under its quote, indented. */
+  .extract li { flex-direction: column; align-items: flex-start; gap: 6px; }
+  .arrow { display: none; }
+  .tag { margin-left: 14px; }
+
+  /* Destination cards become rows: picture left, details right. */
+  .options { grid-template-columns: 1fr; gap: 10px; }
+  .option { display: grid; grid-template-columns: 116px minmax(0, 1fr); }
+  .optionArt { aspect-ratio: auto; min-height: 100%; }
+  .chosen { top: 6px; left: 6px; padding: 1px 8px; font-size: 11px; }
+  .optionBody { padding: 10px 12px; }
+
+  .stageBar { padding: 10px 10px 12px; gap: 4px; }
+  .stageBar span { font-size: 10px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
+  .memoryOrb { position: static; display: block; margin: 14px 0 -6px auto; width: 64px; height: 64px; }
+
+  .trust { padding: 28px 18px; border-radius: 30px; }
+  .trustGrid { margin-top: 24px; gap: 10px; }
+  .trustGrid > div { padding: 16px 16px 14px; border-radius: 18px; }
+
+  .finalCard { padding: 40px 16px; border-radius: 32px; }
+  .cta,
+  .ctaBig { gap: 10px; padding: 10px 20px 10px 10px; font-size: 16px; white-space: nowrap; }
+  .ctaBig .msgIcon { width: 36px !important; height: 36px !important; }
+
+  .stack { gap: 4px 14px; }
+  .stack i { display: none; }
+}
 
 /* ---------- Globe meridians ---------- */
 .meridian {
