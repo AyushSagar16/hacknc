@@ -17,7 +17,7 @@ import { profilesFor } from "../../profile/store.ts";
 import { itineraryInput } from "../../site/content.ts";
 import { requestSync } from "../../site/publish.ts";
 import { dayLabel } from "../../trips/itinerary.ts";
-import { activityTags, placeFacts, searchNearby, settingOf, SHORTLIST_SIZE, type NearbyKind, type NearbyPlace, type Origin } from "../../trips/nearby.ts";
+import { activityTags, placeFacts, rankPlaces, searchNearby, settingOf, SHORTLIST_SIZE, type NearbyKind, type NearbyPlace, type Origin } from "../../trips/nearby.ts";
 import { tripDestination } from "../../trips/place.ts";
 import { markPicked, placesFor, saveShortlist, type TripPlaceRow } from "../../trips/placesStore.ts";
 import { getStages, setStage } from "../../trips/stages.ts";
@@ -27,6 +27,7 @@ import type { AppServices, Feature, TurnCtx } from "../feature.ts";
 import type { Llm } from "../llm.ts";
 import { stripArtifacts } from "../../search/format.ts";
 import { lookup } from "./search.ts";
+import { osmPlaces } from "../../trips/osm.ts";
 import { ToolError, say, str, strList, type Tool } from "../tools.ts";
 import { nameList } from "./planning.ts";
 import { pricingDeps } from "./proposals.ts";
@@ -193,6 +194,18 @@ export function webQueryFor(kind: NearbyKind, place: string, prefs: GroupPrefs, 
   return `things to do in ${place}${likes.length ? ` for people who like ${likes.join(" and ")}` : ""}`;
 }
 
+/** Words to look up on OpenStreetMap: the ask, else favourite cuisines (food) or interests (things to do). None means nothing specific. */
+export function osmTermsFor(kind: NearbyKind, prefs: GroupPrefs, query?: string): string[] {
+  if (query) return [query.replace(/\b(food|places?|spots?|restaurants?|near (?:my|our|the) (?:hotel|stay|place|airbnb))\b/gi, " ").replace(/\s+/g, " ").trim() || query];
+  const top = (w: Record<string, number>) =>
+    Object.entries(w)
+      .filter(([k, v]) => v > 0 && k !== "anything")
+      .sort((a, b) => b[1] - a[1])
+      .slice(0, 3)
+      .map(([k]) => k.replace(/_/g, " "));
+  return kind === "food" ? top(prefs.cuisines) : [];
+}
+
 /** Places from a web lookup (no map): names and a one-line detail, no ratings or distances. */
 async function webPlaces(kind: NearbyKind, place: string, prefs: GroupPrefs, query: string | undefined, web: WebSearchDeps, exclude: ReadonlySet<string>): Promise<NearbyPlace[]> {
   try {
@@ -238,11 +251,19 @@ export async function buildShortlist(trip: TripRow, view: GroupView, kinds: Near
         { dest, query, dietary: [...prefs.dietary.keys()], interests: prefs.interests, cuisines: prefs.cuisines, lowMobility: prefs.lowMobility, exclude: picked, limit: SHORTLIST_SIZE },
         pricingDeps(),
       );
-      // No live map: the web knows real places for what they asked; the catalog is the last resort.
-      if (nearby.source !== "serpapi" && opts.web && place) {
+      if (nearby.source === "serpapi") return { kind, places: nearby.places, source: nearby.source };
+      // No live map: OpenStreetMap for a specific ask (real places, real distances), then the web,
+      // and the catalog last. The catalog never answers a specific ask ("indian food" isn't Disney Springs).
+      const terms = osmTermsFor(kind, prefs, query);
+      if (terms.length && opts.web?.cfg.IMESSAGE_MODE === "linq") {
+        const found = rankPlaces(await osmPlaces(kind, terms, origin), { dietary: [...prefs.dietary.keys()], interests: prefs.interests, cuisines: prefs.cuisines, lowMobility: prefs.lowMobility, exclude: picked, limit: SHORTLIST_SIZE, origin });
+        if (found.length) return { kind, places: found, source: "osm" as const };
+      }
+      if (opts.web && place) {
         const found = await webPlaces(kind, place, prefs, query, opts.web, picked);
         if (found.length) return { kind, places: found, source: "web" as const };
       }
+      if (query) return { kind, places: [] as NearbyPlace[], source: "none" as const };
       return { kind, places: nearby.places, source: nearby.source };
     }),
   );

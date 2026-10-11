@@ -15,7 +15,7 @@ export interface NearbyPlace {
   kind: NearbyKind;
   /** SerpApi place_id / data_id, "catalog:<activity id>" or "web:<name>". */
   sourceId: string;
-  source: "serpapi" | "catalog" | "web";
+  source: "serpapi" | "catalog" | "web" | "osm";
   name: string;
   /** "Vegetarian restaurant", "Museum". */
   category?: string;
