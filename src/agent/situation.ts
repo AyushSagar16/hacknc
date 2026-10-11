@@ -186,10 +186,11 @@ async function vaguePeriods(tc: TurnCtx, profiles: Map<number, PersonProfile>): 
     `SELECT person_id, quote FROM (
        SELECT DISTINCT ON (person_id) person_id, quote, value FROM facts
         WHERE key = 'date_window' AND NOT retracted AND superseded_by IS NULL AND person_id = ANY($1)
+          AND chat_id = $2 AND trip_id = $3
         ORDER BY person_id, observed_at DESC, id DESC
      ) latest
      WHERE quote IS NOT NULL AND quote <> '' AND value->>'earliest' IS NULL AND value->>'latest' IS NULL`,
-    [ids],
+    [ids, tc.chat.id, tc.trip.id],
   ).catch(() => []);
   return rows.map((r) => ({ label: tc.label(r.person_id), quote: r.quote.slice(0, 120) }));
 }

@@ -79,7 +79,7 @@ async function chatData(chatId: number) {
     q(`SELECT m.direction, m.text, m.sent_at, CASE WHEN m.direction = 'outbound' THEN 'atlas' ELSE ${who} END AS who FROM messages m LEFT JOIN people p ON p.id = m.person_id WHERE m.chat_id = $1 ORDER BY m.sent_at DESC, m.id DESC LIMIT 60`, [chatId]),
     q(`SELECT started_at, route, addressed, gate_decision, gate_reason, latency_ms FROM turns WHERE chat_id = $1 ORDER BY id DESC LIMIT 25`, [chatId]),
     q(`SELECT ${who} AS who, f.key, f.value, f.polarity, f.confidence, f.quote, f.superseded_by IS NOT NULL AS superseded FROM facts f JOIN people p ON p.id = f.person_id
-       WHERE f.person_id IN (SELECT person_id FROM chat_members WHERE chat_id = $1) AND f.visibility = 'public' ORDER BY f.id DESC LIMIT 40`, [chatId]),
+       WHERE f.chat_id = $1 AND f.visibility = 'public' ORDER BY f.id DESC LIMIT 40`, [chatId]),
     q<{ who: string; visibility: string; effective: number | null; explanation: string[] | null; source: string | null; customer: string | null }>(
       `SELECT ${who} AS who, b.visibility, COALESCE(b.adjusted_cents, b.suggested_cents) AS effective, b.inputs->'result'->'explanation' AS explanation, b.inputs->>'source' AS source, b.inputs->>'customerId' AS customer
        FROM budgets b JOIN trips t ON t.id = b.trip_id JOIN people p ON p.id = b.person_id WHERE t.chat_id = $1`,

@@ -196,10 +196,10 @@ function spareActivities(trip: TripRow): SpareActivity[] {
 }
 
 /** Group interest weights keyed by catalog tag ("museums" → culture). */
-async function groupInterests(chatId: number, today: string): Promise<Record<string, number>> {
-  const members = await activeMembers(chatId);
+async function groupInterests(trip: Pick<TripRow, "id" | "chat_id">, today: string): Promise<Record<string, number>> {
+  const members = await activeMembers(trip.chat_id);
   if (members.length === 0) return {};
-  const profiles = await profilesFor(members.map((m) => m.id));
+  const profiles = await profilesFor(members.map((m) => m.id), { chatId: trip.chat_id, tripId: trip.id });
   const view = groupView(
     members.map((m) => ({ personId: m.id, label: labelOf(m), profile: profiles.get(m.id)! })),
     today,
@@ -279,7 +279,7 @@ export async function checkTripWeather(
             change: lead,
             itinerary,
             spareActivities: spareActivities(trip),
-            interests: await groupInterests(trip.chat_id, opts.today),
+            interests: await groupInterests(trip, opts.today),
             forecastByDay: next,
             today: opts.today,
           });

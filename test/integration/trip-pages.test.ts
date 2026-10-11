@@ -246,8 +246,8 @@ describeDb("trip pages", () => {
     ]);
     const { createTrip } = await import("../../src/trips/state.ts");
     const second = await createTrip(chatRow!.id, "japan");
-    const onFirst = await factsFor([maya!.id], { tripId: first!.id });
-    const onSecond = await factsFor([maya!.id], { tripId: second.id });
+    const onFirst = await factsFor([maya!.id], { chatId: chatRow!.id, tripId: first!.id });
+    const onSecond = await factsFor([maya!.id], { chatId: chatRow!.id, tripId: second.id });
     expect(onFirst.map((f) => f.key).sort()).toEqual(["dietary", "trip_length"]);
     expect(onSecond.map((f) => f.key)).toEqual(["dietary"]);
     void chat;

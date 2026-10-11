@@ -116,7 +116,7 @@ export async function queueResearch(trip: Pick<TripRow, "id">): Promise<void> {
 /** The group as the search should picture it: who's going, from where, what they eat and like. */
 async function context(trip: TripRow, timezone: string): Promise<string[]> {
   const members = await activeMembers(trip.chat_id);
-  const profiles = await profilesFor(members.map((m) => m.id), { tripId: trip.id });
+  const profiles = await profilesFor(members.map((m) => m.id), { chatId: trip.chat_id, tripId: trip.id });
   const view = groupView(
     members.map((m) => ({ personId: m.id, label: labelOf(m), profile: profiles.get(m.id)! })),
     isoDate(now(), timezone),

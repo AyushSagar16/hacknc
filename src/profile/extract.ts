@@ -205,7 +205,7 @@ export async function extractFacts(input: ExtractInput, on?: Queryable): Promise
 
   const factIds = await insertFacts(facts, on);
   for (const n of nameFacts) await setDisplayName(n.personId, n.name, { overwrite: true });
-  await markSuperseded([...new Set(facts.map((f) => f.personId))], { tripId: texts[0]?.trip_id ?? undefined });
+  await markSuperseded([...new Set(facts.map((f) => f.personId))], { chatId: input.chatId, tripId: texts[0]?.trip_id ?? undefined });
 
   const tensions: Tension[] = parsed.tensions
     .map((t) => ({ topic: t.topic.slice(0, 80), sides: [...new Set(t.sides.map((s) => resolvePerson(s, -1)).filter((id): id is number => id !== undefined && id !== -1))] }))

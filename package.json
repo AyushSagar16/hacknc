@@ -9,6 +9,7 @@
     "live": "tsx --env-file-if-exists=.env scripts/live.ts",
     "sim": "tsx --env-file-if-exists=.env scripts/sim.ts",
     "migrate": "tsx --env-file-if-exists=.env scripts/migrate.ts",
+    "memory:reset": "tsx --env-file-if-exists=.env scripts/reset-memory.ts",
     "doctor": "tsx --env-file-if-exists=.env scripts/doctor.ts",
     "demo": "tsx --env-file-if-exists=.env scripts/demo.ts",
     "ops": "tsx --env-file-if-exists=.env scripts/ops.ts",

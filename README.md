@@ -180,7 +180,8 @@ Linq webhook ──► signature check ──► durable event log ──► Spe
   forward). Once a money side effect starts, the turn can't be cancelled. Sends are idempotent
   through stable client GUIDs, and all background work goes through a Postgres job queue with a
   `job_failures` audit table.
-- **Memory:** history is scoped per chat, memory per person (Photon's best practice). It's stored
+- **Memory:** each group chat is a sandbox. History, recall and per-person facts are read only in
+  the chat they came from, so one itinerary never leaks into another. Recall is stored
   in `memory_chunks` with a `diskann` vector index and a BM25 index, queried together in one SQL
   statement. Atlas's own messages go to the `atlas_log` hypertable, which feeds a "what you already
   said" section and a `pg_trgm` guard against repeated nudges. See [docs/memory-research.md](docs/memory-research.md).

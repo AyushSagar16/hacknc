@@ -1,7 +1,7 @@
 // Long-term memory, write side (Tiger Data: pgvector + pgvectorscale's diskann index).
-// Memory per person, history per chat: each turn's messages become "window" chunks scoped to the
-// chat they were said in, and each extracted fact becomes a chunk scoped to the person it's about
-// (recalled in any chat that person is in). Decisions ("the group locked lisbon") are chat-scoped.
+// Every chunk is scoped to the chat it came from: each turn's messages become "window" chunks, each
+// extracted fact becomes a chunk about its person in that chat (not recalled; profiles cover facts),
+// and decisions ("the group locked lisbon") are chat-scoped too.
 // Embeddings go through the Llm interface, so tests and scenarios use the deterministic hash
 // embedder. Re-running is idempotent: covered messages and already-embedded facts are skipped.
 import { config } from "../config.ts";
