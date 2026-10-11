@@ -144,6 +144,8 @@ export async function runAgent(input: AgentInput): Promise<AgentOutput> {
   const toolNames = input.tools.declsFor(input.ctx.chat).map((d) => d.name);
   const outStart = input.ctx.out.length;
   let soloPosted = false;
+  /** Everything real the model has seen this turn: URLs in its words must come from here. */
+  const seenText: string[] = [input.situation];
   const maxRounds = input.maxRounds ?? 4;
 
   /** Tool rounds until the model writes text (or a solo post ends the turn). Returns the text. */
@@ -173,6 +175,7 @@ export async function runAgent(input: AgentInput): Promise<AgentOutput> {
         const before = input.ctx.out.length;
         const outcome = await input.tools.run(call.name, call.args, input.ctx);
         toolCalls.push({ name: call.name, ok: outcome.ok, error: outcome.ok ? undefined : outcome.error });
+        seenText.push(safeJson(outcome));
         responses.push({ functionResponse: { name: call.name, id: call.id, response: outcome as unknown as Record<string, unknown> } });
         // "Solo" only counts when the tool actually posted: ask_for_missing_info posts nothing when
         // everyone was already asked, and then the model's own words are the whole reply.
@@ -198,7 +201,15 @@ export async function runAgent(input: AgentInput): Promise<AgentOutput> {
   let text = "";
   let retried = false;
   try {
-    const first = await converse(maxRounds, "low");
+    let first: { text: string; ended: boolean };
+    try {
+      first = await converse(maxRounds, "low");
+    } catch (err) {
+      // Gemini returning nothing at all is the same hiccup as a thoughts-only answer: nudge once.
+      if (!(err instanceof LlmError) || err.kind !== "empty" || input.signal.aborted) throw err;
+      log.warn({ err: err.message }, "model returned nothing on the first call; nudging once");
+      first = { text: "", ended: false };
+    }
     text = first.text;
     const toolPosted = input.ctx.out.length > outStart;
     if (!first.ended && !toolPosted && toBubbles(text, input.agentName, toolNames).length === 0) {
@@ -238,7 +249,13 @@ export async function runAgent(input: AgentInput): Promise<AgentOutput> {
     log.warn({ err: (err as Error).message, kind }, "agent call failed");
     return { bubbles: [], toolCalls, failed: kind, retried };
   }
-  const bubbles = dropTailOffer(toBubbles(text, input.agentName, toolNames));
+  let bubbles = dropTailOffer(toBubbles(text, input.agentName, toolNames));
+  const known = [...seenText, ...input.ctx.out.slice(outStart).map(actionText), ...((input.ctx as { history?: { text?: string | null }[] }).history ?? []).map((h) => h.text ?? "")];
+  const linked = dropUnknownLinks(bubbles, known);
+  if (linked.dropped.length) {
+    log.warn({ hosts: linked.dropped.map(hostOf) }, "agent wrote links that never appeared this turn; cut them");
+    bubbles = linked.bubbles;
+  }
   const empty = bubbles.length === 0 && !soloPosted && input.ctx.out.length === outStart && (retried || !/\bNO_REPLY\b/.test(text));
   return { bubbles, toolCalls, soloPosted, empty, retried };
 }
@@ -294,4 +311,58 @@ export function guardBubbles(bubbles: string[], figures: Figures, audience: { is
     for (const l of result.privateLeaks) violations.push(`private figure ${l.mention.raw} (${l.figure.label})`);
   }
   return violations.length ? { bubbles: [], violations } : { bubbles, violations };
+}
+
+function safeJson(v: unknown): string {
+  try {
+    return JSON.stringify(v) ?? "";
+  } catch {
+    return "";
+  }
+}
+
+function actionText(a: { type: string; text?: string; url?: string }): string {
+  return a.type === "link" ? (a.url ?? "") : (a.text ?? "");
+}
+
+const URL_IN_TEXT = /\bhttps?:\/\/[^\s<>"')\]]+|\b(?:www\.)?[a-z0-9][a-z0-9-]*(?:\.[a-z0-9-]+)*\.(?:com|org|net|io|co|app|tech|travel|gov|edu|info|me|us|ai)\b(?:\/[^\s<>"')\]]*)?/gi;
+
+const normUrl = (u: string) =>
+  u
+    .replace(/[.,;:!?]+$/, "")
+    .replace(/^https?:\/\//i, "")
+    .replace(/^www\./i, "")
+    .replace(/\/+$/, "")
+    .toLowerCase();
+
+const hostOf = (u: string) => normUrl(u).split(/[/?#]/)[0]!;
+
+/** Pull URL-shaped strings out of text (JSON escapes like \/ are undone first). */
+export function urlsIn(text: string): string[] {
+  return [...text.replace(/\\\//g, "/").matchAll(URL_IN_TEXT)].map((m) => m[0]);
+}
+
+/**
+ * A link the model typed is allowed only if the same URL appears in what it was given: the
+ * situation, a tool result or post, or the recent chat. Anything else is invented (a plausible
+ * "capitalone.com/trips/…" or a trip page with a made-up id). The sentence holding it is cut,
+ * and a bubble left empty goes.
+ */
+export function dropUnknownLinks(bubbles: string[], knownTexts: string[]): { bubbles: string[]; dropped: string[] } {
+  const known = new Set(knownTexts.flatMap(urlsIn).map(normUrl));
+  const dropped: string[] = [];
+  const ok = (url: string) => {
+    const n = normUrl(url);
+    return known.has(n) || [...known].some((k) => k.startsWith(`${n}/`) && !n.includes("/"));
+  };
+  const out = bubbles
+    .map((b) =>
+      filterSentences(b, (sentence) => {
+        const bad = urlsIn(sentence).filter((u) => !ok(u));
+        dropped.push(...bad);
+        return bad.length === 0;
+      }),
+    )
+    .filter(Boolean);
+  return { bubbles: dropped.length ? out : bubbles, dropped };
 }

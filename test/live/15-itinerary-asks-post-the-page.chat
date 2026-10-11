@@ -1,0 +1,20 @@
+# Real chats: in a private chat "So what's the iteniery" got a model-written rundown, a made-up
+# capitalone.com/trips link and a second "the plan:" summary, never the real trip page; in the group
+# "Show us the website renters" and "Iteneiery" got no answer at all. Any ask for the itinerary,
+# plan, website or link (typos and all, named or not) is answered once, with the trip page on our
+# own domain (when trip pages are on; otherwise the plan in a line or two), never an invented link.
+today 2026-10-10 18:00
+members maya leo priya
+atlas joins by maya
+maya: atlas we're doing asheville nov 12-15, all of us, lock it in
+expect atlas speaks
+leo: Iteneiery
+expect atlas speaks
+expect atlas !~ /capitalone/i
+priya: Show us the website renters
+expect atlas speaks
+expect atlas !~ /capitalone/i
+maya: so what's the iteniery
+expect atlas speaks
+expect atlas !~ /capitalone/i
+expect transcript !~ /the plan:[\s\S]*the plan:/i

@@ -46,16 +46,18 @@ export interface Published {
  * Write the trip's page. Returns null when trip pages are off or the chat isn't a group chat
  * (DMs carry private budgets). Throws if the store write fails.
  */
-export async function publishTrip(cfg: Config, tripId: number, chat: ChatRow, section: SiteSection = "overview"): Promise<Published | null> {
+export async function publishTrip(cfg: Config, tripId: number, chat: ChatRow, section: SiteSection = "overview", opts: { privateChat?: boolean } = {}): Promise<Published | null> {
   const site = siteFor(cfg);
-  if (!site || !chat.is_group) return null;
+  // A private chat is published only when its person asked for the page, and only the trip itself:
+  // the one-on-one conversation (budgets, balances) is never copied to the page.
+  if (!site || (!chat.is_group && !opts.privateChat)) return null;
   const bumped = await one<{ site_version: number }>(`UPDATE trips SET site_version = site_version + 1 WHERE id = $1 RETURNING site_version`, [tripId]);
   const trip = await tripById(tripId);
   if (!bumped || !trip) return null;
   const snap = await buildSnapshot(trip, chat, { agentName: cfg.AGENT_NAME, version: bumped.site_version });
   await site.store.upsertTrip(snap.trip);
   await site.store.upsertResearch(snap.trip.id, snap.research);
-  if (snap.messages.length) {
+  if (chat.is_group && snap.messages.length) {
     await site.store.upsertMessages(snap.trip.id, snap.messages);
     const last = snap.messages.at(-1)!.localId;
     await one(`UPDATE trips SET site_message_cursor = GREATEST(site_message_cursor, $2) WHERE id = $1`, [tripId, last]);
@@ -70,7 +72,7 @@ export async function requestSync(cfg: Config, trip: Pick<TripRow, "id">): Promi
 }
 
 /** Publish and post the section's link from a background job (retried until the store takes it). */
-export async function requestAnnounce(cfg: Config, trip: Pick<TripRow, "id">, section: SiteSection): Promise<void> {
+export async function requestAnnounce(cfg: Config, trip: Pick<TripRow, "id">, section: SiteSection, opts: { privateChat?: boolean } = {}): Promise<void> {
   if (!siteFor(cfg)) return;
-  await enqueueJob(ANNOUNCE_JOB, { tripId: trip.id, section }, { singletonKey: `site:announce:${trip.id}:${section}` });
+  await enqueueJob(ANNOUNCE_JOB, { tripId: trip.id, section, ...(opts.privateChat ? { privateChat: true } : {}) }, { singletonKey: `site:announce:${trip.id}:${section}` });
 }

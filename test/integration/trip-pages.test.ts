@@ -3,7 +3,7 @@
 // day-by-day plan only once the stay is picked.
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { q } from "../../src/db/pool.ts";
-import { callResult, textResult, type GenerateRequest, type GenerateResult } from "../../src/agent/llm.ts";
+import { callResult, jsonResult, textResult, type GenerateRequest, type GenerateResult } from "../../src/agent/llm.ts";
 import { OffsetClock, isoDate, setClock, systemClock } from "../../src/clock.ts";
 import { MemorySiteStore, useSite } from "../../src/site/store.ts";
 import { setResearchLookup } from "../../src/agent/features/research.ts";
@@ -49,6 +49,8 @@ const fakeLookup = async (input: LookupInput): Promise<Lookup> => {
     ? { kind: "list", heading: "events in asheville", items: [{ name: "winter lights", detail: "garden light show", start: "2026-11-20", end: "2027-01-03" }, { name: "craft fair", detail: "local makers" }], source: "https://example.org/events" }
     : { kind: "list", heading: input.query, items: [{ name: "biltmore estate", detail: "house and gardens" }, { name: "white duck tacos", detail: "creative tacos" }], source: "https://example.org/guide" };
 };
+
+const chatLinks = (entries: { kind: string }[]) => entries.filter((e) => e.kind === "link");
 
 describeDb("trip pages", () => {
   let t: TestAtlas | undefined;
@@ -296,6 +298,46 @@ describeDb("trip pages", () => {
     expect(onFirst.map((f) => f.key).sort()).toEqual(["dietary", "trip_length"]);
     expect(onSecond.map((f) => f.key)).toEqual(["dietary"]);
     void chat;
+  });
+
+  it("answers 'iteneiery' and 'show us the website' with the page link, untagged, without the gate or the model", async () => {
+    const { llm, chat } = await lockedTrip();
+    const [trip] = await q<{ public_id: string }>(`SELECT public_id FROM trips`);
+    // Both used to end in a silent gate; an agent that would write a rundown must never be asked.
+    llm.set("gate", () => jsonResult({ decision: "NO_REPLY", reason: "banter" }));
+    llm.set("agent", () => textResult("the plan: day 1 biltmore https://capitalone.com/trips/x"));
+    for (const text of ["Iteneiery", "Show us the website"]) {
+      const before = chat.lastEntry();
+      await chat.say("leo", text);
+      const sent = chat.atlasSince(before);
+      expect(sent.map((e) => e.kind)).toEqual(["text", "link"]);
+      expect(sent[0]!.text).toBe("here's the trip page with the day-by-day plan:");
+      expect(sent[1]!.text).toMatch(new RegExp(`^${BASE}/t/${trip!.public_id}\\?v=\\d+$`));
+    }
+  });
+
+  it("says the plan fills in later when the stay isn't picked, and links the page in a private chat without copying it", async () => {
+    t = await testAtlas({ llm: quietFake() });
+    const dm = t.chat("dm1", ["maya"]);
+    await dm.say("maya", "hey");
+    const { tripFor, updateTrip } = await import("../../src/trips/state.ts");
+    const [row] = await q<{ id: number }>(`SELECT id FROM chats WHERE provider_chat_id = 'dm1'`);
+    const trip = await tripFor(Number(row!.id));
+    // No destination yet: the normal path, no page.
+    const none = dm.lastEntry();
+    await dm.say("maya", "what's the itinerary");
+    expect(chatLinks(dm.atlasSince(none))).toHaveLength(0);
+    await updateTrip(trip.id, { destination_name: "Asheville", destination_id: "asheville", start_date: plusDays(40), end_date: plusDays(43) });
+    const before = dm.lastEntry();
+    await dm.say("maya", "So what's the iteniery");
+    const sent = dm.atlasSince(before);
+    expect(sent.map((e) => e.kind)).toEqual(["text", "link"]);
+    expect(sent[0]!.text).toMatch(/fills in once the stay and food are picked/);
+    expect(sent[1]!.text).toMatch(new RegExp(`^${BASE}/t/[0-9a-f-]+\\?v=\\d+$`));
+    // The page has the trip but none of the one-on-one conversation.
+    const page = [...store.trips.values()][0]!;
+    expect(page.destination).toBe("Asheville");
+    expect(store.messages.size === 0 || [...store.messages.values()].every((m) => m.size === 0)).toBe(true);
   });
 
   it("never publishes a private chat", async () => {

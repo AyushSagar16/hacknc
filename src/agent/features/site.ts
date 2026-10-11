@@ -20,6 +20,7 @@ import { dayLabel, draftItinerary } from "../../trips/itinerary.ts";
 import { placesFor } from "../../trips/placesStore.ts";
 import { stagesOf } from "../../trips/stages.ts";
 import { itineraryInput, itineraryText, mergeItinerary, problem, summaryInput } from "../../site/content.ts";
+import { asksForTripPage } from "../siteAsk.ts";
 import { ANNOUNCE_JOB, SYNC_JOB, linkAction, pageUrl, publishTrip, requestAnnounce, requestSync } from "../../site/publish.ts";
 import { siteFor } from "../../site/store.ts";
 import type { SiteSection } from "../../site/types.ts";
@@ -215,6 +216,40 @@ export const siteFeature: Feature = {
     return lines.length ? { title: "trip page", lines } : null;
   },
 
+  /**
+   * "show us the itinerary" / "send the link" / "Iteneiery": the trip page link, from code, in a
+   * group (named or not) and in a private chat. One answer per turn, no model rundown beside it.
+   */
+  async fastPath(msg, tc) {
+    if (msg.kind !== "text" || !msg.speakable || !siteFor(tc.cfg)) return false;
+    const names = tc.members.map((m) => labelOf(m).trim().split(/\s+/)[0] ?? "");
+    if (!asksForTripPage(msg.text, { agentName: tc.cfg.AGENT_NAME, memberNames: names })) return false;
+    const t = tc.trip;
+    if (!t.destination_name) return false;
+    // Several asks in one batch (or a link already queued this turn): one answer.
+    if (tc.notes.get("site.page_asked") || tc.notes.get("site.announced")) return true;
+    tc.notes.set("site.page_asked", true);
+    const privateChat = !tc.chat.is_group;
+    let lead: string;
+    if (hasPlan(t)) lead = "here's the trip page with the day-by-day plan:";
+    else if (planReady(t) && t.start_date) {
+      await requestItinerary(t);
+      lead = "here's the trip page. i'm writing the day-by-day plan now, it'll fill in there in a minute:";
+    } else lead = "here's the trip page. the day-by-day plan fills in once the stay and food are picked:";
+    try {
+      const published = await publishTrip(tc.cfg, t.id, tc.chat, "overview", { privateChat });
+      if (!published) return false;
+      say(tc, lead);
+      tc.out.push(linkAction(published.url, "overview"));
+      tc.notes.set("site.page_asked", true);
+    } catch (err) {
+      log.warn({ err: (err as Error).message, tripId: t.id }, "trip page publish failed on a page ask; retrying in the background");
+      await requestAnnounce(tc.cfg, t, "overview", { privateChat });
+      say(tc, "the trip page is almost up, i'll send the link in a sec");
+    }
+    return true;
+  },
+
   async afterTurn(tc) {
     if (!tc.chat.is_group) return;
     await requestSync(tc.cfg, tc.trip).catch((err) => log.warn({ err: (err as Error).message }, "couldn't queue trip page sync"));
@@ -245,7 +280,7 @@ export const siteFeature: Feature = {
         const chat = trip && (await chatRow(trip.chat_id));
         const section = SECTIONS.includes(payload.section as SiteSection) ? (payload.section as SiteSection) : "overview";
         if (!trip || !chat) return;
-        const published = await publishTrip(svc.cfg, trip.id, chat, section);
+        const published = await publishTrip(svc.cfg, trip.id, chat, section, { privateChat: payload.privateChat === true });
         if (published) await svc.post(chat.id, `site${jobId}`, [linkAction(published.url, section)]);
       },
     };

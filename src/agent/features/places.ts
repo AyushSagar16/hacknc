@@ -455,11 +455,17 @@ export function pickText(o: PickOutcome): string {
   return lines.join("\n");
 }
 
+/** Places each turn has put on the plan, so a second pick of one in the same turn stays quiet. */
+const pickedThisTurn = new WeakMap<TurnCtx, Set<number>>();
+
 async function pickAndSay(tc: TurnCtx, refs: string[], by: number | null): Promise<PickOutcome> {
   await tc.nonCancellable();
   const { outcome, trip } = await pickPlaces(tc.trip, refs, by, tc.now);
   tc.trip = trip;
-  const text = pickText(outcome);
+  // Picked earlier this turn (the intent fast path): its "✓ added" already went out.
+  const earlier = pickedThisTurn.get(tc) ?? new Set<number>();
+  pickedThisTurn.set(tc, new Set([...earlier, ...outcome.added.map((a) => a.row.id)]));
+  const text = pickText({ ...outcome, already: outcome.already.filter((r) => !earlier.has(r.id)) });
   if (text) say(tc, text);
   if (outcome.added.length) await requestSync(tc.cfg, tc.trip).catch(() => undefined);
   return outcome;
@@ -572,6 +578,56 @@ async function addFastPath(msg: MessageRow, tc: TurnCtx): Promise<boolean> {
   return true;
 }
 
+// ---------- "i'll go to universal": saying you'll do a shortlisted place picks it ----------
+
+const INTENT = /\b(?:i'?ll|i will|we'?ll|we will)\s+(?:go to|go|do|take|hit|visit|try|see)\b|\blet'?s\s+(?:do|go to|go|hit|visit|try|add|book)\b|\b(?:i|we)\s+(?:want|wanna)\b|\b(?:we'?re|i'?m|were|im)\s+(?:doing|going to|gonna|down for)\b|\bbook\b|\badd\b|\bput\b.*\b(?:on|in) the (?:plan|itinerary)\b|\btickets?\s+(?:for|to)\b/i;
+const NEGATION = /\b(?:no|not|nah|nope|don'?t|dont|never|skip|too|isn'?t|aren'?t|won'?t|without|cancel|remove|instead of|rather|maybe|might|if)\b/i;
+const REQUEST = /\b(?:tickets?|book|add|put)\b/i;
+/** Asks the model still has to answer after the place is on the plan. */
+const WANTS_INFO = /\b(?:tickets?|prices?|pricing|cost|how much|hours|opens?|open until|book(?:ing)?|reserv\w*|links?|website)\b/i;
+const GENERIC_WORDS = new Set(["park", "market", "dinner", "lunch", "brunch", "breakfast", "restaurant", "kitchen", "downtown", "center", "centre", "tour", "tours", "world", "orlando", "beach", "museum", "garden", "gardens", "house", "grill", "coffee", "night", "bar", "trail", "local", "city", "state", "south", "north", "great", "tickets"]);
+
+/** Shortlist places a sentence names: the full name, its first two words, or one distinctive word (5+ letters) that only one row has. */
+export function placesNamedLoosely(text: string, rows: TripPlaceRow[]): TripPlaceRow[] {
+  const full = new Set(placesNamedIn(text, rows));
+  const t = new Set(norm(text).split(" "));
+  const owner = new Map<string, Set<number>>();
+  rows.forEach((r, i) => {
+    for (const w of new Set(norm(r.name).split(" "))) if (w.length >= 5 && !GENERIC_WORDS.has(w)) owner.set(w, (owner.get(w) ?? new Set()).add(i));
+  });
+  const hit = new Set<number>();
+  for (const [w, idxs] of owner) if (t.has(w) && idxs.size === 1) hit.add([...idxs][0]!);
+  return rows.filter((r, i) => full.has(r) || hit.has(i));
+}
+
+/** The still-unpicked shortlist places someone says they'll do or wants on the plan (null when it isn't that). */
+export function pickIntent(text: string, rows: TripPlaceRow[]): { rows: TripPlaceRow[]; wantsInfo: boolean } | null {
+  if (!INTENT.test(text) || NEGATION.test(text)) return null;
+  if (text.includes("?") && !REQUEST.test(text)) return null;
+  const named = placesNamedLoosely(text, rows).filter((r) => r.status === "suggested");
+  return named.length ? { rows: named, wantsInfo: WANTS_INFO.test(text) } : null;
+}
+
+const YES = /^\W*(?:(?:yes|yeah|yep|yup|sure|ok|okay|please|do it|go for it|definitely)\b[\s,!.]*)+\W*$/i;
+
+async function intentFastPath(msg: MessageRow, tc: TurnCtx): Promise<boolean> {
+  if (msg.kind !== "text" || msg.person_id === null || !msg.speakable) return false;
+  const rows = await placesFor(tc.trip.id);
+  if (!rows.length) return false;
+  let hit = pickIntent(msg.text, rows);
+  if (!hit && YES.test(msg.text)) {
+    // "yes" to Atlas's own "want me to add universal to the plan?".
+    const ask = /want me to (?:add|put) (.+?)(?: (?:to|on|in) (?:the )?(?:plan|itinerary))?\?/i.exec(await lastAtlasText(tc.chat.id));
+    const named = ask ? placesNamedLoosely(ask[1]!, rows).filter((r) => r.status === "suggested") : [];
+    if (named.length) hit = { rows: named, wantsInfo: false };
+  }
+  if (!hit) return false;
+  tc.senderId = msg.person_id;
+  await pickAndSay(tc, hit.rows.map((r) => String(r.idx ?? r.name)), msg.person_id);
+  // A ticket/price/hours question still goes to the model (the pick is already on the plan).
+  return !hit.wantsInfo;
+}
+
 /** 👍/❤️ on someone's "let's do chai pani" picks it (when it names exactly one shortlisted place). */
 async function reactionFastPath(msg: MessageRow, tc: TurnCtx): Promise<boolean> {
   if (msg.kind !== "reaction" || msg.person_id === null || msg.meta?.removed === true) return false;
@@ -612,7 +668,7 @@ export const placesFeature: Feature = {
   tools: [suggestPlacesTool, pickPlaceTool, finishPlacesTool],
 
   async fastPath(msg, tc) {
-    return (await reactionFastPath(msg, tc)) || (await addFastPath(msg, tc)) || (await doneFastPath(msg, tc));
+    return (await reactionFastPath(msg, tc)) || (await addFastPath(msg, tc)) || (await intentFastPath(msg, tc)) || (await doneFastPath(msg, tc));
   },
 
   async situation(tc) {

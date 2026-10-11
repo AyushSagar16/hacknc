@@ -1,0 +1,18 @@
+# Real chat (Orlando): after the shortlist, "I'll go to universal find me the tickets to that" got
+# "universal's a solid choice" and nothing on the plan; Atlas only added it after asking "want me to
+# add universal to the plan?" and getting a "Yes". A partial name plus "I'll go to" picks it at once
+# (no question, no matter how the ticket lookup goes), and the ticket ask is still answered.
+today 2026-10-10 14:00
+members maya leo
+atlas joins by maya
+maya: atlas we all agreed on asheville nov 12-15, lock it in
+expect trip.status = "locked"
+nearby food google_maps_asheville_restaurants.json
+nearby activity google_maps_asheville_things_to_do.json
+stay booked Aloft Asheville Downtown | 35.5935 -82.5536
+maya: just show us places now
+expect atlas ~ /things to do/
+maya: I'll go to pinball find me the tickets to that
+expect sql SELECT count(*)::int AS n FROM trip_places WHERE status = 'picked' AND name ILIKE '%pinball%' = [{"n":1}]
+expect transcript !~ /solid choice/
+expect transcript !~ /want me to add/

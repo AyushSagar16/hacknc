@@ -8,6 +8,7 @@ import { fileURLToPath } from "node:url";
 import { z } from "zod";
 import { childLog } from "../log.ts";
 import type { Llm } from "./llm.ts";
+import { asksForTripPage } from "./siteAsk.ts";
 import { isSmallTalk } from "./smallTalk.ts";
 
 export const GATE_PROMPT = readFileSync(fileURLToPath(new URL("./prompts/speak-gate.md", import.meta.url)), "utf8");
@@ -143,6 +144,7 @@ export function aimedAtSomeone(text: string, memberNames: readonly string[]): bo
 export function roomNeedsAtlas(text: string, memberNames: readonly string[]): string | null {
   const t = (text ?? "").trim();
   if (!t || isSmallTalk(t) || aimedAtSomeone(t, memberNames)) return null;
+  if (asksForTripPage(t, { memberNames })) return `asked for the itinerary / trip page ("${t.slice(0, 60)}"): give them the trip page link from the situation, or say the plan comes once the stay and food are picked`;
   if (OBJECTION.test(t)) return `objected ("${t.slice(0, 60)}"): acknowledge it and offer the next step (budgets, cheaper options or a different split)`;
   if (CHANGE_OF_MIND.test(t) && (t.includes("?") || TRIP_WORDS.test(t))) return `wants to change the plan ("${t.slice(0, 60)}"): acknowledge it and turn it into a quick group decision`;
   const question = t.includes("?") || QUESTION_START.test(t);
