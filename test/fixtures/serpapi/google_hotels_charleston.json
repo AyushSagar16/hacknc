@@ -1,0 +1,189 @@
+{
+  "search_metadata": {
+    "id": "fixture-Charleston-hotels",
+    "status": "Success"
+  },
+  "search_parameters": {
+    "engine": "google_hotels",
+    "q": "Charleston hotels",
+    "check_in_date": "2026-11-12",
+    "check_out_date": "2026-11-16",
+    "currency": "USD",
+    "adults": 2
+  },
+  "properties": [
+    {
+      "type": "hotel",
+      "name": "The Mills House",
+      "link": "https://example.com/charleston/hotel/0",
+      "gps_coordinates": {
+        "latitude": 32.778,
+        "longitude": -79.931
+      },
+      "check_in_time": "3:00 PM",
+      "check_out_time": "11:00 AM",
+      "rate_per_night": {
+        "lowest": "$289",
+        "extracted_lowest": 289
+      },
+      "total_rate": {
+        "lowest": "$1156",
+        "extracted_lowest": 1156
+      },
+      "hotel_class": "4-star hotel",
+      "extracted_hotel_class": 4,
+      "overall_rating": 4.5,
+      "reviews": 2100,
+      "amenities": [
+        "Free Wi-Fi",
+        "Air conditioning"
+      ],
+      "property_token": "fixture-chs-0"
+    },
+    {
+      "type": "hotel",
+      "name": "Francis Marion Hotel",
+      "link": "https://example.com/charleston/hotel/1",
+      "gps_coordinates": {
+        "latitude": 32.786,
+        "longitude": -79.935
+      },
+      "check_in_time": "3:00 PM",
+      "check_out_time": "11:00 AM",
+      "rate_per_night": {
+        "lowest": "$219",
+        "extracted_lowest": 219
+      },
+      "total_rate": {
+        "lowest": "$876",
+        "extracted_lowest": 876
+      },
+      "hotel_class": "4-star hotel",
+      "extracted_hotel_class": 4,
+      "overall_rating": 4.4,
+      "reviews": 3200,
+      "amenities": [
+        "Free Wi-Fi",
+        "Air conditioning"
+      ],
+      "property_token": "fixture-chs-1"
+    },
+    {
+      "type": "hotel",
+      "name": "King Charles Inn",
+      "link": "https://example.com/charleston/hotel/2",
+      "gps_coordinates": {
+        "latitude": 32.781,
+        "longitude": -79.933
+      },
+      "check_in_time": "3:00 PM",
+      "check_out_time": "11:00 AM",
+      "rate_per_night": {
+        "lowest": "$169",
+        "extracted_lowest": 169
+      },
+      "total_rate": {
+        "lowest": "$676",
+        "extracted_lowest": 676
+      },
+      "hotel_class": "3-star hotel",
+      "extracted_hotel_class": 3,
+      "overall_rating": 4.3,
+      "reviews": 1800,
+      "amenities": [
+        "Free Wi-Fi",
+        "Air conditioning"
+      ],
+      "property_token": "fixture-chs-2"
+    },
+    {
+      "type": "hotel",
+      "name": "Hampton Inn Historic District",
+      "link": "https://example.com/charleston/hotel/3",
+      "gps_coordinates": {
+        "latitude": 32.787,
+        "longitude": -79.937
+      },
+      "check_in_time": "3:00 PM",
+      "check_out_time": "11:00 AM",
+      "rate_per_night": {
+        "lowest": "$149",
+        "extracted_lowest": 149
+      },
+      "total_rate": {
+        "lowest": "$596",
+        "extracted_lowest": 596
+      },
+      "hotel_class": "3-star hotel",
+      "extracted_hotel_class": 3,
+      "overall_rating": 4.2,
+      "reviews": 2400,
+      "amenities": [
+        "Free Wi-Fi",
+        "Air conditioning"
+      ],
+      "property_token": "fixture-chs-3"
+    },
+    {
+      "type": "hotel",
+      "name": "Days Inn Charleston",
+      "link": "https://example.com/charleston/hotel/4",
+      "gps_coordinates": {
+        "latitude": 32.81,
+        "longitude": -79.96
+      },
+      "check_in_time": "3:00 PM",
+      "check_out_time": "11:00 AM",
+      "rate_per_night": {
+        "lowest": "$95",
+        "extracted_lowest": 95
+      },
+      "total_rate": {
+        "lowest": "$380",
+        "extracted_lowest": 380
+      },
+      "hotel_class": "2-star hotel",
+      "extracted_hotel_class": 2,
+      "overall_rating": 3.4,
+      "reviews": 900,
+      "amenities": [
+        "Free Wi-Fi",
+        "Air conditioning"
+      ],
+      "property_token": "fixture-chs-4"
+    },
+    {
+      "type": "hotel",
+      "name": "The Dewberry",
+      "link": "https://example.com/charleston/hotel/5",
+      "gps_coordinates": {
+        "latitude": 32.788,
+        "longitude": -79.938
+      },
+      "check_in_time": "3:00 PM",
+      "check_out_time": "11:00 AM",
+      "rate_per_night": {
+        "lowest": "$489",
+        "extracted_lowest": 489
+      },
+      "total_rate": {
+        "lowest": "$1956",
+        "extracted_lowest": 1956
+      },
+      "hotel_class": "5-star hotel",
+      "extracted_hotel_class": 5,
+      "overall_rating": 4.7,
+      "reviews": 800,
+      "amenities": [
+        "Free Wi-Fi",
+        "Air conditioning"
+      ],
+      "property_token": "fixture-chs-5"
+    },
+    {
+      "type": "hotel",
+      "name": "No Price Inn",
+      "link": "https://example.com/x"
+    }
+  ]
+}

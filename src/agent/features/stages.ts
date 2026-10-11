@@ -145,7 +145,7 @@ const NEXT_GUIDANCE: Record<Stage, string> = {
     "nobody's settled where yet. gather what people want; propose_destinations for options, or lock_destination when the group agrees on a place (any real place works, even one not in your list).",
   dates: "call find_dates to work out when everyone's free (it asks whoever hasn't said and posts the best dates or a poll); set_trip_dates once the group agrees on dates in words.",
   travel: "where and when are settled: call plan_travel to post how everyone gets there (drive or fly, gas or fare, carpools).",
-  stay: "where to stay isn't booked yet.",
+  stay: "where to stay isn't booked yet: call find_stays to post three places that fit the group and its budget, with a poll (the winner is booked on the trip fund).",
   food_activities: "food and things to do aren't picked yet; suggest a few that fit what people like.",
 };
 

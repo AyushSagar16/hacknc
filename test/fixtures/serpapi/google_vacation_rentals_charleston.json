@@ -1,0 +1,97 @@
+{
+  "search_metadata": {
+    "id": "fixture-Charleston",
+    "status": "Success"
+  },
+  "search_parameters": {
+    "engine": "google_hotels",
+    "q": "Charleston",
+    "check_in_date": "2026-11-12",
+    "check_out_date": "2026-11-16",
+    "currency": "USD",
+    "adults": 3,
+    "vacation_rentals": "true"
+  },
+  "properties": [
+    {
+      "type": "vacation rental",
+      "name": "Harleston Village Townhouse",
+      "link": "https://example.com/charleston/rental/0",
+      "gps_coordinates": {
+        "latitude": 32.779,
+        "longitude": -79.94
+      },
+      "rate_per_night": {
+        "lowest": "$310",
+        "extracted_lowest": 310
+      },
+      "total_rate": {
+        "lowest": "$1240",
+        "extracted_lowest": 1240
+      },
+      "overall_rating": 4.8,
+      "reviews": 64,
+      "essential_info": [
+        "Entire townhouse",
+        "Sleeps 6",
+        "3 bedrooms",
+        "2 bathrooms",
+        "4 beds"
+      ],
+      "property_token": "fixture-chs-r0"
+    },
+    {
+      "type": "vacation rental",
+      "name": "Cozy Wagener Terrace Bungalow",
+      "link": "https://example.com/charleston/rental/1",
+      "gps_coordinates": {
+        "latitude": 32.812,
+        "longitude": -79.955
+      },
+      "rate_per_night": {
+        "lowest": "$165",
+        "extracted_lowest": 165
+      },
+      "total_rate": {
+        "lowest": "$660",
+        "extracted_lowest": 660
+      },
+      "overall_rating": 4.6,
+      "reviews": 41,
+      "essential_info": [
+        "Entire home",
+        "Sleeps 4",
+        "2 bedrooms",
+        "1 bathroom",
+        "2 beds"
+      ],
+      "property_token": "fixture-chs-r1"
+    },
+    {
+      "type": "vacation rental",
+      "name": "Tiny Studio on Spring St",
+      "link": "https://example.com/charleston/rental/2",
+      "gps_coordinates": {
+        "latitude": 32.79,
+        "longitude": -79.947
+      },
+      "rate_per_night": {
+        "lowest": "$79",
+        "extracted_lowest": 79
+      },
+      "total_rate": {
+        "lowest": "$316",
+        "extracted_lowest": 316
+      },
+      "overall_rating": 4.9,
+      "reviews": 120,
+      "essential_info": [
+        "Entire apartment",
+        "Sleeps 2",
+        "1 bedroom",
+        "1 bed"
+      ],
+      "property_token": "fixture-chs-r2"
+    }
+  ]
+}

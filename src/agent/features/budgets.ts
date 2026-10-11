@@ -12,7 +12,7 @@ import { enqueueJob } from "../../pipeline/jobs.ts";
 import { budgetRows, effectiveCents, ensureBudgets, markAnnounced, pool, setAdjusted, setVisibility, type BudgetRow } from "../../nessie/budgets.ts";
 import { linkFor, seedPerson } from "../../nessie/seed.ts";
 import { tripFor, type TripRow } from "../../trips/state.ts";
-import { planTotals } from "./money.ts";
+import { committedTotals } from "../../trips/fund.ts";
 import { isoDate } from "../../clock.ts";
 import type { Action } from "../../transport/outbound.ts";
 import type { Feature, TurnCtx } from "../feature.ts";
@@ -152,7 +152,7 @@ async function postBudgets(tc: TurnCtx, opts: { asked?: boolean } = {}): Promise
 /** What the locked plan bills each person, once there is one. */
 async function lockedTotals(trip: Pick<TripRow, "id" | "status">): Promise<Map<number, number> | undefined> {
   if (!["locked", "ongoing"].includes(trip.status)) return undefined;
-  const totals = await planTotals(trip.id);
+  const totals = await committedTotals(trip.id);
   return totals.size ? totals : undefined;
 }
 
@@ -269,7 +269,7 @@ export const budgetsFeature: Feature = {
       const row = await setAdjusted(msg.person_id, tc.trip.id, cmd.amountCents);
       const billed = (await lockedTotals(tc.trip))?.get(msg.person_id);
       const overNow = billed !== undefined && billed > cmd.amountCents;
-      const planNote = billed === undefined ? "" : overNow ? "\nheads up, your share of the locked plan is above that. say the word and we can look at something cheaper" : "\n(the payment plan is based on trip cost, so it doesn't change)";
+      const planNote = billed === undefined ? "" : overNow ? "\nheads up, your share of the locked plan is above that. say the word and we can look at something cheaper" : "\n(your trip-fund share comes from the stay and shared costs, so it doesn't change)";
       if (row.visibility === "private") say(tc, `updated your budget (kept private)${planNote}`);
       else {
         tc.figures.add({ cents: cmd.amountCents, label: "budget just set", source: "user:stated", visibility: "public" });

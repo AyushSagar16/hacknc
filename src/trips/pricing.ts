@@ -78,7 +78,7 @@ interface Fetched {
   fetchedAt: Date;
 }
 
-async function search(params: Params, deps: PriceDeps): Promise<Fetched | undefined> {
+export async function search(params: Params, deps: PriceDeps): Promise<Fetched | undefined> {
   const key = cacheKey(params);
   const maxAge = deps.maxAgeMs ?? DEFAULT_MAX_AGE_MS;
   try {

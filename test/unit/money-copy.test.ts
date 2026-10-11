@@ -1,60 +1,33 @@
 import { describe, expect, it } from "vitest";
-import { compactPlan, overBudgetLine, planFingerprint, whyDifferent } from "../../src/agent/features/money.ts";
+import { scheduleText, targetText, whenText } from "../../src/agent/features/fund.ts";
+import { contributionPlanKey } from "../../src/trips/fund.ts";
 import { budgetMessage } from "../../src/agent/features/budgets.ts";
 import type { BudgetRow } from "../../src/nessie/budgets.ts";
 
 const names: Record<number, string> = { 1: "Maya", 2: "Leo", 3: "Priya", 4: "Dev", 5: "Tess", 6: "Sol" };
 const label = (id: number) => names[id]!;
 
-describe("why shares differ", () => {
-  it("names the few who fly instead of 'everyone else'", () => {
-    const shares = new Map([[1, 500_00], [2, 500_00], [3, 500_00], [4, 910_00]]);
-    const modes = new Map([[1, "drive"], [2, "drive"], [3, "drive"], [4, "flight"]]);
-    expect(whyDifferent(shares, modes, label)).toMatch(/^shares differ because travel does \(maya, leo and priya drive, dev flies\)/);
+describe("trip fund copy", () => {
+  it("one short schedule per person", () => {
+    expect(scheduleText({ shareCents: 400_00, contributedCents: 0, plan: [{ dueDate: "2026-10-17", amountCents: 200_00 }, { dueDate: "2026-10-31", amountCents: 200_00 }] })).toBe("2 × $200 (oct 17, oct 31)");
+    expect(scheduleText({ shareCents: 100_00, contributedCents: 0, plan: [{ dueDate: "2026-10-17", amountCents: 100_00 }] })).toBe("$100 on oct 17");
+    expect(scheduleText({ shareCents: 100_00, contributedCents: 0, plan: [{ dueDate: "2026-10-17", amountCents: 60_00 }, { dueDate: "2026-10-31", amountCents: 40_00 }] })).toBe("$60 oct 17, $40 oct 31");
+    expect(scheduleText({ shareCents: 100_00, contributedCents: 100_00, plan: [] })).toBe("all in ✓");
   });
 
-  it("uses 'everyone else' only for a crowd", () => {
-    const ids = [1, 2, 3, 4, 5, 6];
-    const shares = new Map(ids.map((id) => [id, id === 1 ? 300_00 : 800_00]));
-    const modes = new Map(ids.map((id) => [id, id === 1 ? "drive" : "flight"]));
-    expect(whyDifferent(shares, modes, label)).toContain("(maya drives, everyone else flies)");
+  it("names what the fund pays for", () => {
+    expect(targetText([{ kind: "stay", description: "Harleston Village Townhouse", amount_cents: 1240_00 }, { kind: "item", description: "Boat rental", amount_cents: 240_00 }])).toBe("$1,240 for the stay + $240 boat rental");
   });
 
-  it("all flying: flights cost different amounts; equal shares: nothing to explain", () => {
-    expect(whyDifferent(new Map([[1, 1], [2, 2]]), new Map([[1, "flight"], [2, "flight"]]), label)).toContain("flights cost different amounts from each home city");
-    expect(whyDifferent(new Map([[1, 5], [2, 5]]), new Map(), label)).toBeNull();
-  });
-});
-
-describe("over-budget line", () => {
-  it("names public people and never shows a private number", () => {
-    const shares = new Map([[4, 910_00], [5, 910_00], [1, 400_00]]);
-    const line = overBudgetLine(
-      shares,
-      [
-        { personId: 4, cents: 600_00, private: false },
-        { personId: 5, cents: 700_00, private: true },
-        { personId: 1, cents: 900_00, private: false },
-      ],
-      label,
-    )!;
-    expect(line).toContain("heads up: this is over budget for dev");
-    expect(line).toContain("heads up tess, this is above what you said works for you");
-    expect(line).not.toMatch(/\$/);
-    expect(overBudgetLine(shares, [{ personId: 1, cents: 900_00, private: false }], label)).toBeNull();
-  });
-});
-
-describe("plan keys and compact lines", () => {
-  it("a new destination or share is a new plan; the same inputs are the same plan", () => {
-    expect(planFingerprint({ destination_id: "charleston" }, "by_cost", 500_00)).toBe(planFingerprint({ destination_id: "charleston" }, "by_cost", 500_00));
-    expect(planFingerprint({ destination_id: "charleston" }, "by_cost", 500_00)).not.toBe(planFingerprint({ destination_id: "savannah" }, "by_cost", 500_00));
-    expect(planFingerprint({ destination_id: "charleston" }, "by_cost", 500_00)).not.toBe(planFingerprint({ destination_id: "charleston" }, "even", 500_00));
+  it("says a weekday within the week, a date after", () => {
+    expect(whenText("2026-10-16", "2026-10-10")).toBe("friday");
+    expect(whenText("2026-10-11", "2026-10-10")).toBe("tomorrow");
+    expect(whenText("2026-10-24", "2026-10-10")).toBe("oct 24");
   });
 
-  it("one short line per person", () => {
-    expect(compactPlan({ shareCents: 1415_00, plan: [{ amountCents: 353_75 }, { amountCents: 353_75 }, { amountCents: 353_75 }, { amountCents: 353_75 }] })).toBe("$1,415, 4 × $353.75");
-    expect(compactPlan({ shareCents: 100_00, plan: [{ amountCents: 60_00 }, { amountCents: 40_00 }] })).toBe("$100 in 2 payments");
+  it("the same share and deadline are the same plan", () => {
+    expect(contributionPlanKey(400_00, "2026-10-29")).toBe(contributionPlanKey(400_00, "2026-10-29"));
+    expect(contributionPlanKey(400_00, "2026-10-29")).not.toBe(contributionPlanKey(480_00, "2026-10-29"));
   });
 });
 
