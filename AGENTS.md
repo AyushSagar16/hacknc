@@ -4,7 +4,7 @@ This is Atlas, a trip and money planner for iMessage group chats, built on [Spec
 
 ## Working in this project
 
-- `npm run live` runs Atlas on the real Linq line (tunnel + webhook subscription). `npm run sim` is a terminal group chat with no phones.
+- `npm run up` is the clean start for the real line: it clears processes, tunnels, relays and webhook subscriptions left by earlier runs, then runs `npm run live`, which runs Atlas on the real Linq line (tunnel + webhook subscription, or the CLI relay when no tunnel opens). `npm run sim` is a terminal group chat with no phones.
 - Agent behaviour lives in `src/agent/prompts/system.md` (agent), `speak-gate.md` (whether to chime in) and `extract.md` (preferences). Money, constraints, polls and schedules are deterministic code; the models only do language, and every `$` figure the model writes must be registered (money guard).
 - Before committing, run `npm run typecheck`, `npm test` and `npm run test:scenarios` (offline, deterministic).
 - Behaviour regressions against real Gemini: `npx tsx --env-file-if-exists=.env scripts/e2e.ts --live --dir test/live`. Add a `test/live/*.chat` for every bug found in a real chat. It spends free-tier quota (about 15 requests a minute per model), so run it on its own, never alongside other live tests.

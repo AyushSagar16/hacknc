@@ -3,7 +3,8 @@
 //   default  a cloudflared quick tunnel + a Linq webhook subscription for every event Atlas uses
 //            (native polls included); the subscription's signing secret verifies every delivery
 //   --relay  the CLI's `linq webhooks listen` relay (no tunnel; the CLI can't subscribe to poll
-//            events, so polls fall back to numbered text + tapback votes)
+//            events, so polls fall back to numbered text + tapback votes). Also the fallback when
+//            cloudflared can't open a tunnel.
 // Stale subscriptions from earlier sessions are removed first: leftovers made Linq deliver events
 // minutes late and out of order for others.
 import { spawn, spawnSync, type ChildProcess } from "node:child_process";
@@ -19,8 +20,9 @@ if (!cfg.LINQ_API_KEY) {
   process.exit(1);
 }
 const has = (bin: string) => spawnSync(bin, ["--version"], { stdio: "ignore" }).status === 0;
-const useRelay = process.argv.includes("--relay") || !has("cloudflared");
-if (useRelay && !has("linq")) {
+let useRelay = process.argv.includes("--relay") || !has("cloudflared");
+const hasLinqCli = has("linq");
+if (useRelay && !hasLinqCli) {
   console.error("need cloudflared (brew install cloudflared) or the linq CLI (npm i -g @linqapp/cli)");
   process.exit(1);
 }
@@ -54,7 +56,7 @@ try {
 }
 
 const local = `http://127.0.0.1:${cfg.LINQ_WEBHOOK_PORT}`;
-let child: ChildProcess;
+let child!: ChildProcess;
 let subscriptionId: string | undefined;
 let stopping = false;
 
@@ -70,18 +72,38 @@ const lines = (proc: ChildProcess, onLine: (line: string) => void) => {
   }
 };
 
-if (!useRelay) {
-  child = spawn("cloudflared", ["tunnel", "--no-autoupdate", "--url", local], { stdio: ["ignore", "pipe", "pipe"] });
-  const url = await new Promise<string>((resolve, reject) => {
+// Opens a quick tunnel and resolves its URL. Rejects if cloudflared exits or never prints one.
+// api.trycloudflare.com is cloudflared's own control endpoint: it shows up in error lines like
+// "failed to request quick Tunnel: Post https://api.trycloudflare.com/tunnel", never as a tunnel.
+const openTunnel = (proc: ChildProcess) =>
+  new Promise<string>((resolve, reject) => {
     const t = setTimeout(() => reject(new Error("cloudflared didn't print a tunnel URL within 30s")), 30_000);
-    lines(child, (line) => {
+    proc.once("exit", (code) => {
+      clearTimeout(t);
+      reject(new Error(`cloudflared exited (${code}) before opening a tunnel`));
+    });
+    lines(proc, (line) => {
       const m = /(https:\/\/[a-z0-9-]+\.trycloudflare\.com)/.exec(line);
-      if (m) {
+      if (m && m[1] !== "https://api.trycloudflare.com") {
         clearTimeout(t);
         resolve(m[1]!);
-      } else if (/ERR|error/i.test(line) && !/no such host|retrying/i.test(line)) console.log(`[tunnel] ${line.trim()}`);
+      } else if (/ERR|error|failed/i.test(line) && !/no such host|retrying/i.test(line)) console.log(`[tunnel] ${line.trim()}`);
     });
   });
+
+let url: string | undefined;
+if (!useRelay) {
+  child = spawn("cloudflared", ["tunnel", "--no-autoupdate", "--url", local], { stdio: ["ignore", "pipe", "pipe"] });
+  url = await openTunnel(child).catch((err: Error) => {
+    child.kill("SIGTERM");
+    if (!hasLinqCli) throw err;
+    console.warn(`${err.message}; falling back to the linq CLI relay`);
+    useRelay = true;
+    return undefined;
+  });
+}
+
+if (url) {
   // Wait until the tunnel actually reaches our server (it answers GET with 404).
   for (let i = 0; i < 30; i++) {
     const ok = await fetch(`${url}${WEBHOOK_PATH}`, { signal: AbortSignal.timeout(4_000) }).then((r) => r.status === 404).catch(() => false);

@@ -135,7 +135,14 @@ last name and a generated address: never a phone number, handle or real last nam
    subscription for every event Atlas handles, native polls included. Every delivery is verified
    with the subscription's signing secret, and the subscription is deleted on exit.
    `npm run live -- --relay` uses the CLI's `linq webhooks listen` relay instead (no tunnel). The CLI
-   can't subscribe to poll events, so polls fall back to numbered text and tapback votes.
+   can't subscribe to poll events, so polls fall back to numbered text and tapback votes. If
+   cloudflared can't open a tunnel, `npm run live` falls back to the relay on its own.
+
+   `npm run up` is the clean start: it stops Atlas processes from earlier runs (any checkout),
+   orphaned tunnels and relays, and anything still on the webhook or console port, deletes webhook
+   subscriptions left by earlier sessions, checks the database (starting docker compose for the
+   local one), prints each step as a checklist, then runs `npm run live`. Arguments after `--` go
+   to `live` (`npm run up -- --relay`); `npm run up -- --clean-only` cleans up without starting.
 6. Create a group with your friends and the Atlas number. Atlas introduces itself when Linq
    reports the new chat. To add Atlas to an existing group, Apple may require it to already have
    3 other members.
@@ -296,7 +303,7 @@ src/site        trip pages: snapshot (the privacy boundary), Supabase store, pub
 src/console     the judge console
 web             the trip-page site (Next.js on Vercel, reads Supabase server-side)
 supabase        the site's Supabase schema
-scripts         sim, e2e, live, persona-server, doctor, demo, ops, nessie-probe, migrate, site-seed
+scripts         sim, e2e, up, live, persona-server, doctor, demo, ops, nessie-probe, migrate, site-seed
 ```
 
 ## Credits

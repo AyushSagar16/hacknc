@@ -6,6 +6,7 @@
   "scripts": {
     "start": "tsx --env-file-if-exists=.env src/index.ts",
     "dev": "tsx watch --env-file-if-exists=.env src/index.ts",
+    "up": "tsx --env-file-if-exists=.env scripts/up.ts",
     "live": "tsx --env-file-if-exists=.env scripts/live.ts",
     "sim": "tsx --env-file-if-exists=.env scripts/sim.ts",
     "migrate": "tsx --env-file-if-exists=.env scripts/migrate.ts",
