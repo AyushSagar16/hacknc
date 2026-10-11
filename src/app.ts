@@ -21,6 +21,7 @@ import { siteFeature } from "./agent/features/site.ts";
 import { researchFeature } from "./agent/features/research.ts";
 import { stagesFeature } from "./agent/features/stages.ts";
 import { travelFeature } from "./agent/features/travel.ts";
+import { placesFeature } from "./agent/features/places.ts";
 import { createLlm, type Llm } from "./agent/llm.ts";
 import { JobRunner, pruneOld } from "./pipeline/jobs.ts";
 import { Pipeline, pacingFromConfig } from "./pipeline/pipeline.ts";
@@ -71,6 +72,7 @@ export async function startAtlas(opts: AppOptions): Promise<AtlasApp> {
     weatherFeature,
     stagesFeature,
     travelFeature,
+    placesFeature,
     memoryFeature,
     selfMemoryFeature,
     presenceFeature,

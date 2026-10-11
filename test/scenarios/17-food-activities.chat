@@ -1,0 +1,59 @@
+# Food & activities. Asheville is locked for nov 12-15 and the stay gets booked; on its own Atlas
+# posts ~5 places to eat and ~5 things to do around the hotel (google maps results from fixtures),
+# vegetarian-friendly because maya is vegetarian (no steakhouse, no barbecue) and leaning into the
+# live music leo likes. Price levels read as words, never "$$". "add 1 and 6" puts two on the
+# itinerary, a 👍 on priya's "chai pani looks so good" adds that one, and "we're good" settles the
+# stage and links the plan.
+today 2026-10-10 14:00
+members maya leo priya
+atlas joins
+~agent text: NO_REPLY
+maya: hey
+~extract [{"message":0,"about":"maya","key":"date_window","polarity":"positive","explicit":true,"retracts":false,"confidence":0.9,"quote":"nov 12-15","earliest":"2026-11-12","latest":"2026-11-15"},{"message":0,"about":"maya","key":"home_city","polarity":"positive","explicit":true,"retracts":false,"confidence":0.9,"quote":"raleigh","city":"Raleigh"},{"message":0,"about":"maya","key":"dietary","polarity":"positive","explicit":true,"retracts":false,"confidence":0.95,"quote":"i'm vegetarian","need":"vegetarian"},{"message":0,"about":"leo","key":"activity","polarity":"positive","explicit":true,"retracts":false,"confidence":0.9,"quote":"leo wants live music","tag":"music"}]
+maya: nov 12-15 from raleigh works for all of us. heads up i'm vegetarian, and leo wants live music
+~agent call lock_destination {"destination":"asheville"}
+~agent text: NO_REPLY
+leo: atlas we all agreed on asheville
+expect trip.status = "locked"
+expect sql SELECT stages->>'food_activities' AS food FROM trips = [{"food":null}]
+# the stay is booked (the stay stage's job); the shortlist follows on its own
+nearby food google_maps_asheville_restaurants.json
+nearby activity google_maps_asheville_things_to_do.json
+stay booked Aloft Asheville Downtown | 35.5935 -82.5536
+priya: yay
+clock +1m
+expect atlas says 2
+expect atlas ~ "🍽️ places to eat near aloft asheville downtown (vegetarian-friendly for maya)"
+expect atlas ~ /2\. Chai Pani: indian restaurant, 4\.7★, mid-range, \d+ min walk/
+expect atlas ~ /\d\. Laughing Seed Café: vegetarian restaurant, 4\.5★, mid-range, \d+ min walk/
+expect atlas !~ "ruth's chris"
+expect atlas !~ "buxton hall"
+expect atlas !~ "late night grill"
+expect atlas !~ "$$"
+expect atlas ~ "🎟️ things to do near aloft asheville downtown"
+expect atlas ~ "6. "
+expect atlas ~ "the orange peel"
+expect atlas ~ /min drive/
+expect atlas ~ /say "add 2" \(or the name\) and i'll put it on the plan/
+expect sql SELECT stages->>'food_activities' AS food FROM trips = [{"food":"in_progress"}]
+expect sql SELECT kind, count(*)::int AS n FROM trip_places WHERE status = 'suggested' GROUP BY kind ORDER BY kind = [{"kind":"activity","n":5},{"kind":"food","n":5}]
+expect sql SELECT count(*)::int AS n FROM trip_places WHERE name ILIKE '%steak%' OR name ILIKE '%barbecue%' = [{"n":0}]
+# picking by number puts them on the itinerary
+leo: add 1 and 6
+expect atlas says 1
+expect atlas ~ /✓ added .+ \((wed|thu|fri|sat|sun) 11\/1\d, dinner\) and .+ \((thu|fri|sat) 11\/1\d, morning\) to the plan/
+expect sql SELECT idx, status, day IS NOT NULL AS on_plan FROM trip_places WHERE status = 'picked' ORDER BY idx = [{"idx":1,"status":"picked","on_plan":true},{"idx":6,"status":"picked","on_plan":true}]
+expect sql SELECT count(*)::int AS n FROM trips, jsonb_array_elements(itinerary) d, jsonb_array_elements(d->'items') i WHERE i->>'activityId' LIKE 'place:%' = [{"n":2}]
+expect sql SELECT i->>'notes' AS notes FROM trips, jsonb_array_elements(itinerary) d, jsonb_array_elements(d->'items') i WHERE i->>'time' = 'dinner' ~ "★"
+# a 👍 on someone naming a shortlisted place adds it
+priya: chai pani looks so good
+maya react like m20
+expect atlas ~ "✓ added chai pani"
+expect sql SELECT p.display_name AS who FROM trip_places t JOIN people p ON p.id = t.picked_by WHERE t.name = 'Chai Pani' = [{"who":"Maya"}]
+# picking one twice
+leo: add chai pani
+expect atlas ~ "chai pani is already on it"
+# done
+maya: we're good
+expect atlas ~ "food & activities are set ✓ 3 places on the plan"
+expect sql SELECT stages->>'food_activities' AS food FROM trips = [{"food":"decided"}]
