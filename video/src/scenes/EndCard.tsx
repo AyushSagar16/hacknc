@@ -5,13 +5,7 @@ import { AtlasOrb } from "../components/Logo";
 import { Headline } from "../components/Text";
 import { C, clamp, glassPanel, sans } from "../theme";
 
-const STACK = [
-  "Photon Spectrum",
-  "Linq",
-  "Capital One Nessie",
-  "Gemini",
-  "Tiger Data",
-];
+const STACK = ["Photon Spectrum", "Capital One Nessie", "Gemini", "Tiger Data"];
 
 export const EndCard: React.FC = () => {
   const frame = useCurrentFrame();
@@ -115,9 +109,8 @@ export const EndCard: React.FC = () => {
         >
           <span
             style={{
-              letterSpacing: "0.1em",
-              textTransform: "uppercase",
-              fontSize: 19,
+              letterSpacing: "-0.01em",
+              fontSize: 24,
               fontWeight: 800,
               marginRight: 6,
             }}

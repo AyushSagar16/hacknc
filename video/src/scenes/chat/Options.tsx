@@ -1,9 +1,9 @@
 import React from "react";
 import { Easing, interpolate, useCurrentFrame } from "remotion";
 import { ChapterOut, Chip, GlassCard, StageBar } from "../../components/Glass";
-import { Place, Scenery } from "../../components/Scenery";
+import { LinkPreview, Place } from "../../components/Photo";
 import { Headline } from "../../components/Text";
-import { C, clamp } from "../../theme";
+import { C, clamp, ios } from "../../theme";
 import { Area } from "./Area";
 
 // Must match the poll in chat/script.ts (relative to the options chapter).
@@ -67,6 +67,7 @@ export const Options: React.FC = () => {
             top: 440,
             left: 0,
             display: "flex",
+            alignItems: "flex-start",
             gap: 22,
           }}
         >
@@ -98,6 +99,7 @@ export const Options: React.FC = () => {
                   width: 358,
                   padding: 0,
                   overflow: "hidden",
+                  borderRadius: 22,
                   opacity: dim,
                   scale: String(1 + glow * 0.04),
                   boxShadow: won
@@ -105,64 +107,34 @@ export const Options: React.FC = () => {
                     : undefined,
                 }}
               >
-                <Scenery place={o.place} height={190} />
-                <div style={{ padding: "18px 24px 22px" }}>
-                  <div
-                    style={{
-                      display: "flex",
-                      justifyContent: "space-between",
-                      alignItems: "baseline",
-                    }}
-                  >
-                    <span
-                      style={{
-                        fontSize: 36,
-                        fontWeight: 800,
-                        letterSpacing: "-0.02em",
-                      }}
-                    >
-                      {o.name}
-                    </span>
-                    <span
-                      style={{ fontSize: 26, fontWeight: 800, color: C.accent }}
-                    >
-                      {o.price}
-                    </span>
-                  </div>
-                  <div
-                    style={{
-                      fontSize: 22,
-                      color: C.muted,
-                      fontWeight: 600,
-                      marginTop: 4,
-                    }}
-                  >
-                    {o.why} · per person
-                  </div>
-                  <div
-                    style={{
-                      marginTop: 14,
-                      display: "flex",
-                      alignItems: "center",
-                      gap: 10,
-                    }}
-                  >
+                <LinkPreview
+                  place={o.place}
+                  name={o.name}
+                  caption={`${o.price} per person · Nov 12–16`}
+                  title={o.why}
+                  width={358}
+                  photoHeight={250}
+                  textScale={1.45}
+                  style={{ borderRadius: 0 }}
+                  aside={
                     <span
                       style={{
                         padding: "6px 14px",
                         borderRadius: 999,
-                        fontSize: 21,
-                        fontWeight: 800,
-                        background: won ? C.chosen : C.accentSoft,
-                        color: won ? "#fff" : C.accent,
+                        fontFamily: ios,
+                        fontSize: 19,
+                        fontWeight: 700,
+                        whiteSpace: "nowrap",
+                        background: won ? C.chosen : C.blue,
+                        color: "#fff",
                         scale: String(bump),
                       }}
                     >
-                      {won ? "Chosen · " : ""}
+                      {won ? "✓ " : ""}
                       {votes} vote{votes === 1 ? "" : "s"}
                     </span>
-                  </div>
-                </div>
+                  }
+                />
               </GlassCard>
             );
           })}

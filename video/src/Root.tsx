@@ -2,6 +2,7 @@ import React from "react";
 import { Composition, Folder } from "remotion";
 import { AtlasLaunch, LAUNCH_DURATION, SCENES } from "./AtlasLaunch";
 import { BENTO, BentoSheet } from "./BentoSheet";
+import { THUMB, Thumbnail } from "./Thumbnail";
 import { ChatAct } from "./scenes/ChatAct";
 import { EndCard } from "./scenes/EndCard";
 import { Hook } from "./scenes/Hook";
@@ -68,6 +69,14 @@ export const RemotionRoot: React.FC = () => {
         height={BENTO.height}
         fps={30}
         durationInFrames={BENTO.frames}
+      />
+      <Composition
+        id="Thumbnail"
+        component={Thumbnail}
+        width={THUMB.width}
+        height={THUMB.height}
+        fps={30}
+        durationInFrames={THUMB.frames}
       />
     </>
   );

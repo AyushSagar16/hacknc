@@ -179,10 +179,9 @@ export const ConsentSheet: React.FC<{
             </div>
             <div
               style={{
-                fontSize: 12,
+                fontSize: 14,
                 fontWeight: 700,
-                letterSpacing: 0.6,
-                textTransform: "uppercase",
+                letterSpacing: "-0.01em",
                 color: "#5b6670",
                 margin: "16px 0 6px",
               }}

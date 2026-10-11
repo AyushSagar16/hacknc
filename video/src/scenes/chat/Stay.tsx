@@ -1,7 +1,7 @@
 import React from "react";
 import { Easing, interpolate, useCurrentFrame } from "remotion";
 import { ChapterOut, GlassCard, StageBar } from "../../components/Glass";
-import { Scenery } from "../../components/Scenery";
+import { PlacePhoto } from "../../components/Photo";
 import { Headline } from "../../components/Text";
 import { C, clamp } from "../../theme";
 import { Area } from "./Area";
@@ -51,11 +51,10 @@ export const Stay: React.FC = () => {
         >
           <div
             style={{
-              fontSize: 18,
+              fontSize: 22,
               fontWeight: 800,
-              letterSpacing: "0.1em",
+              letterSpacing: "-0.01em",
               color: C.accent,
-              textTransform: "uppercase",
             }}
           >
             Getting there 🚗
@@ -99,7 +98,7 @@ export const Stay: React.FC = () => {
           }}
         >
           <div style={{ position: "relative" }}>
-            <Scenery place="charleston" height={230} />
+            <PlacePhoto place="charleston" height={230} />
             <div
               style={{
                 position: "absolute",

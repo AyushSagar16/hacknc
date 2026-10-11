@@ -5,7 +5,7 @@ import { Msg } from "./chat/types";
 import { Backdrop, Sparkle } from "./components/Backdrop";
 import { StageBar } from "./components/Glass";
 import { AtlasOrb } from "./components/Logo";
-import { Scenery } from "./components/Scenery";
+import { PlacePhoto } from "./components/Photo";
 import { Headline } from "./components/Text";
 import { accentText, C, glassPanel, ios, mono, sans } from "./theme";
 import { CapitalOneTile } from "./scenes/chat/Area";
@@ -80,10 +80,10 @@ const Kicker: React.FC<{ children: React.ReactNode; color?: string }> = ({
   <div
     style={{
       fontFamily: sans,
-      fontSize: 22,
+      fontSize: 26,
       fontWeight: 800,
-      letterSpacing: "0.12em",
-      textTransform: "uppercase",
+      letterSpacing: "-0.01em",
+
       color,
       display: "flex",
       alignItems: "center",
@@ -566,7 +566,7 @@ export const BentoSheet: React.FC = () => {
             boxShadow: "0 16px 40px rgba(14,60,90,0.16)",
           }}
         >
-          <Scenery place="charleston" height={240} />
+          <PlacePhoto place="charleston" height={240} />
           <div
             style={{
               position: "absolute",
@@ -626,7 +626,6 @@ export const BentoSheet: React.FC = () => {
         >
           {[
             "Photon Spectrum",
-            "Linq",
             "Capital One Nessie",
             "Google Gemini",
             "Tiger Data",

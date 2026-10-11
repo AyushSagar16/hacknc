@@ -1,7 +1,7 @@
 import React from "react";
 import { Easing, interpolate, useCurrentFrame } from "remotion";
 import { ChapterOut, GlassCard, StageBar } from "../../components/Glass";
-import { Scenery } from "../../components/Scenery";
+import { PlacePhoto } from "../../components/Photo";
 import { Headline } from "../../components/Text";
 import { C, clamp, glassPanel } from "../../theme";
 import { Area } from "./Area";
@@ -90,7 +90,7 @@ export const Food: React.FC = () => {
                 fontWeight: 600,
               }}
             >
-              🔒 atlas trip page · /t/charleston
+              🔒 planwithatlas.tech/t/charleston
             </div>
           </div>
           <div style={{ display: "flex", gap: 24, padding: 24 }}>
@@ -103,7 +103,7 @@ export const Food: React.FC = () => {
                   border: `1.5px solid ${C.glassEdge}`,
                 }}
               >
-                <Scenery place="charleston" height={250} />
+                <PlacePhoto place="charleston" height={250} />
                 <div
                   style={{
                     position: "absolute",
@@ -158,11 +158,10 @@ export const Food: React.FC = () => {
             >
               <div
                 style={{
-                  fontSize: 16,
+                  fontSize: 20,
                   fontWeight: 800,
-                  letterSpacing: "0.1em",
+                  letterSpacing: "-0.01em",
                   color: C.muted,
-                  textTransform: "uppercase",
                 }}
               >
                 Itinerary →

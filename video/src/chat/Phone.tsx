@@ -9,6 +9,7 @@ import {
   useVideoConfig,
 } from "remotion";
 import { AtlasOrb } from "../components/Logo";
+import { LinkPreview, SITE } from "../components/Photo";
 import { C, clamp, ios } from "../theme";
 import { ME, Msg, NAMES, Who } from "./types";
 
@@ -631,7 +632,7 @@ const Thread: React.FC<{ messages: Msg[] }> = ({ messages }) => {
     } else if (m.kind === "poll") {
       content = <Poll title={m.title} options={m.options} />;
     } else {
-      content = <LinkCard title={m.title} site={m.site} art={m.art} />;
+      content = <LinkCard title={m.title} art={m.art} caption={m.caption} />;
     }
 
     rows.push(
@@ -892,7 +893,7 @@ const Poll: React.FC<{
             strokeLinecap="round"
           />
         </svg>
-        POLL
+        Poll
       </div>
       <div
         style={{
@@ -1022,113 +1023,49 @@ const Poll: React.FC<{
   );
 };
 
-// A rich link: the trip page or the bank-connect page.
+// A rich link: the trip page (photo preview, like iMessage builds from the page's tags) or the
+// bank-connect page.
 const LinkCard: React.FC<{
   title: string;
-  site: string;
   art: "trip" | "connect";
-}> = ({ title, site, art }) => (
-  <div
-    style={{
-      width: 262,
-      borderRadius: 19,
-      overflow: "hidden",
-      background: C.gray,
-    }}
-  >
-    {art === "trip" ? <TripArt /> : <ConnectArt />}
-    <div style={{ padding: "9px 13px 10px" }}>
-      <div
-        style={{
-          fontSize: 15,
-          fontWeight: 600,
-          lineHeight: 1.25,
-          letterSpacing: -0.2,
-        }}
-      >
-        {title}
-      </div>
-      <div style={{ fontSize: 13, color: "#8e8e93", marginTop: 1 }}>{site}</div>
-    </div>
-  </div>
-);
-
-// Charleston at golden hour: sky, sea and a row of pastel houses, in the site's palette.
-export const TripArt: React.FC<{ height?: number }> = ({ height = 150 }) => (
-  <svg
-    width="100%"
-    height={height}
-    viewBox="0 0 262 150"
-    preserveAspectRatio="xMidYMid slice"
-    style={{ display: "block" }}
-  >
-    <defs>
-      <linearGradient id="ta-sky" x1="0" y1="0" x2="0" y2="1">
-        <stop offset="0%" stopColor="#8fd3f4" />
-        <stop offset="60%" stopColor="#d7ecf8" />
-        <stop offset="100%" stopColor="#ffe7c7" />
-      </linearGradient>
-      <linearGradient id="ta-sea" x1="0" y1="0" x2="0" y2="1">
-        <stop offset="0%" stopColor="#3aa0d8" />
-        <stop offset="100%" stopColor="#1a6fa3" />
-      </linearGradient>
-    </defs>
-    <rect width="262" height="150" fill="url(#ta-sky)" />
-    <circle cx="205" cy="62" r="20" fill="#fff6d8" opacity="0.95" />
-    {[
-      ["#f7c9c1", 12, 58],
-      ["#bfe3d0", 48, 50],
-      ["#fbe3a6", 84, 62],
-      ["#c9d8f3", 120, 54],
-      ["#f5d0e3", 156, 60],
-    ].map(([fill, x, h]) => (
-      <g key={String(x)}>
-        <rect
-          x={Number(x)}
-          y={112 - Number(h)}
-          width="34"
-          height={Number(h)}
-          fill={String(fill)}
-        />
-        <path
-          d={`M${Number(x) - 2} ${112 - Number(h)} L${Number(x) + 17} ${100 - Number(h)} L${Number(x) + 36} ${112 - Number(h)}Z`}
-          fill="#ffffff"
-          opacity="0.85"
-        />
-        {[0, 1].map((r) => (
-          <rect
-            key={r}
-            x={Number(x) + 7}
-            y={118 - Number(h) + r * 18}
-            width="7"
-            height="10"
-            fill="#ffffff"
-            opacity="0.8"
-          />
-        ))}
-        {[0, 1].map((r) => (
-          <rect
-            key={`b${r}`}
-            x={Number(x) + 20}
-            y={118 - Number(h) + r * 18}
-            width="7"
-            height="10"
-            fill="#ffffff"
-            opacity="0.8"
-          />
-        ))}
-      </g>
-    ))}
-    <rect y="112" width="262" height="38" fill="url(#ta-sea)" />
-    <path
-      d="M0 122 Q 20 118 40 122 T 80 122 T 120 122 T 160 122 T 200 122 T 240 122 T 280 122"
-      stroke="#bfe9ff"
-      strokeWidth="2"
-      fill="none"
-      opacity="0.7"
+  caption?: string;
+}> = ({ title, art, caption }) =>
+  art === "trip" ? (
+    <LinkPreview
+      place="charleston"
+      name="Charleston"
+      caption={caption ?? ""}
+      title={title}
+      width={262}
+      photoHeight={176}
     />
-  </svg>
-);
+  ) : (
+    <div
+      style={{
+        width: 262,
+        borderRadius: 19,
+        overflow: "hidden",
+        background: "#e5e5ea",
+      }}
+    >
+      <ConnectArt />
+      <div style={{ padding: "9px 13px 10px" }}>
+        <div
+          style={{
+            fontSize: 15,
+            fontWeight: 600,
+            lineHeight: 1.25,
+            letterSpacing: -0.2,
+          }}
+        >
+          {title}
+        </div>
+        <div style={{ fontSize: 13, color: "#6e6e73", marginTop: 1 }}>
+          {SITE}
+        </div>
+      </div>
+    </div>
+  );
 
 const ConnectArt: React.FC = () => (
   <div

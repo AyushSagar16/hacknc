@@ -26,8 +26,9 @@ export type Msg =
       at: number;
       from: Who;
       title: string;
-      site: string;
       art: "trip" | "connect";
+      // Shown over the photo of a trip-page preview.
+      caption?: string;
     };
 
 // Maya holds the phone: her messages are the blue ones.

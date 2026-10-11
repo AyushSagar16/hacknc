@@ -102,7 +102,6 @@ export const MESSAGES: Msg[] = [
     at: C + 80,
     from: "atlas",
     title: "Connect your Capital One to Atlas",
-    site: "atlas · secure connect",
     art: "connect",
   },
   {
@@ -303,8 +302,8 @@ export const MESSAGES: Msg[] = [
     kind: "link",
     at: D + 156,
     from: "atlas",
-    title: "Charleston · Nov 12–16: the plan",
-    site: "atlas trip page",
+    title: "Charleston itinerary",
+    caption: "Nov 12–16 · 4 days, 3 picks on the plan",
     art: "trip",
   },
 

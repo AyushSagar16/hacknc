@@ -89,11 +89,10 @@ export const Connect: React.FC = () => {
         >
           <div
             style={{
-              fontSize: 18,
+              fontSize: 22,
               fontWeight: 800,
-              letterSpacing: "0.1em",
+              letterSpacing: "-0.01em",
               color: C.accent,
-              textTransform: "uppercase",
             }}
           >
             Maya · Capital One
@@ -143,11 +142,10 @@ export const Connect: React.FC = () => {
         >
           <div
             style={{
-              fontSize: 18,
+              fontSize: 22,
               fontWeight: 800,
-              letterSpacing: "0.1em",
+              letterSpacing: "-0.01em",
               color: C.muted,
-              textTransform: "uppercase",
             }}
           >
             Last 3 months
@@ -197,11 +195,10 @@ export const Connect: React.FC = () => {
         >
           <div
             style={{
-              fontSize: 18,
+              fontSize: 22,
               fontWeight: 800,
-              letterSpacing: "0.1em",
+              letterSpacing: "-0.01em",
               color: C.accent,
-              textTransform: "uppercase",
             }}
           >
             How Atlas sets a budget

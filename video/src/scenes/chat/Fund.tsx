@@ -74,10 +74,9 @@ export const Fund: React.FC = () => {
             <div>
               <div
                 style={{
-                  fontSize: 17,
+                  fontSize: 21,
                   fontWeight: 800,
-                  letterSpacing: "0.08em",
-                  textTransform: "uppercase",
+                  letterSpacing: "-0.01em",
                   color: C.accent,
                 }}
               >
