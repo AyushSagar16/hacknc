@@ -1,6 +1,7 @@
 // What a trip page shows, built from the local database. The page is public to anyone with the
 // link, so this is the privacy boundary: first names only (never handles or phone numbers),
-// no budgets, balances or payment plans, and only group chats.
+// no budgets or balances (the trip fund shows first names and contributions only), and only
+// group chats.
 import { one, q } from "../db/pool.ts";
 import { activeMembers, labelOf, type ChatRow } from "../db/repos/core.ts";
 import { formatUsd } from "../money/cents.ts";
@@ -8,6 +9,7 @@ import type { StoredOption } from "../agent/features/proposals.ts";
 import type { PollRow } from "../trips/pollStore.ts";
 import { STAGES, stagesOf } from "../trips/stages.ts";
 import { tripName, tripsForChat, type TripRow } from "../trips/state.ts";
+import { siteFund, siteStay } from "./fund.ts";
 import type { SiteMessage, SiteOverview, SiteResearch, SiteStage, SiteTrip } from "./types.ts";
 
 /** Message kinds that read as chat lines (membership changes, reactions and votes don't). */
@@ -85,7 +87,9 @@ async function overviewOf(trip: TripRow, groupSize: number): Promise<SiteOvervie
     const winner = poll.options[poll.winner_idx]?.title.split(" (")[0];
     if (winner) decision = `${winner} won the vote (${counts.get(poll.winner_idx) ?? 0} of ${groupSize}).`;
   }
-  return { stage: stageOf(trip, options.length), options, decision, booking: trip.booking ?? [], stages: stagesFor(trip) };
+  const fund = await siteFund(trip);
+  const stay = siteStay(trip);
+  return { stage: stageOf(trip, options.length), options, decision, booking: trip.booking ?? [], stages: stagesFor(trip), ...(fund ? { fund } : {}), ...(stay ? { stay } : {}) };
 }
 
 const STAGE_TITLE: Record<SiteStage["key"], string> = {

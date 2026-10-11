@@ -57,12 +57,15 @@ describeDb("console nessie view", () => {
   });
 
   it("finds trip fund tables when they exist and tolerates them missing", async () => {
-    expect((await nessieData()).funds).toEqual([]);
+    // The trip fund migration's tables, empty.
+    const before = (await nessieData()).funds;
+    expect(before.map((f) => f.table)).toEqual(["fund_items", "fund_txns", "trip_funds"]);
+    expect(before.every((f) => f.rows.length === 0)).toBe(true);
     await q(`CREATE TABLE trip_funds_probe (id int PRIMARY KEY, nessie_account_id text, target_cents bigint)`);
     await q(`INSERT INTO trip_funds_probe VALUES (1, $1, 120000)`, [checking]);
     const { funds } = await nessieData();
-    expect(funds).toHaveLength(1);
-    expect(funds[0]).toMatchObject({ table: "trip_funds_probe", columns: ["id", "nessie_account_id", "target_cents"] });
+    expect(funds).toHaveLength(4);
+    expect(funds.find((f) => f.table === "trip_funds_probe")).toMatchObject({ columns: ["id", "nessie_account_id", "target_cents"] });
     await q(`DROP TABLE trip_funds_probe`);
   });
 

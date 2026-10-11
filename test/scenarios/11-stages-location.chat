@@ -22,8 +22,13 @@ expect atlas ~ "🏠 stays:"
 expect trip.status = "locked"
 expect sql SELECT destination_id, destination_name, round(latitude::numeric, 2)::float AS lat, destination_place->>'admin1' AS state FROM trips = [{"destination_id":null,"destination_name":"Boone","lat":36.22,"state":"North Carolina"}]
 expect sql SELECT stages->>'location' AS loc, stages->>'dates' AS dates FROM trips = [{"loc":"decided","dates":"decided"}]
-# the payment plan works off the place's own estimates
-expect atlas ~ "💸 payment plan"
+# stays for an off-catalog place: labeled estimates when there's no live answer
+~agent call find_stays {}
+~agent text: NO_REPLY
+leo: atlas where should we stay?
+expect atlas ~ "🏠 places to stay in boone, nov 12–15 (3 nights for 3)"
+expect atlas ~ "prices are estimates until we pick one"
+expect sql SELECT stages->>'stay' AS stay FROM trips = [{"stay":"in_progress"}]
 # a place the map doesn't know: nothing changes
 geocode miss atlantis
 ~agent call lock_destination {"destination":"atlantis"}

@@ -1,0 +1,44 @@
+# Where to stay. Charleston is locked for nov 12-16; Atlas searches hotels and whole-home rentals
+# for the dates (SerpApi fixtures), sizes them for three (two hotel rooms, or a rental that sleeps
+# everyone: the studio that sleeps 2 is out), keeps what fits everyone's budget (the $289 and $489
+# hotels don't), and posts three named options with price per person per night, rating and link,
+# plus a poll. Two votes book the winner: trips.stay, stage decided, "booked ✓", on the trip fund.
+today 2026-10-10 14:00
+members maya leo priya
+atlas joins
+~agent text: NO_REPLY
+maya: hi
+~extract [{"message":0,"about":"maya","key":"date_window","polarity":"positive","explicit":true,"retracts":false,"confidence":0.9,"quote":"nov 12-16","earliest":"2026-11-12","latest":"2026-11-16"},{"message":0,"about":"maya","key":"home_city","polarity":"positive","explicit":true,"retracts":false,"confidence":0.9,"quote":"raleigh","city":"Raleigh"}]
+maya: nov 12-16 from raleigh works for all of us
+maya: set my budget to 900
+leo: set my budget to 900
+priya: set my budget to 900
+~agent call lock_destination {"destination":"charleston"}
+~agent text: NO_REPLY
+maya: atlas everyone agreed, we're doing charleston
+expect trip.status = "locked"
+stays test/fixtures/serpapi/google_hotels_charleston.json | test/fixtures/serpapi/google_vacation_rentals_charleston.json
+~agent call find_stays {}
+~agent text: NO_REPLY
+leo: atlas where should we stay?
+expect atlas ~ "🏠 places to stay in charleston, nov 12–16 (4 nights for 3)"
+expect atlas ~ "1. Cozy Wagener Terrace Bungalow · whole place, sleeps 4 · $55/person/night · ★4.6"
+expect atlas ~ "https://example.com/charleston/rental/1"
+expect atlas ~ "Harleston Village Townhouse · whole place, sleeps 6"
+expect atlas ~ "(all within what everyone said works)"
+expect atlas !~ "tiny studio"
+expect atlas !~ "the dewberry"
+expect atlas !~ "the mills house"
+expect poll ~ "Harleston Village Townhouse"
+expect sql SELECT stages->>'stay' AS stage, stay IS NULL AS unbooked FROM trips = [{"stage":"in_progress","unbooked":true}]
+expect sql SELECT count(*)::int AS n FROM polls WHERE kind = 'stay' AND status = 'open' = [{"n":1}]
+# no budget is ever named in the group
+expect transcript !~ /\$900|\$450/
+maya vote 3
+leo vote 3
+expect atlas ~ "🏠 booked ✓ Harleston Village Townhouse (2 of 3 votes)"
+expect atlas ~ "nov 12–16 · $1,240 total, $413.33 each"
+expect atlas ~ "the stay's on the trip fund"
+expect atlas ~ "🏦 charleston trip fund: $1,240 ($1,240 for the stay)"
+expect sql SELECT stages->>'stay' AS stage, stay->>'name' AS name, stay->>'kind' AS kind, (stay->>'total_cents')::int AS total, stay->>'check_in' AS check_in FROM trips = [{"stage":"decided","name":"Harleston Village Townhouse","kind":"rental","total":124000,"check_in":"2026-11-12"}]
+expect sql SELECT kind, description, amount_cents, paid_at IS NULL AS unpaid FROM fund_items = [{"kind":"stay","description":"Harleston Village Townhouse","amount_cents":124000,"unpaid":true}]

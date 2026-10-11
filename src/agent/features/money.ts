@@ -214,6 +214,8 @@ async function proposeSettleUp(tc: TurnCtx): Promise<void> {
   );
   const result = combinedSettle({ members: memberIds, contributed, refunded, spendShares, tab: tab.net });
   await tc.nonCancellable();
+  // The settle-up squares the fund from here: no more scheduled contributions.
+  await q(`UPDATE fund_txns SET status = 'cancelled' WHERE trip_id = $1 AND kind = 'contribution' AND status IN ('scheduled','failed') AND due_date IS NOT NULL AND idempotency_key LIKE 'fundc:%'`, [tc.trip.id]);
   const bubbles: string[] = [];
   if (result.refunds.size) {
     const sent: string[] = [];

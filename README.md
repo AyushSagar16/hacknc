@@ -5,8 +5,8 @@
 Add Atlas's number to the group. It introduces itself, then reads along. It keeps track of what
 everyone wants ("cancun is too pricey for me", "i'm vegetarian", "i can't fly after the 14th") and
 what everyone can spend, then keeps the plan moving. It proposes priced options that fit the
-group's vibe and limits, runs a poll, sets up a payment plan, splits expenses during the trip and
-settles up at the end. It chimes in whenever the trip or money comes up and stays out of banter.
+group's vibe and limits, runs a poll, finds a place to stay and books it on a shared trip fund everyone pays into on their
+paydays, splits expenses during the trip and settles up at the end. It chimes in whenever the trip or money comes up and stays out of banter.
 When the group goes quiet on an unanswered message, it follows up with the next step, and when most
 of the group has voted it names who hasn't ("skip" decides with the votes in). "atlas stay quiet"
 mutes it.
@@ -26,9 +26,12 @@ mutes it.
   with two people, not even that, since it would give the other person's away). Each person can text
   Atlas to see their own breakdown, say "share my budget" to show theirs to the group, and "keep my
   budget private" to switch back.
-- **The money runs through Nessie end to end.** Budgets, a payment plan as Nessie bills timed to
-  paydays, every trip expense as a Nessie purchase, and settle-up as Nessie transfers after each
-  payer confirms.
+- **The money runs through Nessie end to end.** Budgets; a trip fund that is its own Nessie
+  customer and account ("<Trip> Trip Fund"), filled by Nessie transfers from each person's checking
+  on their paydays and paying for the stay as a Nessie purchase at a merchant named after it; every
+  trip expense as a Nessie purchase; and one combined settle-up (tab + fund, leftover refunded
+  pro-rata) as Nessie transfers after each payer confirms. People who never connected a bank are
+  tracked in Atlas's ledger only.
 - **It remembers.** Messages and decisions are stored in Tiger Data and recalled before every reply,
   even weeks later, with hybrid search: BM25 (`pg_textsearch`) and Gemini embeddings on a
   pgvectorscale `diskann` index, fused with reciprocal rank fusion. It also remembers its own words
@@ -284,7 +287,7 @@ src/agent       brain (turn order), speak gate, agent loop, commands, money guar
 src/profile     extraction schema, Gemini extraction, deterministic aggregation, group view
 src/memory      embedding writer, hybrid BM25 + vector recall, atlas_log (Atlas's own words)
 src/search      web search (results + pages read, every item verified against the source)
-src/money       cents, splits, settle-up (exact minimum transfers), budget engine, payment plans
+src/money       cents, splits, settle-up (exact minimum transfers), budget engine, payment plans, trip-fund math
 src/nessie      client (cache, audit, circuit breaker), personas, seeding, ledger, budgets
 src/trips       catalog, constraints, filter, scoring, live pricing, polls, ledger, itinerary
 src/weather     Open-Meteo client, classification, change detection, cadence, swaps

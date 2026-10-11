@@ -34,6 +34,7 @@ import {
   getFund,
   nextContributions,
   payDueItems,
+  personBank,
   planContributions,
   removeUnpaidStay,
   type FundItemRow,
@@ -177,7 +178,11 @@ export function scheduleText(p: Pick<PersonContributions, "plan" | "shareCents" 
   const dates = p.plan.map((i) => day(i.dueDate)).join(", ");
   if (p.plan.length === 1) return `${money(p.plan[0]!.amountCents)} on ${dates}`;
   const same = p.plan.every((i) => i.amountCents === p.plan[0]!.amountCents);
-  return same ? `${p.plan.length} × ${money(p.plan[0]!.amountCents)} (${dates})` : p.plan.map((i) => `${money(i.amountCents)} ${day(i.dueDate)}`).join(", ");
+  if (same) return `${p.plan.length} × ${money(p.plan[0]!.amountCents)} (${dates})`;
+  // The odd cents ride on the first payment: "$137.79, then 2 × $137.77 (oct 17, oct 31, nov 14)".
+  const rest = p.plan.slice(1);
+  if (rest.length > 1 && rest.every((i) => i.amountCents === rest[0]!.amountCents)) return `${money(p.plan[0]!.amountCents)}, then ${rest.length} × ${money(rest[0]!.amountCents)} (${dates})`;
+  return p.plan.map((i) => `${money(i.amountCents)} ${day(i.dueDate)}`).join(", ");
 }
 
 /** One line naming whoever's committed total is above their budget. Private budgets: name only. */
@@ -218,27 +223,43 @@ export async function postFundPlan(tc: TurnCtx, opts: { compact?: boolean; lead?
   for (const i of items) tc.figures.add({ cents: i.amount_cents, label: `fund item: ${i.description}`, source: "ledger:fund", visibility: "public" });
   const name = fundName(tc.trip).toLowerCase();
   const header = `🏦 ${name}: ${money(totals.targetCents)} (${targetText(items)})`;
-  const equal = new Set(people.map((p) => p.shareCents)).size === 1;
-  const cadence = people.every((p) => p.unchanged || p.onPaydays || p.plan.length === 0) ? "on your paydays" : people.some((p) => p.onPaydays) ? "on paydays where i know them, every two weeks otherwise" : "every two weeks";
-  const intro = `${equal ? `everyone puts in ${money(people[0]!.shareCents)}` : "shares below"}, ${cadence}, all in by ${day(deadline)}`;
-  const ledgerOnly = people.filter((p) => !p.bank);
+  // Equal to the cent, give or take the odd cent a split can't divide.
+  const amounts = people.map((p) => p.shareCents);
+  const equal = Math.max(...amounts) - Math.min(...amounts) <= 1;
+  const typical = [...amounts].sort((a, b) => amounts.filter((x) => x === b).length - amounts.filter((x) => x === a).length)[0]!;
+  const timed = people.filter((p) => !p.unchanged && p.plan.length > 0);
+  const cadence = people.every((p) => p.plan.length <= 1)
+    ? "in one payment"
+    : timed.length === 0 || timed.every((p) => p.onPaydays)
+      ? "in small payments on your paydays"
+      : timed.some((p) => p.onPaydays)
+        ? "in small payments, on paydays where i know them"
+        : "in small payments every two weeks";
+  const intro = `${equal ? `everyone puts in ${money(typical)}` : "shares below"}, ${cadence}, all in by ${day(deadline)}`;
+  const ledgerOnly = people.filter((p) => !p.connected);
   const where =
     ledgerOnly.length === people.length
       ? "(i'm tracking the fund here for now)"
       : ledgerOnly.length
-        ? `(it moves from your checking into the fund on those days. no bank connected for ${nameList(ledgerOnly.map((p) => first(tc.label(p.personId))))}, so i'll just track ${ledgerOnly.length === 1 ? "theirs" : "those"} here)`
+        ? `(it moves from your checking into the fund on those days. ${nameList(ledgerOnly.map((p) => first(tc.label(p.personId))))}, no bank's connected for you, so i'll just track yours here)`
         : "(it moves from each of your checking accounts into the fund on those days)";
   const shares = new Map(people.map((p) => [p.personId, p.shareCents]));
   const over = await overBudget(tc, shares);
   const lines = people.map((p) => `${first(tc.label(p.personId))}: ${equal ? "" : `${money(p.shareCents)} · `}${scheduleText(p)}`);
   if (opts.compact) {
-    const changed = people.filter((p) => !p.unchanged);
-    const body = equal ? [`everyone: ${money(people[0]!.shareCents)}, ${changed[0] ? scheduleText(changed[0]) : scheduleText(people[0]!)}`] : lines;
-    say(tc, [header, intro, ...body].join("\n"), ...(over ? [over] : []));
+    say(tc, [header, intro, ...(equal ? [] : lines)].join("\n"), ...(over ? [over] : []));
     return true;
   }
   say(tc, [...(opts.lead ? [opts.lead] : []), header, intro, ...lines, where].join("\n"), ...(over ? [over] : []));
   return true;
+}
+
+/** "leo's next $90 goes in friday"; several on one day: "next ones go in oct 17: maya $164.46, leo $164.45". */
+function nextText(next: [number, { dueDate: string; amountCents: number }][], tc: Pick<TurnCtx, "label" | "today">): string {
+  const soonest = next[0]![1].dueDate;
+  const due = next.filter(([, n]) => n.dueDate === soonest);
+  if (due.length === 1) return `${first(tc.label(due[0]![0]))}'s next ${money(due[0]![1].amountCents)} goes in ${whenText(soonest, tc.today)}`;
+  return `next ones go in ${whenText(soonest, tc.today)}: ${due.map(([id, n]) => `${first(tc.label(id))} ${money(n.amountCents)}`).join(", ")}`;
 }
 
 /** The status line: "fund's at $840 / $1,200, leo's next $90 goes in friday". */
@@ -251,10 +272,10 @@ export async function fundStatus(tc: Pick<TurnCtx, "trip" | "label" | "today" | 
   tc.figures.add({ cents: totals.collectedCents, label: "trip fund collected", source: "ledger:fund", visibility: "public" });
   const next = [...(await nextContributions(tc.trip.id))].sort((a, b) => a[1].dueDate.localeCompare(b[1].dueDate));
   for (const [, n] of next) tc.figures.add({ cents: n.amountCents, label: "next contribution", source: "ledger:fund", visibility: "public" });
-  const lines = [`🏦 fund's at ${money(totals.collectedCents)} / ${money(totals.targetCents)}${next.length ? `, ${next.map(([id, n]) => `${first(tc.label(id))}'s next ${money(n.amountCents)} goes in ${whenText(n.dueDate, tc.today)}`).join(", ")}` : totals.collectedCents >= totals.targetCents ? ", fully funded ✓" : ""}`];
+  const lines = [`🏦 fund's at ${money(totals.collectedCents)} / ${money(totals.targetCents)}${next.length ? `, ${nextText(next, tc)}` : totals.collectedCents >= totals.targetCents ? ", fully funded ✓" : ""}`];
   for (const i of items) {
     tc.figures.add({ cents: i.amount_cents, label: `fund item: ${i.description}`, source: "ledger:fund", visibility: "public" });
-    lines.push(`${i.kind === "stay" ? "🏠 " : "• "}${i.description}: ${money(i.amount_cents)}${i.paid_at ? ", paid ✓" : ", booked, paid from the fund once it's covered"}`);
+    lines.push(`${i.kind === "stay" ? "🏠 " : "• "}${i.description}: ${money(i.amount_cents)}${i.paid_at ? ", paid ✓" : i.kind === "stay" ? ", booked, paid from the fund once it's covered" : ", paid from the fund once it's covered"}`);
   }
   return lines.join("\n");
 }
@@ -385,25 +406,30 @@ export async function collectFund(svc: Pick<AppServices, "post">, tripId: number
   const chat = await getChat(chatId);
   const today = isoDate(now(), chat?.timezone ?? "UTC");
   const label = await labeler(chatId);
-  const bank: string[] = [];
-  const ledger: string[] = [];
+  // One amount per person, even when a catch-up run moves several of their payments at once.
+  const bankBy = new Map<number, number>();
+  const ledgerBy = new Map<number, number>();
   let failed = false;
   for (const t of await dueContributions(tripId, today)) {
     try {
       const done = await executeContribution(t, trip);
-      (done.via === "bank" ? bank : ledger).push(`${label(t.person_id)} ${money(t.amount_cents)}`);
+      const { connected } = await personBank(t.person_id!, null);
+      const into = done.via === "bank" || connected ? bankBy : ledgerBy;
+      into.set(t.person_id!, (into.get(t.person_id!) ?? 0) + t.amount_cents);
     } catch (err) {
       failed = true;
       log().warn({ err: (err as Error).message, txn: t.id }, "contribution transfer failed; retrying later");
     }
   }
+  const bank = [...bankBy].map(([id, c]) => `${label(id)} ${money(c)}`);
+  const ledger = [...ledgerBy].map(([id, c]) => `${label(id)} ${money(c)}`);
   if (failed) await enqueueJob(FUND_COLLECT_JOB, { tripId, chatId }, { singletonKey: `fund-collect:${tripId}:retry`, dueAt: new Date(now().getTime() + 30 * 60_000) });
   const paid = await payDueItems(trip);
   if (!bank.length && !ledger.length && !paid.length) return null;
   const totals = await fundTotals(tripId);
   const lines: string[] = [];
   if (bank.length) lines.push(`💸 trip fund: ${nameList(bank)} went in ✓`);
-  if (ledger.length) lines.push(`${bank.length ? "" : "💸 trip fund: "}${nameList(ledger)} ${ledger.length === 1 ? "is" : "are"} due today, marked as in (no bank connected, so i'm just tracking ${ledger.length === 1 ? "it" : "those"})`);
+  if (ledger.length) lines.push(`${bank.length ? "" : "💸 trip fund: "}${nameList(ledger)} ${ledger.length === 1 ? "is" : "are"} due, marked as in (no bank connected, so i'm just tracking ${ledger.length === 1 ? "it" : "those"})`);
   lines.push(`fund's at ${money(totals.collectedCents)} / ${money(totals.targetCents)}`);
   for (const i of paid) lines.push(`${i.kind === "stay" ? "🏠" : "✓"} ${i.description} is paid in full from the fund ✓`);
   const text = lines.join("\n");

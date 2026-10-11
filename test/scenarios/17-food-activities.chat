@@ -47,7 +47,7 @@ expect sql SELECT count(*)::int AS n FROM trips, jsonb_array_elements(itinerary)
 expect sql SELECT i->>'notes' AS notes FROM trips, jsonb_array_elements(itinerary) d, jsonb_array_elements(d->'items') i WHERE i->>'time' = 'dinner' ~ "★"
 # a 👍 on someone naming a shortlisted place adds it
 priya: chai pani looks so good
-maya react like m20
+maya react like m15
 expect atlas ~ "✓ added chai pani"
 expect sql SELECT p.display_name AS who FROM trip_places t JOIN people p ON p.id = t.picked_by WHERE t.name = 'Chai Pani' = [{"who":"Maya"}]
 # picking one twice

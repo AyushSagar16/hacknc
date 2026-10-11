@@ -190,8 +190,10 @@ export interface PersonContributions {
   plan: { dueDate: string; amountCents: number }[];
   /** False: no paycheck rhythm known, so every two weeks. */
   onPaydays: boolean;
-  /** Connected bank behind the transfers (false: tracked in the ledger only). */
+  /** A transfer can actually move their money (a key, a fund account side and their checking). */
   bank: boolean;
+  /** They connected a bank (offline, their contributions are still only in the ledger). */
+  connected: boolean;
   unchanged: boolean;
 }
 
@@ -200,10 +202,11 @@ export function contributionPlanKey(shareCents: number, deadline: string): strin
   return createHash("sha1").update(`${shareCents}|${deadline}`).digest("hex").slice(0, 8);
 }
 
-async function personBank(personId: number, client: NessieClient | null) {
+export async function personBank(personId: number, client: NessieClient | null) {
   const link = await linkFor(personId);
-  const bank = Boolean(client && link?.checking_id && link.seed_status === "ready" && !link.seed_progress.offline);
-  return { link, bank };
+  const connected = link?.seed_status === "ready";
+  const bank = Boolean(client && link?.checking_id && connected && !link.seed_progress.offline);
+  return { link, bank, connected };
 }
 
 async function upcomingPaydays(personId: number, client: NessieClient | null, from: string, until: string): Promise<string[]> {
@@ -241,14 +244,14 @@ export async function planContributions(trip: TripRow, memberIds: number[], toda
     const shareCents = shares.get(personId) ?? 0;
     const contributedCents = paid.get(personId) ?? 0;
     const key = contributionPlanKey(shareCents, deadline);
-    const { bank } = await personBank(personId, client);
+    const { bank, connected } = await personBank(personId, client);
     const existing = await q<{ due_date: string; amount_cents: number }>(
       `SELECT due_date, amount_cents FROM fund_txns WHERE trip_id = $1 AND person_id = $2 AND kind = 'contribution' AND status = 'scheduled' AND plan_key = $3 ORDER BY due_date`,
       [trip.id, personId, key],
     );
     await q(`UPDATE fund_txns SET status = 'cancelled' WHERE trip_id = $1 AND person_id = $2 AND kind = 'contribution' AND status = 'scheduled' AND plan_key IS DISTINCT FROM $3`, [trip.id, personId, key]);
     if (existing.length) {
-      people.push({ personId, shareCents, contributedCents, plan: existing.map((e) => ({ dueDate: e.due_date, amountCents: e.amount_cents })), onPaydays: true, bank, unchanged: true });
+      people.push({ personId, shareCents, contributedCents, plan: existing.map((e) => ({ dueDate: e.due_date, amountCents: e.amount_cents })), onPaydays: true, bank, connected, unchanged: true });
       continue;
     }
     const remaining = Math.max(0, shareCents - contributedCents);
@@ -261,7 +264,7 @@ export async function planContributions(trip: TripRow, memberIds: number[], toda
         [trip.id, personId, inst.amountCents, inst.dueDate, key, `fundc:${trip.id}:${key}:${personId}:${contributedCents}:${i}`, now()],
       );
     }
-    people.push({ personId, shareCents, contributedCents, plan, onPaydays: paydays.length > 0, bank, unchanged: false });
+    people.push({ personId, shareCents, contributedCents, plan, onPaydays: paydays.length > 0, bank, connected, unchanged: false });
   }
   await q(`UPDATE fund_txns SET status = 'cancelled' WHERE trip_id = $1 AND kind = 'contribution' AND status = 'scheduled' AND NOT (person_id = ANY($2::bigint[]))`, [trip.id, memberIds]);
   const dueDates = [...new Set(people.flatMap((p) => p.plan.map((i) => i.dueDate)))].sort();

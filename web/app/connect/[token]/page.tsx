@@ -10,7 +10,7 @@ export const dynamic = "force-dynamic";
 
 export const metadata: Metadata = {
   title: "Connect your account",
-  description: "Share read-only balances and recent transactions with Atlas.",
+  description: "Share balances and recent transactions with Atlas, and pay into your trip fund.",
   robots: { index: false, follow: false, nocache: true },
   // The token is in the URL; don't hand it to anything this page links to.
   referrer: "no-referrer",
@@ -78,7 +78,7 @@ export default async function ConnectPage({ params }: Props) {
 
         <div className={s.assure}>
           <p>
-            <strong>Read-only.</strong> Atlas can’t move money or make payments with this connection.
+            <strong>You stay in control.</strong> Atlas only moves money for your trip-fund contributions on the schedule your group agrees to, and for settle-ups you confirm in the chat.
           </p>
           <p>
             <strong>Private.</strong> Your group only ever sees pooled numbers, never your balances or your budget.

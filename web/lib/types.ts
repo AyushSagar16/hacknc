@@ -25,6 +25,18 @@ export interface SiteOverview {
    */
   stages?: SiteStage[];
   fund?: SiteFund;
+  /** The booked stay, once there is one. */
+  stay?: SiteStay;
+}
+
+export interface SiteStay {
+  name: string;
+  kind: "hotel" | "rental";
+  checkIn: string;
+  checkOut: string;
+  totalCents: number;
+  link: string | null;
+  rating: number | null;
 }
 
 export interface SiteFund {
