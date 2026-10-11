@@ -17,6 +17,10 @@ This project reads secrets from `.env` (gitignored). **Do not read, write, or ec
 
 If startup fails with an authentication error, tell the user to verify their `PROJECT_ID` / `PROJECT_SECRET` at the [Photon dashboard](https://app.photon.codes).
 
+## Launch video
+
+`video/` is a Remotion project (see `video/README.md`). The Remotion agent skills from [`remotion-dev/skills`](https://github.com/remotion-dev/skills) are installed in `.claude/skills/` (start with `remotion-best-practices`); update them from `video/` with `npx remotion skills update`.
+
 ## Spectrum SDK reference
 
 This project includes the `spectrum` skill from [`photon-hq/skills`](https://github.com/photon-hq/skills). Your agent should auto-discover it. If it doesn't, or if you switch agents, install for your agent with:
