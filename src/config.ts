@@ -51,6 +51,11 @@ const schema = z.object({
   NESSIE_BASE_URL: optionalString.transform((v) => v ?? "https://api.nessieisreal.com"),
 
   SERPAPI_API_KEY: optionalString,
+  /**
+   * Keyless stay prices when SerpApi has no answer: hotels from Xotelo, rentals from Airbnb's search
+   * page (src/trips/freeStays.ts). Default: on for a real line, off in the simulator and tests.
+   */
+  FREE_STAY_PRICES: optionalString.pipe(z.enum(["on", "off"]).optional()),
 
   /** Trip pages: Atlas publishes each trip to Supabase and links SITE_BASE_URL/t/<uuid> in the chat. */
   SUPABASE_URL: optionalString,

@@ -15,7 +15,7 @@ schedules are deterministic code.
 | Profile | `src/profile/*` | Fact schema, Gemini extraction (validated; who reported each fact; refusal words for vetoes, numbers for ceilings; "same dates" resolved), deterministic aggregation, group view |
 | Money | `src/money/*`, `src/trips/ledger.ts` | Cents, splits, exact minimum settle-up, budget engine, paycheck cadence and payment plans, trip ledger, trip fund (`src/money/fund.ts`, `src/trips/fund.ts`) |
 | Nessie | `src/nessie/*` | Client (https, audit, last-good cache, circuit breaker), probe-driven capabilities, personas, resumable seeding, ledger replay, budgets |
-| Trips | `src/trips/*` | Catalog (destinations with vibe tags incl. `holiday`, 105 home airports), per-person drive times, constraints (no-fly and max-drive enforced per person), hard filter, scoring with a required vibe, SerpApi pricing with cache and fallback, votes (ties don't lock), itinerary (no repeats, seasonal), booking links, food & activities near the stay (SerpApi google_maps, `trips/nearby.ts`, `features/places.ts`: dietary-aware shortlist, picks onto the itinerary) |
+| Trips | `src/trips/*` | Catalog (destinations with vibe tags incl. `holiday`, 105 home airports), per-person drive times, constraints (no-fly and max-drive enforced per person), hard filter, scoring with a required vibe, SerpApi pricing with cache and fallback (keyless hotel and Airbnb prices in `trips/freeStays.ts`), votes (ties don't lock), itinerary (no repeats, seasonal), booking links, food & activities near the stay (SerpApi google_maps, `trips/nearby.ts`, `features/places.ts`: dietary-aware shortlist, picks onto the itinerary) |
 | Weather | `src/weather/*`, `features/weather.ts` | Open-Meteo forecast and 3-year climatology (`get_weather`), classification, change detection, cadence, cooldown, swaps |
 | Search | `src/search/*`, `features/search.ts` | `web_search`: result pages read in code, Gemini answers from them, every posted item verified against the source; Wikivoyage fallback |
 | Memory | `src/memory/*`, `features/memory.ts` | Embedding writer, hybrid BM25 + diskann recall (RRF) with recency and importance rerank, `atlas_log` of Atlas's own words |
@@ -80,8 +80,8 @@ schedules are deterministic code.
    group has voted and nobody votes for 30 s, Atlas names who hasn't, once per poll
    (`poll.remind` job); "skip" closes the poll with the votes in. "can we do X instead?" after a lock
    reopens it as a two-option poll. That fires `onTripLocked`: a recurring **weather.check** job and a decision memory. Once dates
-   are set, `find_stays` searches SerpApi google_hotels (hotels and `vacation_rentals=true`), sized
-   for the group and filtered to its budget, and polls three options. The winner is booked
+   are set, `find_stays` searches SerpApi google_hotels (hotels and `vacation_rentals=true`; without
+   an answer, Xotelo hotel rates and Airbnb's search page, `trips/freeStays.ts`), sized for the group and filtered to its budget, and polls three options. The winner is booked
    (`trips.stay`) onto the **trip fund** (a place someone booked themselves, "i booked mountain
    inn, 2 nights at 100", is logged on the tab and becomes `trips.stay` too, so the plan moves on): a Nessie customer "<Trip> Trip Fund" with a checking
    account. Each person's share (by `split_mode`) is planned as contributions on the day after each
@@ -209,7 +209,8 @@ Research and trade-offs: `docs/memory-research.md`.
   and retries never double-log or double-send.
 - Nessie: last-good cache for reads, circuit breaker, offline generated profiles when no key is set,
   and every call audited.
-- SerpApi failures fall back to labeled estimates per cost component. Open-Meteo failures retry
+- SerpApi failures fall back to the keyless stay sources (Xotelo, Airbnb; unofficial, so best-effort)
+  and then to labeled estimates per cost component. Open-Meteo failures retry
   with backoff, and rehearsal overrides skip the network.
 - Gemini failures: the gate fails closed, extraction retries next turn, the agent says it glitched
   only when it was explicitly addressed, and commands and money keep working without a key.

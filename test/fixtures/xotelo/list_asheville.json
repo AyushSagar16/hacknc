@@ -1,0 +1,64 @@
+{
+  "error": null,
+  "result": {
+    "total_count": 157,
+    "limit": 3,
+    "offset": 0,
+    "list": [
+      {
+        "name": "Cambria Hotel Downtown Asheville",
+        "key": "g60742-d12654219",
+        "accommodation_type": "Hotel",
+        "url": "https://www.tripadvisor.com/Hotel_Review-g60742-d12654219-Reviews-Cambria_Hotel_Downtown_Asheville-Asheville_North_Carolina.html",
+        "review_summary": {
+          "rating": 4.7,
+          "count": 1878
+        },
+        "price_ranges": {
+          "maximum": 485,
+          "minimum": 148
+        },
+        "geo": {
+          "latitude": 35.595356,
+          "longitude": -82.55587
+        }
+      },
+      {
+        "name": "Hampton Inn & Suites Asheville Biltmore Village",
+        "key": "g60742-d11918001",
+        "accommodation_type": "Hotel",
+        "url": "https://www.tripadvisor.com/Hotel_Review-g60742-d11918001-Reviews-Hampton_Inn_Suites_Asheville_Biltmore_Village-Asheville_North_Carolina.html",
+        "review_summary": {
+          "rating": 4.8,
+          "count": 1361
+        },
+        "price_ranges": {
+          "maximum": 501,
+          "minimum": 130
+        },
+        "geo": {
+          "latitude": 35.56172,
+          "longitude": -82.541466
+        }
+      },
+      {
+        "name": "Hampton Inn & Suites Asheville Biltmore Area",
+        "key": "g60742-d14143093",
+        "accommodation_type": "Hotel",
+        "url": "https://www.tripadvisor.com/Hotel_Review-g60742-d14143093-Reviews-Hampton_Inn_Suites_Asheville_Biltmore_Area-Asheville_North_Carolina.html",
+        "review_summary": {
+          "rating": 4.8,
+          "count": 847
+        },
+        "price_ranges": {
+          "maximum": 316,
+          "minimum": 129
+        },
+        "geo": {
+          "latitude": 35.531845,
+          "longitude": -82.60587
+        }
+      }
+    ]
+  }
+}

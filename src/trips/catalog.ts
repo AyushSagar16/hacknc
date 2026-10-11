@@ -59,6 +59,8 @@ export interface Destination {
   country: string;
   region: Region;
   iata: string;
+  /** TripAdvisor location id ("g60742"), for keyless hotel prices (freeStays.ts). */
+  tripadvisorGeo?: string;
   lat: number;
   lon: number;
   timezone: string;

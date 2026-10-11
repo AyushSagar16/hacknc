@@ -97,7 +97,8 @@ judge console is at http://127.0.0.1:8790. Without a Gemini key, deterministic f
 | `GEMINI_API_KEY` | Gemini for the agent, speak gate, extraction and embeddings. Several keys, comma-separated, are load-balanced (see below) |
 | `GEMINI_MODEL_AGENT` / `_GATE` / `_EXTRACT` / `GEMINI_EMBED_MODEL` | Model overrides |
 | `NESSIE_API_KEY`, `NESSIE_BASE_URL` | Capital One Nessie sandbox |
-| `SERPAPI_API_KEY` | Live Google Flights / Hotels prices (optional; otherwise labeled estimates) |
+| `SERPAPI_API_KEY` | Live Google Flights / Hotels prices (optional; without it, hotels come from Xotelo and rentals from Airbnb, else labeled estimates) |
+| `FREE_STAY_PRICES` | `on`/`off`: keyless hotel (Xotelo) and Airbnb prices when SerpApi has no answer. Default on for a real line, off in the simulator |
 | `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`, `SITE_BASE_URL` | Trip pages: where Atlas publishes each trip, and where `web/` is deployed. Leave empty to turn trip pages off |
 | `CONNECT_SECRET`, `PUBLIC_BASE_URL` | Bank connect: `CONNECT_SECRET` signs connect links and the site's callback (same value in `web/.env`); `PUBLIC_BASE_URL` is where the site calls Atlas back (`npm run live` sets it to its tunnel). See [Bank connect](#bank-connect-onboarding) |
 | `NUDGE_IDLE_SECONDS` | How long a group must be quiet after an unanswered message before Atlas follows up (default 150 on a real line, off in the simulator; 0 = off) |
@@ -332,4 +333,5 @@ Also built on:
 - [Tiger Data](https://www.tigerdata.com) (TimescaleDB, pgvector, pgvectorscale)
 - [Google Gemini](https://ai.google.dev)
 - [SerpApi](https://serpapi.com)
+- Hotel rates by [Xotelo](https://xotelo.com) (TripAdvisor partner rates); TripAdvisor ids for off-catalog places from [Wikidata](https://www.wikidata.org)
 - Weather data by [Open-Meteo](https://open-meteo.com), licensed CC BY 4.0

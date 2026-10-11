@@ -1,0 +1,34 @@
+{
+  "error": null,
+  "result": {
+    "chk_in": "2026-11-13",
+    "chk_out": "2026-11-15",
+    "currency": "USD",
+    "rates": [
+      {
+        "code": "BookingCom",
+        "name": "Booking.com",
+        "rate": 332,
+        "tax": null
+      },
+      {
+        "code": "CtripTA",
+        "name": "Trip.com",
+        "rate": 332,
+        "tax": null
+      },
+      {
+        "code": "Agoda",
+        "name": "Agoda.com",
+        "rate": 272,
+        "tax": null
+      },
+      {
+        "code": "Vio",
+        "name": "Vio.com",
+        "rate": 278,
+        "tax": null
+      }
+    ]
+  }
+}

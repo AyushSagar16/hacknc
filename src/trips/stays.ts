@@ -1,12 +1,14 @@
 // Where to stay: SerpApi google_hotels for hotels and (vacation_rentals=true) whole-home rentals
 // at the destination for the trip's dates, sized for the group, filtered to what the group can
 // afford, and narrowed to three named options (the cheapest, the best rated, a rental when one
-// fits). With no SerpApi key and nothing cached, the options are labeled estimates from the
-// destination's catalog costs, so the stay stage works offline. Nothing here throws on a bad
+// fits). When SerpApi has no answer, the keyless sources stand in (freeStays.ts: Xotelo hotels,
+// Airbnb rentals). With none of them, the options are labeled estimates from the destination's
+// catalog costs, so the stay stage works offline. Nothing here throws on a bad
 // response; it just yields fewer options.
 import { daysBetween } from "../clock.ts";
 import type { Destination } from "./catalog.ts";
 import { googleHotelsLink } from "./links.ts";
+import { airbnbRentals, xoteloHotels, type FreeHotel, type FreeRental } from "./freeStays.ts";
 import { search, type PriceDeps } from "./pricing.ts";
 
 export type StayKind = "hotel" | "rental";
@@ -27,8 +29,10 @@ export interface StayOption {
   link: string;
   lat: number | null;
   lon: number | null;
-  /** "live" from SerpApi, "estimate" from the catalog. */
+  /** "live" from a price source, "estimate" from the catalog. */
   source: "live" | "estimate";
+  /** Which live source; absent means SerpApi. */
+  via?: "serpapi" | "xotelo" | "airbnb";
   overBudget?: boolean;
 }
 
@@ -119,7 +123,8 @@ export function parseStays(body: unknown, opts: { nights: number; groupSize: num
 
 /**
  * Three options: within `capPerPersonCents` (each person's whole stay) when given; the cheapest,
- * the best rated, and a rental (or the next best value). When nothing fits, the three cheapest,
+ * the best rated, and the kind (hotel or rental) those two left out, else another rental, else the
+ * next best value. When nothing fits, the three cheapest,
  * flagged over budget.
  */
 export function pickStays(all: StayOption[], capPerPersonCents: number | null, count = 3): StayOption[] {
@@ -139,10 +144,32 @@ export function pickStays(all: StayOption[], capPerPersonCents: number | null, c
   };
   add(fits[0]);
   add([...fits].filter((s) => s.rating !== null).sort((a, b) => b.rating! - a.rating! || a.perPersonCents - b.perPersonCents)[0]);
+  add(fits.find((s) => !picks.some((p) => p.kind === s.kind)));
   add(fits.find((s) => s.kind === "rental" && !picks.includes(s)));
   // Then the best value: rating per dollar.
   for (const s of [...fits].sort((a, b) => (b.rating ?? 3) / b.perPersonCents - (a.rating ?? 3) / a.perPersonCents)) add(s);
   return picks.sort((a, b) => a.perPersonCents - b.perPersonCents);
+}
+
+/** Xotelo hotels as options: ceil(n/2) rooms, each priced for two. */
+export function hotelsAsStays(hotels: FreeHotel[], opts: { nights: number; groupSize: number }): StayOption[] {
+  const n = Math.max(1, opts.groupSize);
+  const nights = Math.max(1, opts.nights);
+  const rooms = Math.ceil(n / PEOPLE_PER_ROOM);
+  return hotels.map((h) => {
+    const totalCents = Math.round(h.roomTotalUsd * 100) * rooms;
+    return { name: h.name, kind: "hotel", totalCents, perPersonCents: Math.round(totalCents / n), perPersonNightCents: Math.round(totalCents / n / nights), rooms, sleeps: null, rating: h.rating, reviews: h.reviews, link: h.link, lat: h.lat, lon: h.lon, source: "live", via: "xotelo" };
+  });
+}
+
+/** Airbnb places as options. Airbnb already filtered to places that take the whole group. */
+export function rentalsAsStays(rentals: FreeRental[], opts: { nights: number; groupSize: number }): StayOption[] {
+  const n = Math.max(1, opts.groupSize);
+  const nights = Math.max(1, opts.nights);
+  return rentals.map((r) => {
+    const totalCents = Math.round(r.totalUsd * 100);
+    return { name: r.name, kind: "rental", totalCents, perPersonCents: Math.round(totalCents / n), perPersonNightCents: Math.round(totalCents / n / nights), rooms: 1, sleeps: null, rating: r.rating, reviews: r.reviews, link: r.link, lat: r.lat, lon: r.lon, source: "live", via: "airbnb" };
+  });
 }
 
 /** Labeled estimates from the catalog's lodging costs when no live prices are available. */
@@ -173,25 +200,33 @@ export function setStayFixture(f: { hotels?: unknown; rentals?: unknown } | unde
 
 /**
  * Hotels and rentals at the destination for these dates, sized for the group: live when SerpApi
- * answers (or a cached answer exists), else estimates. `capPerPersonCents` filters to budget.
+ * or a keyless source answers (or a cached answer exists), else estimates. `capPerPersonCents` filters to budget.
  */
 export async function findStays(dest: Destination, dates: { start: string; end: string }, groupSize: number, capPerPersonCents: number | null, deps: PriceDeps): Promise<{ options: StayOption[]; live: boolean }> {
   const nights = Math.max(1, daysBetween(dates.start, dates.end));
   const fallbackLink = googleHotelsLink(dest.name, dates.start, dates.end, groupSize);
-  let bodies: unknown[] = [];
-  if (fixture) bodies = [fixture.hotels, fixture.rentals].filter(Boolean);
+  let all: StayOption[] = [];
+  if (fixture) all = [fixture.hotels, fixture.rentals].filter(Boolean).flatMap((b) => parseStays(b, { nights, groupSize, fallbackLink }));
   else {
     try {
       const [hotels, rentals] = await Promise.all([
         search(staySearchParams(dest.name, dates.start, dates.end, groupSize, false), deps),
         search(staySearchParams(dest.name, dates.start, dates.end, groupSize, true), deps),
       ]);
-      bodies = [hotels?.body, rentals?.body].filter(Boolean);
+      let serpHotels = hotels ? parseStays(hotels.body, { nights, groupSize, fallbackLink }) : [];
+      let serpRentals = rentals ? parseStays(rentals.body, { nights, groupSize, fallbackLink }) : [];
+      // Each half SerpApi didn't answer falls to its keyless source.
+      const [freeHotels, freeRentals] = await Promise.all([
+        deps.freeStays && serpHotels.length === 0 ? xoteloHotels(dest, dates, nights, deps) : undefined,
+        deps.freeStays && serpRentals.length === 0 ? airbnbRentals(dest, dates, nights, groupSize, deps) : undefined,
+      ]);
+      if (freeHotels) serpHotels = hotelsAsStays(freeHotels.hotels, { nights, groupSize });
+      if (freeRentals) serpRentals = rentalsAsStays(freeRentals.rentals, { nights, groupSize });
+      all = [...serpHotels, ...serpRentals];
     } catch {
-      bodies = [];
+      all = [];
     }
   }
-  const all = bodies.flatMap((b) => parseStays(b, { nights, groupSize, fallbackLink }));
   if (all.length === 0) return { options: pickStays(estimatedStays(dest, dates, groupSize), capPerPersonCents), live: false };
   return { options: pickStays(all, capPerPersonCents), live: true };
 }

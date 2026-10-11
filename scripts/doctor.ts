@@ -108,7 +108,7 @@ if (cfg.SERPAPI_API_KEY) {
   } catch (err) {
     add("serpapi", false, (err as Error).message);
   }
-} else add("serpapi", "warn", "no SERPAPI_API_KEY: prices are labeled catalog estimates");
+} else add("serpapi", "warn", "no SERPAPI_API_KEY: flights are labeled estimates; stays use Xotelo and Airbnb (FREE_STAY_PRICES)");
 
 // Trip pages (Supabase + the deployed web/ site)
 if (cfg.SUPABASE_URL && cfg.SUPABASE_SERVICE_ROLE_KEY && cfg.SITE_BASE_URL) {
