@@ -81,7 +81,7 @@ describeDb("long-term memory", () => {
 
     const rows = await chunks();
     const windows = rows.filter((r) => r.kind === "message");
-    expect(windows.map((w) => w.content)).toEqual([expect.stringMatching(/^\[atlas\] hi, i'm atlas, your trip and financial planner.*\n\[atlas\] .*\n\[atlas\] so where are we thinking, and when\? also, want to connect your capital one so i can plan around real budgets\?$/s), "[Maya] heads up i'm vegetarian so somewhere with good veggie food"]);
+    expect(windows.map((w) => w.content)).toEqual([expect.stringMatching(/^\[atlas\] hi, i'm atlas, your trip and financial planner.*\n\[atlas\] .*\n\[atlas\] want to connect your capital one so i can plan around real budgets\?$/s), "[Maya] heads up i'm vegetarian so somewhere with good veggie food"]);
     expect(windows.every((w) => w.chat_id === chatId && w.visibility === "public" && w.person_id === null)).toBe(true);
     const mayaMsg = (await one<{ id: number }>(`SELECT id FROM messages WHERE text LIKE 'heads up%'`))!.id;
     expect(windows[1]!.source_ids).toEqual([mayaMsg]);

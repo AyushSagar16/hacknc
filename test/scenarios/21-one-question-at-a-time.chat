@@ -1,0 +1,56 @@
+# Getting set up, one question at a time, the same in a private chat and a group: name → capital one
+# → where and when. Each answer gets the next question right away (aimed at whoever owes it), a
+# message never asks two things, the agent's own question waits when Atlas already asked one, and
+# anyone who goes quiet on an open question gets one beckon a few hours later.
+today 2026-10-10 14:00
+members ayush? maya leo
+
+# A private chat with someone Atlas only has a number for, who opens with a trip ask.
+dm ayush
+~agent text: a solo trip sounds fun! where are you thinking of heading?
+ayush: can you help me plan a trip by myself
+expect atlas ~ "plan a solo trip with you"
+expect atlas ~ "reply with your first name"
+expect atlas !~ "capital one"
+expect atlas !~ "where are you thinking"
+
+# The name, then the bank question on its own.
+ayush: Ayush
+expect atlas reacted like
+expect atlas says 2
+expect atlas ~ "want to connect your capital one so i can plan around real budgets?"
+expect atlas !~ "where"
+
+ayush: yes connect my cap 1
+expect atlas ~ "here's yours ayush 🔒"
+expect atlas !~ "where"
+
+# Connected: straight on to where and when, nothing else in the same go.
+ayush connects
+expect atlas says 2
+expect atlas ~ "you're connected ✓"
+expect atlas ~ "next up so i can start planning: where are you thinking of heading, and when?"
+
+# Nothing back: one beckon a few hours later, then no more.
+clock +4h
+expect atlas ~ "still up for a trip?"
+expect atlas ~ "where are you thinking of heading, and when?"
+clock +1d
+expect atlas !~ "still up for a trip?"
+
+# The group: the intro's one question is the bank, then where and when once someone is through, and
+# whoever hasn't answered is beckoned by name.
+group
+atlas joins by maya
+expect atlas ~ "want to connect your capital one"
+expect atlas !~ "where are we thinking"
+maya: nah
+expect atlas ~ "maya, roughly how much do you want to spend on this trip"
+maya: like 800
+expect atlas ~ "got it maya, i'll plan around that"
+expect atlas ~ "next up so i can start planning: where are we thinking, and when?"
+clock +4h
+expect atlas ~ "still need a rough budget from you"
+expect atlas ~ "leo"
+expect atlas !~ "maya,"
+expect transcript !~ /demo|sandbox|nessie|synthetic|simulated/

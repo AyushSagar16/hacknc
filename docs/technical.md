@@ -203,7 +203,7 @@ your capital one so i can plan around real budgets?" (late joiners are asked in 
    Nessie customer, computes their budget and says "maya's connected ✓" in the group. No figure:
    budgets stay private.
 4. "no"/"nah" → Atlas asks for a rough number instead ("like 600" sets it). Whoever has neither
-   connected nor given a budget gets one nudge about a day later (`connect.nudge` job).
+   connected nor given a budget gets one nudge a few hours later (`connect.nudge` job).
 
 State lives in `bank_connections` (migration 010). In the chat it's always "your capital one"; Nessie
 is the backend. To try it end to end: set the same `CONNECT_SECRET` in `.env` and `web/.env.local`,

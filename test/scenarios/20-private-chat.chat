@@ -20,6 +20,7 @@ expect atlas ~ "here's yours maya 🔒"
 expect atlas ~ "/connect/"
 maya connects
 expect atlas ~ "you're connected ✓"
+expect atlas ~ "next up so i can start planning: where are you thinking of heading, and when?"
 
 maya: what's my balance?
 expect atlas ~ "your accounts right now"

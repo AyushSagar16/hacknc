@@ -54,17 +54,21 @@ schedules are deterministic code.
 1. A friend adds the Atlas number to a group. Linq sends `participant.added` (or `chat.created`),
    which goes through the signature check, `webhook_events`, the Spectrum `addMember` record and
    the inbox. That runs a turn and sends the **intro** once. Members Atlas hasn't heard from are
-   learned with `GET /chats/{id}`. Linq gives phone numbers, not contact names, so for anyone
-   `demo/roster.json` doesn't name, the intro (and a late joiner's welcome) first asks everyone to
-   reply with their first name; a chat that was already going gets the question once
-   (`features/names.ts`, `asks` field `name`). "ayush", "i'm ayush" or "8005 is maya" are read with
-   no model. The intro (and each late joiner's welcome) also asks everyone to
-   **connect their capital one**: "yes" gets a signed link to the consent page on the trip site, whose
-   approval (filed in Supabase's `connect_events` and polled by `src/connect/inbox.ts`, so no tunnel is
-   needed; `POST /connect-callback` for older links) links and seeds that person's Nessie customer
-   (a persona-varied profile) and computes their budget. "no" gets asked for a rough number; one
-   nudge after a day (`bank_connections`, `features/connect.ts`). The chat calls it their connected Capital One account and never says Nessie,
-   sandbox or demo.
+   learned with `GET /chats/{id}`. Getting set up is **one question at a time**, the same in a group
+   and a private chat (`features/onboarding.ts`): each person goes name → capital one, then the chat
+   is asked where and when. As soon as one answer lands, the next question goes out, aimed at whoever
+   still owes it; a message never asks two things (the agent's own question is dropped when Atlas
+   already asked one), and anyone who goes quiet on an open question gets one beckon a few hours
+   later. Linq gives phone numbers, not contact names, so for anyone `demo/roster.json` doesn't name,
+   the intro (and a late joiner's welcome) asks for their first name first; a chat that was already
+   going gets the question once (`features/names.ts`, `asks` field `name`). "ayush", "i'm ayush" or
+   "8005 is maya" are read with no model. Next, each person is asked to **connect their capital
+   one**: "yes" gets a signed link to the consent page on the trip site, whose approval (filed in
+   Supabase's `connect_events` and polled by `src/connect/inbox.ts`, so no tunnel is needed;
+   `POST /connect-callback` for older links) links and seeds that person's Nessie customer (a
+   persona-varied profile), computes their budget and asks the next question. "no" gets asked for a
+   rough number; one nudge a few hours later (`bank_connections`, `features/connect.ts`). The chat
+   calls it their connected Capital One account and never says Nessie, sandbox or demo.
 2. Friends talk. Each burst becomes one turn. **Extraction** runs on every batch in parallel with
    the **speak gate**, so Atlas learns even when it stays silent. Facts land with quotes; the
    aggregator resolves the current truth.

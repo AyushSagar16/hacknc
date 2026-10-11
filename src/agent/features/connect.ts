@@ -3,8 +3,8 @@
 // trip site (web/app/connect/[token]); the page files the approval in Supabase (src/connect/inbox.ts
 // picks it up) or calls back POST /connect-callback, and only then is
 // a Nessie customer linked and seeded for them (the chat calls it "your capital one"). Anyone who
-// says no is asked for a rough budget instead, and anyone who has done neither after a day gets one
-// nudge. Everything here is deterministic; the agent only gets `send_connect_link` for fuzzy asks.
+// says no is asked for a rough budget instead, and anyone who has done neither a few hours later gets
+// one nudge. Everything here is deterministic; the agent only gets `send_connect_link` for fuzzy asks.
 import { randomBytes } from "node:crypto";
 import type { Config } from "../../config.ts";
 import { isoDate, now } from "../../clock.ts";
@@ -21,6 +21,7 @@ import type { AppServices, Feature, TurnCtx } from "../feature.ts";
 import { ToolError, say, str, type Tool, type ToolCtx } from "../tools.ts";
 import { MAX_BUDGET_CENTS, MIN_BUDGET_CENTS } from "./budgets.ts";
 import { isNameLine } from "./names.ts";
+import { askAfterConnect, isWhereAsk, PROGRESS } from "./onboarding.ts";
 import { nameList } from "./planning.ts";
 
 export const CONNECT_QUESTION = "want to connect your capital one so i can plan around real budgets?";
@@ -28,8 +29,8 @@ export const CONNECT_QUESTION = "want to connect your capital one so i can plan 
 const ASK_OPEN_MS = 30 * 60_000;
 /** How long after "what's a rough number?" a bare number is read as their budget. */
 const BUDGET_ANSWER_MS = 24 * 3_600_000;
-/** One nudge for people who neither connected nor gave a budget, about a day after the ask. */
-export const NUDGE_AFTER_MS = 24 * 3_600_000;
+/** One nudge for people who neither connected nor gave a budget, a few hours after the ask (same as onboarding's BECKON_AFTER_MS). */
+export const NUDGE_AFTER_MS = 3 * 3_600_000;
 
 export type ConnectStatus = "offered" | "link_sent" | "connected" | "declined";
 
@@ -146,7 +147,7 @@ const NO = new RegExp(
   "i",
 );
 /** Anytime, from anyone: "connect me", "atlas connect my capital one", "how do i connect my bank". */
-const CONNECT_ME = /\b(?:connect (?:me|my (?:capital one|cap one|bank|account|card))|(?:send|give) me (?:a|my|the) (?:connect|connection) link|(?:new|another) (?:connect )?link)\b/i;
+const CONNECT_ME = /\b(?:connect (?:me|my (?:capital ?one|capital 1|cap ?one|cap ?1|bank|account|card))|(?:send|give) me (?:a|my|the) (?:connect|connection) link|(?:new|another) (?:connect )?link)\b/i;
 
 export const isYes = (text: string) => YES.test(text.trim());
 export const isNo = (text: string) => NO.test(text.trim());
@@ -160,9 +161,12 @@ export function parseRoughBudget(text: string): number | null {
   return Number.isFinite(n) ? Math.round(n * 100) : null;
 }
 
-/** Atlas's own connect-flow replies, which don't close the ask ("here's yours maya 🔒", the link). */
+/**
+ * Atlas's own onboarding replies, which don't close the ask ("here's yours maya 🔒", the link, the
+ * next person's name question, "where are we thinking, and when?").
+ */
 function isFlowReply(text: string): boolean {
-  if (isNameLine(text)) return true;
+  if (isNameLine(text) || isWhereAsk(text)) return true;
   return /🔒|connected ✓|\/connect\/|won't connect anything|roughly how much do you want to spend|i'll plan around that 👍/.test(text);
 }
 
@@ -286,6 +290,7 @@ export const connectFeature: Feature = {
           const budget = await setAdjusted(personId, tc.trip.id, cents);
           await q(`UPDATE bank_connections SET budget_asked_at = NULL, updated_at = $3 WHERE person_id = $1 AND chat_id = $2`, [personId, tc.chat.id, tc.now]);
           say(tc, `got it ${firstName(tc, personId)}, i'll plan around that 👍${budget.visibility === "private" ? " (kept private)" : ""}`);
+          tc.notes.set(PROGRESS, true);
           return true;
         }
       }
@@ -335,10 +340,12 @@ export const connectFeature: Feature = {
         if (!claimed) return;
         const name = labelOf(person ?? { display_name: null, handle: null }).toLowerCase().split(/\s+/)[0] ?? "";
         const text = chat.is_group ? `${name}'s connected ✓` : `you're connected ✓ ask me "what's my balance", "what did i spend this month" or "what bills are coming up"`;
-        await svc.post(chatId, `connect${jobId}`, [{ type: "say", text }]);
+        // Then the next question, so connecting doesn't leave the plan waiting on nobody.
+        const next = chat.quiet_mode ? null : await askAfterConnect(chatId, now());
+        await svc.post(chatId, `connect${jobId}`, [{ type: "say", text }, ...(next ? [{ type: "say" as const, text: next }] : [])]);
       },
 
-      // One nudge, about a day after the ask, for whoever neither connected nor gave a budget.
+      // One nudge, a few hours after the ask, for whoever neither connected nor gave a budget.
       "connect.nudge": async (payload, { jobId }) => {
         const chatId = Number(payload.chatId);
         const chat = await getChat(chatId);
@@ -356,7 +363,7 @@ export const connectFeature: Feature = {
             [chatId, r.person_id],
           );
           if (stated) continue;
-          const dueAt = r.offered_at.getTime() + NUDGE_AFTER_MS - 60 * 60_000; // "about a day"
+          const dueAt = r.offered_at.getTime() + NUDGE_AFTER_MS - 60_000;
           if (dueAt <= at.getTime()) due.push(r);
           else next = Math.min(next ?? Infinity, dueAt);
         }
@@ -366,7 +373,7 @@ export const connectFeature: Feature = {
           if (!chat.quiet_mode) {
             const byId = new Map(members.map((m) => [m.id, m]));
             const names = ids.map((id) => labelOf(byId.get(id) ?? { display_name: null, handle: null }).toLowerCase().split(/\s+/)[0] ?? "").filter(Boolean);
-            const text = `${nameList(names)}, i still need a rough budget from you to plan around 🙏\nsay "connect me" to connect your capital one, or just tell me a number`;
+            const text = `${chat.is_group ? `${nameList(names)}, i` : "i"} still need a rough budget from you to plan around 🙏\nsay "connect me" to connect your capital one, or just tell me a number`;
             await svc.post(chatId, `connect-nudge${jobId}`, [{ type: "say", text }]);
           }
         }

@@ -26,6 +26,7 @@ import { travelFeature } from "./agent/features/travel.ts";
 import { fundFeature } from "./agent/features/fund.ts";
 import { placesFeature } from "./agent/features/places.ts";
 import { namesFeature } from "./agent/features/names.ts";
+import { onboardingFeature } from "./agent/features/onboarding.ts";
 import { createLlm, type Llm } from "./agent/llm.ts";
 import { JobRunner, pruneOld } from "./pipeline/jobs.ts";
 import { Pipeline, pacingFromConfig } from "./pipeline/pipeline.ts";
@@ -72,6 +73,7 @@ export async function startAtlas(opts: AppOptions): Promise<AtlasApp> {
     planningFeature,
     namesFeature,
     connectFeature,
+    onboardingFeature,
     bankingFeature,
     budgetsFeature,
     proposalsFeature,

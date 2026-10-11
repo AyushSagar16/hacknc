@@ -62,7 +62,7 @@ describe("connect replies", () => {
     for (const t of ["ok", "cool", "yes but where are we going", "lol"]) expect(isYes(t), t).toBe(false);
     for (const t of ["no", "nah", "no thanks", "i'm good", "not now", "pass"]) expect(isNo(t), t).toBe(true);
     for (const t of ["no way that's so cheap!", "nah lisbon is better"]) expect(isNo(t), t).toBe(false);
-    for (const t of ["connect me", "atlas connect my capital one", "can you connect my bank?"]) expect(wantsConnect(t), t).toBe(true);
+    for (const t of ["connect me", "atlas connect my capital one", "can you connect my bank?", "yes connect my cap 1"]) expect(wantsConnect(t), t).toBe(true);
     expect(wantsConnect("the flights connect in atlanta")).toBe(false);
   });
 

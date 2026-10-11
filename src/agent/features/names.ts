@@ -15,6 +15,7 @@ import { recordAsk } from "../../profile/store.ts";
 import { destinations } from "../../trips/catalog.ts";
 import type { AppServices, Feature, TurnCtx } from "../feature.ts";
 import { say } from "../tools.ts";
+import { PROGRESS } from "./onboarding.ts";
 import { nameList } from "./planning.ts";
 
 export const NAME_FIELD = "name";
@@ -119,6 +120,7 @@ async function learn(tc: TurnCtx, personId: number, name: string): Promise<void>
   await setDisplayName(personId, name, { overwrite: true });
   const m = tc.members.find((x) => x.id === personId);
   if (m) m.display_name = name;
+  tc.notes.set(PROGRESS, true);
 }
 
 export const namesFeature: Feature = {

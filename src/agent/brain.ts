@@ -23,8 +23,9 @@ import type { Feature, TurnCtx } from "./feature.ts";
 import { Figures } from "./figures.ts";
 import type { Llm } from "./llm.ts";
 import { nameList } from "./features/planning.ts";
-import { CONNECT_QUESTION, isConnected, offerConnect } from "./features/connect.ts";
-import { NAME_QUESTION, recordNameAsks, unnamed } from "./features/names.ts";
+import { CONNECT_QUESTION } from "./features/connect.ts";
+import { unnamed } from "./features/names.ts";
+import { appendNextAsk, asking, asksForAnswer, nextAsk, recordAsked } from "./features/onboarding.ts";
 import { warmMemory } from "./features/memory.ts";
 import { oneSiteLink } from "./links.ts";
 import { describeSituation } from "./situation.ts";
@@ -55,25 +56,26 @@ export const MAX_ACKS_PER_TURN = 4;
 /** A silent reply waits this long for extraction, to know which messages gave Atlas something. */
 const ACK_EXTRACTION_WAIT_MS = 20_000;
 
-/** The intro. `askNames`: some members are only phone numbers to Atlas, so it asks who's who first. */
-export function introLines(agentName: string, opts: { askNames?: boolean } = {}): string[] {
+/**
+ * The intro, then its one question (src/agent/features/onboarding.ts): names first when some
+ * members are only phone numbers to Atlas, otherwise the capital one question.
+ */
+export function introLines(agentName: string, opts: { ask?: string } = {}): string[] {
   const n = agentName.toLowerCase();
   return [
     `hi, i'm ${n}, your trip and financial planner 👋 i'll keep track of what everyone wants and can spend, and help you all actually book this thing`,
     `i read along and jump in when it helps the plan. tag me ("${n}") anytime, or tell me to stay quiet.\neveryone's budget stays private: the group only ever sees pooled numbers`,
-    ...(opts.askNames ? [NAME_QUESTION] : []),
-    `so where are we thinking, and when?\nalso, ${CONNECT_QUESTION}`,
+    opts.ask ?? `so where are we thinking, and when?`,
   ];
 }
 
-/** The first message in a private chat: what Atlas does one-on-one. */
-export function dmIntroLines(agentName: string, opts: { askName?: boolean; askConnect?: boolean } = {}): string[] {
+/** The first message in a private chat: what Atlas does one-on-one, then its one question. */
+export function dmIntroLines(agentName: string, opts: { ask?: string } = {}): string[] {
   const n = agentName.toLowerCase();
   return [
     `hey, i'm ${n} 👋 in here it's just you and me`,
     `i can check your balances, spending and bills, move money between your checking and savings, or plan a solo trip with you.\nfor a trip with friends, add me to your group chat`,
-    ...(opts.askName ? [NAME_QUESTION] : []),
-    opts.askConnect ? CONNECT_QUESTION : `try "what's my balance" or "help me plan a weekend away"`,
+    opts.ask ?? `try "what's my balance" or "help me plan a weekend away"`,
   ];
 }
 
@@ -99,6 +101,8 @@ export function createBrain(deps: BrainDeps): TurnHandler & { settle(): Promise<
   const handler = async (input: TurnInput): Promise<TurnResult> => {
     let ctxRef: TurnCtx | undefined;
     const result = await turn(input, (tc) => (ctxRef = tc));
+    // The next onboarding question, when this turn answered one (or Atlas is talking anyway).
+    if (ctxRef) await appendNextAsk(ctxRef, result.actions).catch((err) => childLog({ component: "brain", chat: input.chat.id }).warn({ err: (err as Error).message }, "next onboarding question failed"));
     result.actions = oneSiteLink(result.actions, cfg.SITE_BASE_URL);
     if (ctxRef) for (const f of features) if (f.afterTurn) await f.afterTurn(ctxRef).catch(() => {});
     return result;
@@ -174,18 +178,17 @@ export function createBrain(deps: BrainDeps): TurnHandler & { settle(): Promise<
     const dm = !chat.is_group;
     if (dm && !chat.intro_sent_at && input.batch.some((m) => m.kind === "text" && m.speakable && m.person_id !== null) && (await markIntroSent(chat.id, now))) {
       chat.intro_sent_at = now;
-      const nameless = unnamed(members);
-      const owner = members[0];
-      say(tc, ...dmIntroLines(agentName, { askName: nameless.length > 0, askConnect: owner ? !(await isConnected(owner.id)) : false }));
-      await recordNameAsks(chat.id, nameless.map((m) => m.id), now);
+      const ask = await nextAsk(chat, members, trip, { intro: true });
+      say(tc, ...dmIntroLines(agentName, { ask: ask?.text }));
+      if (ask) await recordAsked(chat.id, ask, now);
       // A hello gets just the intro; anything else ("what's my balance") is answered below too.
       for (const m of input.batch) if (m.kind === "text" && isBareGreeting(m.text, agentName)) tc.consumed.add(m.id);
       route = "intro";
     } else if (!dm && !chat.intro_sent_at && (await markIntroSent(chat.id, now))) {
-      const nameless = unnamed(members);
-      say(tc, ...introLines(agentName, { askNames: nameless.length > 0 }));
-      await recordNameAsks(chat.id, nameless.map((m) => m.id), now);
-      await offerConnect(chat.id, members.map((m) => m.id), now);
+      chat.intro_sent_at = now;
+      const ask = await nextAsk(chat, members, trip, { intro: true });
+      say(tc, ...introLines(agentName, { ask: ask?.text }));
+      if (ask) await recordAsked(chat.id, ask, now);
       route = "intro";
     }
 
@@ -228,15 +231,17 @@ export function createBrain(deps: BrainDeps): TurnHandler & { settle(): Promise<
           const newcomers = members.filter((m) => m.handle && handles.includes(m.handle));
           const added = newcomers.map((m) => firstNames.get(m.id) ?? "").filter((n) => /^[a-z]/.test(n));
           const who = added.length && added.length <= 3 ? ` ${nameList(added)}` : "";
-          // Late joiners get the same bank-connect question as everyone at the intro, and the name
-          // question when Atlas only has their number.
-          const nameless = unnamed(newcomers);
-          if (nameless.length) {
-            say(tc, `welcome! i'm ${agentName.toLowerCase()}, i keep the trip + money side organized. say "${agentName.toLowerCase()} summarize" and i'll catch you up\n${NAME_QUESTION}`);
-            await recordNameAsks(chat.id, nameless.map((m) => m.id), now);
-            say(tc, `${who ? `${who.trim()}, ` : ""}${CONNECT_QUESTION}`);
-          } else say(tc, `welcome${who}! i'm ${agentName.toLowerCase()}, i keep the trip + money side organized. say "${agentName.toLowerCase()} summarize" and i'll catch you up\n${who ? `${who.trim()}, ` : ""}${CONNECT_QUESTION}`);
-          await offerConnect(chat.id, newcomers.map((m) => m.id), now);
+          // Late joiners get one question, like everyone at the intro: their name when Atlas only has
+          // their number (the bank question follows once they answer), otherwise the bank question.
+          const welcome = `welcome${unnamed(newcomers).length ? "" : who}! i'm ${agentName.toLowerCase()}, i keep the trip + money side organized. say "${agentName.toLowerCase()} summarize" and i'll catch you up`;
+          const ask = await nextAsk(chat, members, tc.trip);
+          if (ask?.kind === "connect" && newcomers.length && ask.people.every((p) => newcomers.some((n) => n.id === p.id))) {
+            say(tc, `${welcome}\n${who ? `${who.trim()}, ` : ""}${CONNECT_QUESTION}`);
+            await recordAsked(chat.id, ask, now);
+          } else if (ask?.kind === "name") {
+            say(tc, `${welcome}\n${ask.text}`);
+            await recordAsked(chat.id, ask, now);
+          } else say(tc, welcome);
           route = "welcome";
         }
         tc.consumed.add(msg.id);
@@ -393,9 +398,9 @@ export function createBrain(deps: BrainDeps): TurnHandler & { settle(): Promise<
     }
     // A tool already posted the question/breakdown: the model's lead-in would only repeat it.
     if (out.soloPosted || (!addressed && actions.length > toolStart)) bubbles = [];
-    // A tool asked the group something ("omar, nina wants to make it $54.00… reply yes"): the model's
-    // own question ("want me to update it?") would be a second prompt for the same answer.
-    if (actions.length > toolStart && actions.slice(toolStart).some((a) => a.type === "say" && asksForAnswer(a.text))) bubbles = bubbles.filter((b) => !/\?\s*$/.test(b));
+    // Something this turn already asks ("omar, nina wants to make it $54.00… reply yes", the intro's
+    // name question): the model's own question would be a second one in the same go.
+    if (asking(actions)) bubbles = bubbles.filter((b) => !/\?\s*$/.test(b));
     // Unprompted, never restate something Atlas just said.
     if (!explicitlyAddressed) bubbles = bubbles.filter((b) => !repeatsRecent(b, history));
     const guarded = guardBubbles(bubbles, figures, audienceOf(tc));
@@ -584,9 +589,7 @@ async function within<T>(p: Promise<T>, ms: number): Promise<T | undefined> {
 }
 
 /** A post that waits on someone's answer: a question, or "reply yes"/"say confirm". */
-export function asksForAnswer(text: string): boolean {
-  return /\?\s*$/.test(text.trim()) || /\b(?:reply|say|type|text)\s+"?(?:yes|no|confirm|ok)\b/i.test(text);
-}
+export { asksForAnswer };
 
 const STOP = new Set("a an the and or but so to of in on for at by with is are was be it its this that you your we our us i me my just now then up so can will would should do does did have has had from as if not no yes ok".split(" "));
 const words = (t: string) => new Set(t.toLowerCase().replace(/[^\p{L}\p{N}\s]/gu, " ").split(/\s+/).filter((w) => w.length > 1 && !STOP.has(w)));
